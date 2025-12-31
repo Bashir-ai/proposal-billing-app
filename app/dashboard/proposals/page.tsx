@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
@@ -43,13 +43,7 @@ export default function ProposalsPage() {
   const [clients, setClients] = useState<Array<{ id: string; name: string }>>([])
   const [tags, setTags] = useState<Array<{ id: string; name: string }>>([])
 
-  useEffect(() => {
-    fetchProposals()
-    fetchClients()
-    fetchTags()
-  }, [statusFilter, clientApprovalFilter, clientFilter, tagFilter])
-
-  const fetchProposals = async () => {
+  const fetchProposals = useCallback(async () => {
     try {
       const params = new URLSearchParams()
       if (statusFilter) params.append("status", statusFilter)
@@ -67,9 +61,9 @@ export default function ProposalsPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [statusFilter, clientApprovalFilter, clientFilter, tagFilter])
 
-  const fetchClients = async () => {
+  const fetchClients = useCallback(async () => {
     try {
       const response = await fetch("/api/clients")
       if (response.ok) {
@@ -79,9 +73,9 @@ export default function ProposalsPage() {
     } catch (error) {
       console.error("Failed to fetch clients:", error)
     }
-  }
+  }, [])
 
-  const fetchTags = async () => {
+  const fetchTags = useCallback(async () => {
     try {
       const response = await fetch("/api/proposal-tags")
       if (response.ok) {
@@ -91,7 +85,13 @@ export default function ProposalsPage() {
     } catch (error) {
       console.error("Failed to fetch tags:", error)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    fetchProposals()
+    fetchClients()
+    fetchTags()
+  }, [fetchProposals, fetchClients, fetchTags])
 
   const filteredProposals = proposals.filter((proposal) => {
     if (searchQuery) {
