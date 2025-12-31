@@ -8,32 +8,33 @@ import { Button } from "@/components/ui/button"
 import { FileText, Receipt, Users, TrendingUp } from "lucide-react"
 
 export default async function DashboardPage() {
-  const session = await getServerSession(authOptions)
+  try {
+    const session = await getServerSession(authOptions)
 
-  const [proposalsCount, billsCount, clientsCount, totalRevenue] = await Promise.all([
-    prisma.proposal.count({
-      where: session?.user.role === "CLIENT" 
-        ? { client: { email: session?.user.email } }
-        : undefined
-    }),
-    prisma.bill.count({
-      where: session?.user.role === "CLIENT"
-        ? { client: { email: session?.user.email } }
-        : undefined
-    }),
-    prisma.client.count(),
-    prisma.bill.aggregate({
-      where: {
-        status: "PAID",
-        ...(session?.user.role === "CLIENT" 
+    const [proposalsCount, billsCount, clientsCount, totalRevenue] = await Promise.all([
+      prisma.proposal.count({
+        where: session?.user.role === "CLIENT" 
           ? { client: { email: session?.user.email } }
-          : {})
-      },
-      _sum: {
-        amount: true,
-      },
-    }),
-  ])
+          : undefined
+      }),
+      prisma.bill.count({
+        where: session?.user.role === "CLIENT"
+          ? { client: { email: session?.user.email } }
+          : undefined
+      }),
+      prisma.client.count(),
+      prisma.bill.aggregate({
+        where: {
+          status: "PAID",
+          ...(session?.user.role === "CLIENT" 
+            ? { client: { email: session?.user.email } }
+            : {})
+        },
+        _sum: {
+          amount: true,
+        },
+      }),
+    ])
 
   const stats = [
     {
@@ -125,5 +126,24 @@ export default async function DashboardPage() {
         </Card>
       </div>
     </div>
-  )
+    )
+  } catch (error) {
+    // If there's an error (e.g., database connection), show a fallback UI
+    console.error("Error loading dashboard:", error)
+    return (
+      <div>
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold">Dashboard</h1>
+          <p className="text-gray-600 mt-2">Unable to load dashboard data. Please try again later.</p>
+        </div>
+        <Card>
+          <CardContent className="p-6">
+            <p className="text-sm text-gray-500">
+              There was an error connecting to the database. Please check your connection and try again.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 }
