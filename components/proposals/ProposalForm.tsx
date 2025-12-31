@@ -1208,7 +1208,7 @@ export function ProposalForm({ onSubmit, initialData, clients, users = [], loadi
           <CardContent>
             {items.length === 0 ? (
               <p className="text-sm text-gray-500 text-center py-4">
-                No items added yet. Click "Add Line Item" to get started.
+                No items added yet. Click &quot;Add Line Item&quot; to get started.
               </p>
             ) : (
               <div className="space-y-4">
