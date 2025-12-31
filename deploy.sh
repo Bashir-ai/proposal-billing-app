@@ -63,3 +63,4 @@ echo ""
 echo "💡 Tip: Generate NEXTAUTH_SECRET with: openssl rand -base64 32"
 echo ""
 
+

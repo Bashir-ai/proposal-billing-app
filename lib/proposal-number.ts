@@ -51,3 +51,4 @@ export function isValidProposalNumberFormat(proposalNumber: string): boolean {
   return pattern.test(proposalNumber)
 }
 
+
