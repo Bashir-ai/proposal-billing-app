@@ -43,8 +43,3 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 - NextAuth.js
 - Tailwind CSS
 - shadcn/ui components
-
-
-
-
-# proposal-billing-app
