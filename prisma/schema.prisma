@@ -1,0 +1,305 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  STAFF
+  CLIENT
+}
+
+enum ProposalType {
+  FIXED_FEE
+  CAPPED_FEE
+  HOURLY
+  RETAINER
+  BLENDED_RATE
+  SUCCESS_FEE
+  MIXED_MODEL
+  // Keep existing for backward compatibility
+  LUMP_SUM
+  SUBJECT_BASIS
+}
+
+enum ProposalStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+enum BillStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  PAID
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ClientApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ProjectStatus {
+  ACTIVE
+  COMPLETED
+  ON_HOLD
+  CANCELLED
+}
+
+enum UpfrontPaymentType {
+  PERCENT
+  FIXED_AMOUNT
+}
+
+enum InstallmentType {
+  TIME_BASED
+  MILESTONE_BASED
+}
+
+enum InstallmentFrequency {
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+}
+
+model User {
+  id              String   @id @default(cuid())
+  email           String   @unique
+  name            String
+  password        String
+  role            UserRole @default(STAFF)
+  defaultHourlyRate Float?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  createdProposals Proposal[] @relation("ProposalCreator")
+  createdBills     Bill[]     @relation("BillCreator")
+  approvals         Approval[]
+  createdClients    Client[]   @relation("ClientCreator")
+  proposalItems     ProposalItem[] @relation("ProposalItemPerson")
+  deletionRequests Proposal[] @relation("DeletionRequester")
+  deletionApprovals Proposal[] @relation("DeletionApprover")
+}
+
+model Client {
+  id                   String   @id @default(cuid())
+  name                 String
+  email                String?
+  company              String?
+  contactInfo          String?
+  createdBy            String
+  defaultDiscountPercent Float?
+  defaultDiscountAmount Float?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  // Relations
+  creator   User       @relation("ClientCreator", fields: [createdBy], references: [id])
+  proposals Proposal[]
+  bills     Bill[]
+  projects  Project[]
+}
+
+model Proposal {
+  id                   String         @id @default(cuid())
+  clientId             String
+  createdBy            String
+  type                 ProposalType
+  status               ProposalStatus @default(DRAFT)
+  title                String
+  description          String?
+  amount               Float?
+  proposalNumber       String?        @unique
+  issueDate            DateTime?
+  expiryDate           DateTime?
+  currency             String         @default("EUR")
+  taxInclusive         Boolean        @default(false)
+  taxRate              Float?
+  clientDiscountPercent Float?
+  clientDiscountAmount Float?
+  estimatedHours       Float?
+  hourlyRateRangeMin   Float?
+  hourlyRateRangeMax   Float?
+  hourlyCapHours      Float?
+  cappedAmount         Float?
+  retainerMonthlyAmount Float?
+  retainerHourlyCap    Float?
+  blendedRate          Float?
+  useBlendedRate      Boolean        @default(false)
+  successFeePercent    Float?
+  successFeeAmount     Float?
+  successFeeValue      Float?
+  fixedAmount          Float?
+  outOfScopeHourlyRate Float?
+  customTags           String[]       @default([])
+  clientApprovalStatus ClientApprovalStatus @default(PENDING)
+  clientApprovedAt     DateTime?
+  clientRejectedAt     DateTime?
+  clientRejectionReason String?
+  deletionRequestedAt  DateTime?
+  deletionRequestedBy  String?
+  deletionApprovedAt   DateTime?
+  deletionApprovedBy   String?
+  deletedAt            DateTime?
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+  submittedAt          DateTime?
+  approvedAt           DateTime?
+
+  // Relations
+  client       Client         @relation(fields: [clientId], references: [id])
+  creator      User           @relation("ProposalCreator", fields: [createdBy], references: [id])
+  items        ProposalItem[]
+  milestones   Milestone[]
+  bills        Bill[]
+  approvals    Approval[]
+  tags         ProposalTag[]
+  paymentTerms PaymentTerm[]
+  projects     Project[]
+  deletionRequester User?      @relation("DeletionRequester", fields: [deletionRequestedBy], references: [id])
+  deletionApprover User?       @relation("DeletionApprover", fields: [deletionApprovedBy], references: [id])
+}
+
+model ProposalItem {
+  id            String   @id @default(cuid())
+  proposalId    String
+  type          String?  // For hourly: "timeEntry", for subject: "lineItem", etc.
+  billingMethod String?  // Which billing method applies to this line (for mixed models)
+  personId      String?  // User ID for person-specific hourly rates
+  description   String
+  quantity      Float?
+  rate          Float?
+  unitPrice     Float?
+  discountPercent Float?
+  discountAmount Float?
+  amount        Float
+  date          DateTime? // For hourly entries
+  createdAt     DateTime @default(now())
+
+  // Relations
+  proposal     Proposal     @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  person       User?        @relation("ProposalItemPerson", fields: [personId], references: [id])
+  paymentTerms PaymentTerm?
+}
+
+model Bill {
+  id          String     @id @default(cuid())
+  proposalId String?
+  projectId  String?
+  clientId   String
+  createdBy  String
+  status     BillStatus @default(DRAFT)
+  amount     Float
+  dueDate    DateTime?
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  submittedAt DateTime?
+  approvedAt DateTime?
+  paidAt     DateTime?
+
+  // Relations
+  proposal  Proposal?  @relation(fields: [proposalId], references: [id])
+  project   Project?   @relation(fields: [projectId], references: [id])
+  client    Client     @relation(fields: [clientId], references: [id])
+  creator   User       @relation("BillCreator", fields: [createdBy], references: [id])
+  approvals Approval[]
+}
+
+model Milestone {
+  id          String   @id @default(cuid())
+  proposalId  String
+  name        String
+  description String?
+  amount      Float?   // Fixed amount milestone
+  percent     Float?   // Percentage milestone
+  dueDate     DateTime?
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+  
+  proposal Proposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+}
+
+model ProposalTag {
+  id          String     @id @default(cuid())
+  name        String     @unique
+  description String?
+  color       String?    // For UI display
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  // Relations
+  proposals Proposal[]
+}
+
+model Project {
+  id          String        @id @default(cuid())
+  proposalId  String?
+  clientId    String
+  name        String
+  description String?
+  status      ProjectStatus @default(ACTIVE)
+  startDate   DateTime?
+  endDate     DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  // Relations
+  proposal Proposal? @relation(fields: [proposalId], references: [id])
+  client   Client    @relation(fields: [clientId], references: [id])
+  bills    Bill[]
+}
+
+model PaymentTerm {
+  id                  String              @id @default(cuid())
+  proposalId          String?
+  proposalItemId      String?              @unique
+  upfrontType         UpfrontPaymentType?
+  upfrontValue        Float?
+  installmentType     InstallmentType?
+  installmentCount    Int?
+  installmentFrequency InstallmentFrequency?
+  milestoneIds        String[]            @default([])
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  // Relations
+  proposal     Proposal?     @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  proposalItem ProposalItem? @relation(fields: [proposalItemId], references: [id], onDelete: Cascade)
+}
+
+model Approval {
+  id          String          @id @default(cuid())
+  proposalId String?
+  billId     String?
+  approverId String
+  status     ApprovalStatus  @default(PENDING)
+  comments   String?
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  // Relations
+  proposal Proposal? @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  bill     Bill?     @relation(fields: [billId], references: [id], onDelete: Cascade)
+  approver User      @relation(fields: [approverId], references: [id])
+}
+
+
+
