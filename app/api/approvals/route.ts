@@ -226,7 +226,7 @@ export async function POST(request: Request) {
             })
 
             // Send client approval email
-            if (proposal.client.email) {
+            if (proposal.client && proposal.client.email) {
               const { sendClientApprovalRequest } = await import("@/lib/email")
               try {
                 await sendClientApprovalRequest(
