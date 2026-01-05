@@ -121,7 +121,7 @@ export default async function LeadDetailPage({
         <h1 className="text-3xl font-bold mb-8">Lead Not Found</h1>
         <Card>
           <CardContent className="p-6">
-            <p>The lead you're looking for doesn't exist or has been deleted.</p>
+            <p>The lead you&apos;re looking for doesn&apos;t exist or has been deleted.</p>
           </CardContent>
         </Card>
       </div>

@@ -417,7 +417,7 @@ export default function EditClientPage() {
                 )
               })}
               {finders.length === 0 && (
-                <p className="text-sm text-gray-500">No finders added. Click "Add Finder" to add one.</p>
+                <p className="text-sm text-gray-500">No finders added. Click &quot;Add Finder&quot; to add one.</p>
               )}
             </div>
 
@@ -489,7 +489,7 @@ export default function EditClientPage() {
                 </Card>
               ))}
               {contacts.length === 0 && (
-                <p className="text-sm text-gray-500">No contact persons added. Click "Add Contact" to add one.</p>
+                <p className="text-sm text-gray-500">No contact persons added. Click &quot;Add Contact&quot; to add one.</p>
               )}
             </div>
 

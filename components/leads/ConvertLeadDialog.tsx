@@ -66,7 +66,7 @@ export function ConvertLeadDialog({
           </Button>
         </div>
         <CardDescription className="text-blue-700">
-          Convert "{leadName}" from a lead to a client. All lead information will be transferred to the new client record.
+          Convert &quot;{leadName}&quot; from a lead to a client. All lead information will be transferred to the new client record.
         </CardDescription>
       </CardHeader>
       <CardContent>

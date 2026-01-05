@@ -200,7 +200,7 @@ export default async function ClientsPage({
           )}
           {searchQuery && (
             <div className="mt-2 text-sm text-gray-600">
-              Search results for: "{searchQuery}"
+              Search results for: &quot;{searchQuery}&quot;
             </div>
           )}
         </div>

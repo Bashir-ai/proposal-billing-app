@@ -177,6 +177,7 @@ export function LogoUpload() {
             <div className="relative max-w-xs">
               {preview.startsWith("data:") ? (
                 // Use regular img for data URLs (file preview)
+                // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={preview}
                   alt="Logo preview"

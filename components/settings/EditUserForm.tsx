@@ -144,7 +144,7 @@ export function EditUserForm({ user, onSuccess, onCancel }: EditUserFormProps) {
               minLength={6}
             />
             <p className="text-xs text-gray-500">
-              Leave blank if you don't want to change the password
+              Leave blank if you don&apos;t want to change the password
             </p>
           </div>
 
