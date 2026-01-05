@@ -17,9 +17,11 @@ const proposalItemSchema = z.object({
   discountAmount: z.number().optional(),
   amount: z.number(),
   date: z.string().optional(),
+  milestoneIds: z.array(z.string()).optional(), // Array of milestone IDs assigned to this item
 })
 
 const milestoneSchema = z.object({
+  id: z.string().optional(), // Temporary ID for matching on create/update
   name: z.string().min(1),
   description: z.string().optional(),
   amount: z.number().optional(),
@@ -37,7 +39,8 @@ const paymentTermSchema = z.object({
 })
 
 const proposalSchema = z.object({
-  clientId: z.string(),
+  clientId: z.string().optional(),
+  leadId: z.string().optional(),
   type: z.nativeEnum(ProposalType),
   title: z.string().min(1),
   description: z.string().optional(),
@@ -83,14 +86,29 @@ export async function GET(request: Request) {
     const status = searchParams.get("status")
     const type = searchParams.get("type")
     const clientId = searchParams.get("clientId")
+    const clientApprovalStatus = searchParams.get("clientApprovalStatus")
+    const tagId = searchParams.get("tagId")
 
-    const where: any = {}
+    const where: any = {
+      deletedAt: null, // Exclude deleted items
+    }
     if (status) where.status = status
     if (type) where.type = type
     if (clientId) where.clientId = clientId
+    if (clientApprovalStatus) where.clientApprovalStatus = clientApprovalStatus
+    if (tagId) {
+      where.tags = {
+        some: {
+          id: tagId,
+        },
+      }
+    }
     if (session.user.role === "CLIENT") {
       const client = await prisma.client.findFirst({
-        where: { email: session.user.email },
+        where: { 
+          email: session.user.email,
+          deletedAt: null, // Exclude deleted clients
+        },
       })
       if (client) {
         where.clientId = client.id
@@ -108,6 +126,15 @@ export async function GET(request: Request) {
             id: true,
             name: true,
             company: true,
+          },
+        },
+        lead: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            company: true,
+            status: true,
           },
         },
         creator: {
@@ -158,6 +185,47 @@ export async function POST(request: Request) {
     const body = await request.json()
     const validatedData = proposalSchema.parse(body)
 
+    // Validate that either clientId or leadId is provided, but not both
+    if (!validatedData.clientId && !validatedData.leadId) {
+      return NextResponse.json(
+        { error: "Either clientId or leadId must be provided" },
+        { status: 400 }
+      )
+    }
+
+    if (validatedData.clientId && validatedData.leadId) {
+      return NextResponse.json(
+        { error: "Cannot specify both clientId and leadId. Use either clientId or leadId." },
+        { status: 400 }
+      )
+    }
+
+    // Validate client exists if clientId provided
+    if (validatedData.clientId) {
+      const client = await prisma.client.findUnique({
+        where: { id: validatedData.clientId },
+      })
+      if (!client) {
+        return NextResponse.json(
+          { error: "Client not found" },
+          { status: 404 }
+        )
+      }
+    }
+
+    // Validate lead exists if leadId provided
+    if (validatedData.leadId) {
+      const lead = await prisma.lead.findUnique({
+        where: { id: validatedData.leadId },
+      })
+      if (!lead) {
+        return NextResponse.json(
+          { error: "Lead not found" },
+          { status: 404 }
+        )
+      }
+    }
+
     // Generate proposal number if not provided
     let proposalNumber = validatedData.proposalNumber
     if (!proposalNumber) {
@@ -176,9 +244,11 @@ export async function POST(request: Request) {
       }
     }
 
+    // Create proposal first (without milestones and items)
     const proposal = await prisma.proposal.create({
       data: {
-        clientId: validatedData.clientId,
+        clientId: validatedData.clientId || null,
+        leadId: validatedData.leadId || null,
         createdBy: session.user.id,
         type: validatedData.type,
         title: validatedData.title,
@@ -211,8 +281,41 @@ export async function POST(request: Request) {
         tags: validatedData.tagIds ? {
           connect: validatedData.tagIds.map(id => ({ id })),
         } : undefined,
-        items: {
-          create: validatedData.items?.map((item) => ({
+      },
+    })
+
+    // Create milestones first and build a map of temp IDs to DB IDs
+    const milestoneIdMap = new Map<string, string>()
+    if (validatedData.milestones && validatedData.milestones.length > 0) {
+      for (const milestone of validatedData.milestones) {
+        const createdMilestone = await prisma.milestone.create({
+          data: {
+            proposalId: proposal.id,
+            name: milestone.name,
+            description: milestone.description || null,
+            amount: milestone.amount || null,
+            percent: milestone.percent || null,
+            dueDate: milestone.dueDate ? new Date(milestone.dueDate) : null,
+          },
+        })
+        // Map temporary ID to actual DB ID
+        if (milestone.id) {
+          milestoneIdMap.set(milestone.id, createdMilestone.id)
+        }
+      }
+    }
+
+    // Create line items with milestone assignments
+    if (validatedData.items && validatedData.items.length > 0) {
+      for (const item of validatedData.items) {
+        // Map temporary milestone IDs to actual DB IDs
+        const actualMilestoneIds = (item.milestoneIds || [])
+          .map(tempId => milestoneIdMap.get(tempId))
+          .filter((id): id is string => id !== undefined)
+
+        const createdItem = await prisma.proposalItem.create({
+          data: {
+            proposalId: proposal.id,
             billingMethod: item.billingMethod || null,
             personId: item.personId || null,
             description: item.description,
@@ -223,35 +326,13 @@ export async function POST(request: Request) {
             discountAmount: item.discountAmount || null,
             amount: item.amount,
             date: null, // Dates are only for actual billing/timesheet entries, not proposals
-          })) || [],
-        },
-        milestones: {
-          create: validatedData.milestones?.map((milestone) => ({
-            name: milestone.name,
-            description: milestone.description || null,
-            amount: milestone.amount || null,
-            percent: milestone.percent || null,
-            dueDate: milestone.dueDate ? new Date(milestone.dueDate) : null,
-          })) || [],
-        },
-      },
-      include: {
-        client: true,
-        items: {
-          include: {
-            person: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-              },
-            },
+            milestones: actualMilestoneIds.length > 0 ? {
+              connect: actualMilestoneIds.map(id => ({ id })),
+            } : undefined,
           },
-        },
-        milestones: true,
-        tags: true,
-      },
-    })
+        })
+      }
+    }
 
     // Create payment terms after proposal and items are created
     if (validatedData.paymentTerms && Array.isArray(validatedData.paymentTerms) && validatedData.paymentTerms.length > 0) {
@@ -303,6 +384,16 @@ export async function POST(request: Request) {
                 id: true,
                 name: true,
                 email: true,
+              },
+            },
+            milestones: {
+              select: {
+                id: true,
+                name: true,
+                description: true,
+                amount: true,
+                percent: true,
+                dueDate: true,
               },
             },
           },

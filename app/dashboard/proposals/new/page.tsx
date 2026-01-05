@@ -15,6 +15,21 @@ export default async function NewProposalPage() {
   }
 
   const clients = await prisma.client.findMany({
+    where: {
+      deletedAt: null,
+      archivedAt: null,
+    },
+    orderBy: { name: "asc" },
+  })
+
+  const leads = await prisma.lead.findMany({
+    where: {
+      deletedAt: null,
+      archivedAt: null,
+      status: {
+        not: "CONVERTED",
+      },
+    },
     orderBy: { name: "asc" },
   })
 
@@ -36,7 +51,7 @@ export default async function NewProposalPage() {
   return (
     <div className="max-w-4xl mx-auto">
       <h1 className="text-3xl font-bold mb-8">Create New Proposal</h1>
-      <ProposalFormWrapper clients={clients} users={users} />
+      <ProposalFormWrapper clients={clients} leads={leads} users={users} />
     </div>
   )
 }

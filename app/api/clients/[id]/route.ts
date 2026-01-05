@@ -4,11 +4,38 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 
-const clientSchema = z.object({
+const contactPersonSchema = z.object({
+  id: z.string().optional(),
   name: z.string().min(1),
+  email: z.string().email().optional().or(z.literal("")),
+  phone: z.string().optional(),
+  position: z.string().optional(),
+  isPrimary: z.boolean().default(false),
+})
+
+const clientFinderSchema = z.object({
+  userId: z.string().min(1),
+  finderFeePercent: z.number().min(0).max(100).default(0),
+})
+
+const clientSchema = z.object({
+  name: z.string().min(1).optional(),
   email: z.string().email().optional().or(z.literal("")),
   company: z.string().optional(),
   contactInfo: z.string().optional(),
+  portugueseTaxNumber: z.string().optional(),
+  foreignTaxNumber: z.string().optional(),
+  kycCompleted: z.boolean().optional(),
+  isIndividual: z.boolean().optional(),
+  fullLegalName: z.string().optional(),
+  billingAddressLine: z.string().optional(),
+  billingCity: z.string().optional(),
+  billingState: z.string().optional(),
+  billingZipCode: z.string().optional(),
+  billingCountry: z.string().optional(),
+  clientManagerId: z.string().optional().or(z.literal("")),
+  finders: z.array(clientFinderSchema).optional(),
+  contacts: z.array(contactPersonSchema).optional(),
 })
 
 export async function GET(
@@ -23,7 +50,10 @@ export async function GET(
     }
 
     const client = await prisma.client.findUnique({
-      where: { id },
+      where: { 
+        id,
+        deletedAt: null, // Exclude deleted clients (but allow archived)
+      },
       include: {
         creator: {
           select: {
@@ -31,13 +61,38 @@ export async function GET(
             email: true,
           },
         },
+        finders: {
+          include: {
+            user: { select: { id: true, name: true, email: true } },
+          },
+        },
+        clientManager: { select: { id: true, name: true, email: true } },
         proposals: {
+          where: {
+            deletedAt: null, // Exclude soft-deleted proposals
+          },
           orderBy: { createdAt: "desc" },
           take: 5,
         },
         bills: {
+          where: {
+            deletedAt: null, // Exclude soft-deleted bills
+          },
           orderBy: { createdAt: "desc" },
           take: 5,
+        },
+        projects: {
+          where: {
+            deletedAt: null, // Exclude soft-deleted projects
+          },
+          orderBy: { createdAt: "desc" },
+          take: 5,
+        },
+        contacts: {
+          orderBy: [
+            { isPrimary: "desc" },
+            { createdAt: "asc" },
+          ],
         },
       },
     })
@@ -76,13 +131,105 @@ export async function PUT(
     const body = await request.json()
     const validatedData = clientSchema.parse(body)
 
+    // Handle contacts and finders: delete all existing and create new ones
+    // This is simpler than trying to match IDs
+    await prisma.clientContact.deleteMany({
+      where: { clientId: id },
+    })
+    await prisma.clientFinder.deleteMany({
+      where: { clientId: id },
+    })
+
+    // Build update data object, only including fields that are provided
+    const updateData: any = {}
+    
+    if (validatedData.name !== undefined) {
+      updateData.name = validatedData.name
+    }
+    if (validatedData.email !== undefined) {
+      updateData.email = validatedData.email || null
+    }
+    if (validatedData.company !== undefined) {
+      updateData.company = validatedData.company || null
+    }
+    if (validatedData.contactInfo !== undefined) {
+      updateData.contactInfo = validatedData.contactInfo || null
+    }
+    if (validatedData.portugueseTaxNumber !== undefined) {
+      updateData.portugueseTaxNumber = validatedData.portugueseTaxNumber || null
+    }
+    if (validatedData.foreignTaxNumber !== undefined) {
+      updateData.foreignTaxNumber = validatedData.foreignTaxNumber || null
+    }
+    if (validatedData.kycCompleted !== undefined) {
+      updateData.kycCompleted = validatedData.kycCompleted
+    }
+    if (validatedData.isIndividual !== undefined) {
+      updateData.isIndividual = validatedData.isIndividual
+    }
+    if (validatedData.fullLegalName !== undefined) {
+      updateData.fullLegalName = validatedData.fullLegalName || null
+    }
+    if (validatedData.billingAddressLine !== undefined) {
+      updateData.billingAddressLine = validatedData.billingAddressLine || null
+    }
+    if (validatedData.billingCity !== undefined) {
+      updateData.billingCity = validatedData.billingCity || null
+    }
+    if (validatedData.billingState !== undefined) {
+      updateData.billingState = validatedData.billingState || null
+    }
+    if (validatedData.billingZipCode !== undefined) {
+      updateData.billingZipCode = validatedData.billingZipCode || null
+    }
+    if (validatedData.billingCountry !== undefined) {
+      updateData.billingCountry = validatedData.billingCountry || null
+    }
+    if (validatedData.clientManagerId !== undefined) {
+      updateData.clientManagerId = validatedData.clientManagerId || null
+    }
+
+    // Handle finders and contacts
+    if (validatedData.finders !== undefined) {
+      updateData.finders = validatedData.finders && validatedData.finders.length > 0
+        ? {
+            create: validatedData.finders.map((finder) => ({
+              userId: finder.userId,
+              finderFeePercent: finder.finderFeePercent,
+            })),
+          }
+        : undefined
+    }
+    if (validatedData.contacts !== undefined) {
+      updateData.contacts = validatedData.contacts && validatedData.contacts.length > 0
+        ? {
+            create: validatedData.contacts.map((contact) => ({
+              name: contact.name,
+              email: contact.email || null,
+              phone: contact.phone || null,
+              position: contact.position || null,
+              isPrimary: contact.isPrimary || false,
+            })),
+          }
+        : undefined
+    }
+
     const client = await prisma.client.update({
       where: { id },
-      data: {
-        name: validatedData.name,
-        email: validatedData.email || null,
-        company: validatedData.company || null,
-        contactInfo: validatedData.contactInfo || null,
+      data: updateData,
+      include: {
+        contacts: {
+          orderBy: [
+            { isPrimary: "desc" },
+            { createdAt: "asc" },
+          ],
+        },
+        finders: {
+          include: {
+            user: { select: { id: true, name: true, email: true } },
+          },
+        },
+        clientManager: { select: { id: true, name: true, email: true } },
       },
     })
 
@@ -95,8 +242,13 @@ export async function PUT(
       )
     }
 
+    console.error("Error updating client:", error)
+    if (error instanceof Error) {
+      console.error("Error message:", error.message)
+      console.error("Error stack:", error.stack)
+    }
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Internal server error", message: error instanceof Error ? error.message : "Unknown error" },
       { status: 500 }
     )
   }
@@ -120,14 +272,96 @@ export async function DELETE(
       )
     }
 
-    await prisma.client.delete({
+    // Check if client can be deleted (not just archived)
+    const { canDeleteClient } = await import("@/lib/client-deletion-check")
+    const deletionCheck = await canDeleteClient(id)
+
+    if (!deletionCheck.canDelete) {
+      return NextResponse.json(
+        { 
+          error: "Cannot delete client",
+          message: deletionCheck.reason,
+          ongoingProjects: deletionCheck.ongoingProjects,
+          openInvoices: deletionCheck.openInvoices,
+          openProposals: deletionCheck.openProposals,
+        },
+        { status: 400 }
+      )
+    }
+
+    // Soft delete: set deletedAt timestamp
+    await prisma.client.update({
       where: { id },
+      data: {
+        deletedAt: new Date(),
+      },
     })
 
     return NextResponse.json({ message: "Client deleted" })
   } catch (error) {
+    console.error("Error deleting client:", error)
+    if (error instanceof Error) {
+      console.error("Error message:", error.message)
+      console.error("Error stack:", error.stack)
+    }
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Internal server error", message: error instanceof Error ? error.message : "Unknown error" },
+      { status: 500 }
+    )
+  }
+}
+
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params
+    const session = await getServerSession(authOptions)
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    if (session.user.role !== "ADMIN" && session.user.role !== "MANAGER") {
+      return NextResponse.json(
+        { error: "Forbidden" },
+        { status: 403 }
+      )
+    }
+
+    const body = await request.json()
+    const action = body.action // "archive" or "unarchive"
+
+    if (action === "archive") {
+      await prisma.client.update({
+        where: { id },
+        data: {
+          archivedAt: new Date(),
+        },
+      })
+      return NextResponse.json({ message: "Client archived" })
+    } else if (action === "unarchive") {
+      await prisma.client.update({
+        where: { id },
+        data: {
+          archivedAt: null,
+        },
+      })
+      return NextResponse.json({ message: "Client unarchived" })
+    } else {
+      return NextResponse.json(
+        { error: "Invalid action. Use 'archive' or 'unarchive'" },
+        { status: 400 }
+      )
+    }
+  } catch (error) {
+    console.error("Error archiving/unarchiving client:", error)
+    if (error instanceof Error) {
+      console.error("Error message:", error.message)
+      console.error("Error stack:", error.stack)
+    }
+    return NextResponse.json(
+      { error: "Internal server error", message: error instanceof Error ? error.message : "Unknown error" },
       { status: 500 }
     )
   }

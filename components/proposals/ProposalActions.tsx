@@ -8,16 +8,26 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import Link from "next/link"
 import { CloneProposalDialog } from "./CloneProposalDialog"
-import { ClientApprovalStatus } from "@prisma/client"
+import { SubmitProposalModal } from "./SubmitProposalModal"
+import { ResubmitModal } from "@/components/approvals/ResubmitModal"
+import { ApprovalButton } from "@/components/shared/ApprovalButton"
+import { DownloadPdfButton } from "./DownloadPdfButton"
+import { DeleteButton } from "@/components/shared/DeleteButton"
 
 interface ProposalActionsProps {
   proposalId: string
   canEdit: boolean
   canSubmit: boolean
   isClient: boolean
-  clientApprovalStatus: ClientApprovalStatus
+  clientApprovalStatus: "PENDING" | "APPROVED" | "REJECTED"
   hasProject: boolean
   canDelete: boolean
+  canApprove?: boolean
+  canResubmit?: boolean
+  userApproval?: { id: string; status: string } | null
+  proposalStatus?: "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED"
+  currentUserRole?: string
+  canStillApprove?: boolean
 }
 
 export function ProposalActions({
@@ -28,9 +38,17 @@ export function ProposalActions({
   clientApprovalStatus,
   hasProject,
   canDelete,
+  canApprove = false,
+  canResubmit = false,
+  userApproval = null,
+  proposalStatus,
+  currentUserRole,
+  canStillApprove = true,
 }: ProposalActionsProps) {
   const router = useRouter()
   const [showCloneDialog, setShowCloneDialog] = useState(false)
+  const [showSubmitModal, setShowSubmitModal] = useState(false)
+  const [showResubmitModal, setShowResubmitModal] = useState(false)
   const [showRejectDialog, setShowRejectDialog] = useState(false)
   const [rejectionReason, setRejectionReason] = useState("")
   const [loading, setLoading] = useState(false)
@@ -84,11 +102,31 @@ export function ProposalActions({
             <Button variant="outline">Edit</Button>
           </Link>
         )}
+        {/* PDF Download Button - Available for all non-client users */}
+        {!isClient && (
+          <DownloadPdfButton proposalId={proposalId} />
+        )}
         {canSubmit && (
-          <form action={`/api/proposals/${proposalId}`} method="POST">
-            <input type="hidden" name="action" value="submit" />
-            <Button type="submit">Submit for Approval</Button>
-          </form>
+          <Button onClick={() => setShowSubmitModal(true)}>
+            Submit for Approval
+          </Button>
+        )}
+        {/* Approval Button - Show when proposal is submitted and user can approve */}
+        {canApprove && 
+         canStillApprove && 
+         proposalStatus === "SUBMITTED" && (
+          <ApprovalButton
+            proposalId={proposalId}
+            currentUserRole={(currentUserRole as any) || (isClient ? "CLIENT" : "STAFF")}
+          />
+        )}
+        {canResubmit && (
+          <Button
+            variant="outline"
+            onClick={() => setShowResubmitModal(true)}
+          >
+            Resubmit for Approval
+          </Button>
         )}
         {!isClient && (
           <Button
@@ -118,58 +156,21 @@ export function ProposalActions({
           </>
         )}
         {!isClient && !hasProject && clientApprovalStatus === "APPROVED" && (
-          <Link href={`/dashboard/projects/new?proposalId=${proposalId}`}>
-            <Button variant="outline">Convert to Project</Button>
-          </Link>
+          <Button 
+            variant="outline"
+            onClick={() => {
+              router.push(`/projects/new?proposalId=${proposalId}`)
+            }}
+          >
+            Convert to Project
+          </Button>
         )}
         {canDelete && (
-          <Button
-            variant="outline"
-            onClick={async () => {
-              if (confirm("Are you sure you want to delete this proposal? This action cannot be undone.")) {
-                setLoading(true)
-                setError("")
-                try {
-                  const response = await fetch(`/api/proposals/${proposalId}`, {
-                    method: "DELETE",
-                  })
-                  
-                  if (!response.ok) {
-                    // Check if response is JSON before trying to parse
-                    const contentType = response.headers.get("content-type")
-                    let errorMessage = "Failed to delete proposal"
-                    
-                    if (contentType && contentType.includes("application/json")) {
-                      try {
-                        const data = await response.json()
-                        errorMessage = data.error || data.message || errorMessage
-                      } catch (e) {
-                        errorMessage = response.statusText || errorMessage
-                      }
-                    } else {
-                      errorMessage = `${response.status}: ${response.statusText || errorMessage}`
-                    }
-                    
-                    setError(errorMessage)
-                    return
-                  }
-                  
-                  // Redirect to proposals list after successful deletion
-                  router.push("/dashboard/proposals")
-                } catch (error: any) {
-                  const errorMessage = error?.message || "An error occurred. Please try again."
-                  setError(errorMessage)
-                  console.error("Delete proposal error:", error)
-                } finally {
-                  setLoading(false)
-                }
-              }
-            }}
-            disabled={loading}
-            className="border-red-600 text-red-600 hover:bg-red-50"
-          >
-            {loading ? "Deleting..." : "Delete Proposal"}
-          </Button>
+          <DeleteButton
+            itemId={proposalId}
+            itemType="proposal"
+            itemName={undefined}
+          />
         )}
       </div>
 
@@ -177,6 +178,29 @@ export function ProposalActions({
         <CloneProposalDialog
           proposalId={proposalId}
           onClose={() => setShowCloneDialog(false)}
+        />
+      )}
+
+      {showSubmitModal && (
+        <SubmitProposalModal
+          proposalId={proposalId}
+          isOpen={showSubmitModal}
+          onClose={() => setShowSubmitModal(false)}
+          onSuccess={() => {
+            router.refresh()
+          }}
+        />
+      )}
+
+      {showResubmitModal && (
+        <ResubmitModal
+          itemId={proposalId}
+          itemType="proposal"
+          isOpen={showResubmitModal}
+          onClose={() => setShowResubmitModal(false)}
+          onSuccess={() => {
+            router.refresh()
+          }}
         />
       )}
 

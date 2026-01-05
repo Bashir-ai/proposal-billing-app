@@ -79,6 +79,11 @@ export default async function ProjectDetailPage({
                 </span>
               </Link>
             )}
+            <Link href={`/dashboard/projects/${project.id}/reports`}>
+              <Button variant="outline" size="sm">
+                View Project Report
+              </Button>
+            </Link>
           </div>
         </div>
       </div>

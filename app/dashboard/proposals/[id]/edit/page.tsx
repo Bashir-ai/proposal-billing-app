@@ -3,6 +3,7 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { ProposalFormWrapper } from "@/components/proposals/ProposalFormWrapper"
 import { redirect, notFound } from "next/navigation"
+import { canEditProposal } from "@/lib/permissions"
 
 export default async function EditProposalPage({
   params,
@@ -44,11 +45,43 @@ export default async function EditProposalPage({
     notFound()
   }
 
-  if (proposal.status !== "DRAFT" || proposal.createdBy !== session.user.id) {
+  // Check edit permissions using permission function
+  const currentUser = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: {
+      id: true,
+      role: true,
+      canEditAllProposals: true,
+    },
+  })
+
+  if (!currentUser) {
+    redirect("/dashboard")
+  }
+
+  if (!canEditProposal(currentUser, {
+    createdBy: proposal.createdBy,
+    status: proposal.status,
+  })) {
     redirect(`/dashboard/proposals/${id}`)
   }
 
   const clients = await prisma.client.findMany({
+    where: {
+      deletedAt: null,
+      archivedAt: null,
+    },
+    orderBy: { name: "asc" },
+  })
+
+  const leads = await prisma.lead.findMany({
+    where: {
+      deletedAt: null,
+      archivedAt: null,
+      status: {
+        not: "CONVERTED",
+      },
+    },
     orderBy: { name: "asc" },
   })
 

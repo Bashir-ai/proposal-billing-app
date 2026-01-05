@@ -45,6 +45,11 @@ export async function POST(
                 name: true,
               },
             },
+            milestones: {
+              select: {
+                id: true,
+              },
+            },
           },
         },
         milestones: true,
@@ -62,9 +67,10 @@ export async function POST(
 
     // Generate new proposal number
     const proposalNumber = await generateProposalNumber()
-    const today = new Date().toISOString().split("T")[0]
+    const today = new Date() // Use Date object for Prisma DateTime
 
-    // Create cloned proposal
+    // First, create the cloned proposal without items/milestones (to get IDs)
+    // Then we'll create milestones and connect them to items
     const clonedProposal = await prisma.proposal.create({
       data: {
         clientId: options.copyClient ? originalProposal.clientId : originalProposal.clientId, // Still need a client, use original for now
@@ -97,39 +103,9 @@ export async function POST(
         tags: options.copyTags && originalProposal.tags.length > 0 ? {
           connect: originalProposal.tags.map(tag => ({ id: tag.id })),
         } : undefined,
-        items: options.copyLineItems && originalProposal.items.length > 0 ? {
-          create: originalProposal.items.map(item => ({
-            billingMethod: item.billingMethod,
-            personId: item.personId,
-            description: item.description,
-            quantity: item.quantity,
-            rate: item.rate,
-            unitPrice: item.unitPrice,
-            discountPercent: item.discountPercent,
-            discountAmount: item.discountAmount,
-            amount: item.amount,
-            date: item.date,
-          })),
-        } : undefined,
-        milestones: options.copyMilestones && originalProposal.milestones.length > 0 ? {
-          create: originalProposal.milestones.map(milestone => ({
-            name: milestone.name,
-            description: milestone.description,
-            amount: milestone.amount,
-            percent: milestone.percent,
-            dueDate: milestone.dueDate,
-          })),
-        } : undefined,
-        paymentTerms: options.copyPaymentTerms && originalProposal.paymentTerms.length > 0 ? {
-          create: originalProposal.paymentTerms.map(term => ({
-            upfrontType: term.upfrontType,
-            upfrontValue: term.upfrontValue,
-            installmentType: term.installmentType,
-            installmentCount: term.installmentCount,
-            installmentFrequency: term.installmentFrequency,
-            milestoneIds: term.milestoneIds,
-          })),
-        } : undefined,
+        items: undefined, // Will create items after milestones to connect them
+        milestones: undefined, // Will create milestones first, then items
+        paymentTerms: undefined, // Will create after milestones to map milestone IDs
       },
       include: {
         client: true,
@@ -139,8 +115,96 @@ export async function POST(
       },
     })
 
-    return NextResponse.json(clonedProposal, { status: 201 })
-  } catch (error) {
+    // Create milestones first (if needed) to get their IDs for connecting to items
+    const milestoneIdMap = new Map<string, string>() // old milestone ID -> new milestone ID
+    if (options.copyMilestones && originalProposal.milestones.length > 0) {
+      for (const originalMilestone of originalProposal.milestones) {
+        const newMilestone = await prisma.milestone.create({
+          data: {
+            proposalId: clonedProposal.id,
+            name: originalMilestone.name,
+            description: originalMilestone.description,
+            amount: originalMilestone.amount,
+            percent: originalMilestone.percent,
+            dueDate: originalMilestone.dueDate,
+          },
+        })
+        milestoneIdMap.set(originalMilestone.id, newMilestone.id)
+      }
+    }
+
+    // Create line items and connect them to cloned milestones
+    if (options.copyLineItems && originalProposal.items.length > 0) {
+      for (const originalItem of originalProposal.items) {
+        // Get the new milestone IDs for this item
+        const newMilestoneIds = originalItem.milestones
+          .map(m => milestoneIdMap.get(m.id))
+          .filter((id): id is string => id !== undefined)
+
+        const newItem = await prisma.proposalItem.create({
+          data: {
+            proposalId: clonedProposal.id,
+            billingMethod: originalItem.billingMethod,
+            personId: originalItem.personId,
+            description: originalItem.description,
+            quantity: originalItem.quantity,
+            rate: originalItem.rate,
+            unitPrice: originalItem.unitPrice,
+            discountPercent: originalItem.discountPercent,
+            discountAmount: originalItem.discountAmount,
+            amount: originalItem.amount,
+            date: originalItem.date,
+            milestones: newMilestoneIds.length > 0 ? {
+              connect: newMilestoneIds.map(id => ({ id })),
+            } : undefined,
+          },
+        })
+      }
+    }
+
+    // Create payment terms with mapped milestone IDs
+    if (options.copyPaymentTerms && originalProposal.paymentTerms.length > 0) {
+      for (const originalTerm of originalProposal.paymentTerms) {
+        // Map milestone IDs to new milestone IDs
+        const newMilestoneIds = originalTerm.milestoneIds
+          .map(oldId => milestoneIdMap.get(oldId))
+          .filter((id): id is string => id !== undefined)
+
+        await prisma.paymentTerm.create({
+          data: {
+            proposalId: clonedProposal.id,
+            proposalItemId: null, // Payment terms at proposal level don't have proposalItemId
+            upfrontType: originalTerm.upfrontType,
+            upfrontValue: originalTerm.upfrontValue,
+            installmentType: originalTerm.installmentType,
+            installmentCount: originalTerm.installmentCount,
+            installmentFrequency: originalTerm.installmentFrequency,
+            milestoneIds: newMilestoneIds,
+          },
+        })
+      }
+    }
+
+    // Fetch the complete cloned proposal with all relations
+    const completeClonedProposal = await prisma.proposal.findUnique({
+      where: { id: clonedProposal.id },
+      include: {
+        client: true,
+        items: {
+          include: {
+            milestones: true,
+          },
+        },
+        milestones: true,
+        tags: true,
+        paymentTerms: true,
+      },
+    })
+
+    return NextResponse.json(completeClonedProposal, { status: 201 })
+  } catch (error: any) {
+    console.error("Error cloning proposal:", error)
+    
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: "Invalid input", details: error.errors },
@@ -148,8 +212,23 @@ export async function POST(
       )
     }
 
+    // Check for Prisma errors
+    if (error.code) {
+      return NextResponse.json(
+        { 
+          error: "Database error", 
+          message: error.message,
+          code: error.code 
+        },
+        { status: 500 }
+      )
+    }
+
     return NextResponse.json(
-      { error: "Internal server error" },
+      { 
+        error: "Internal server error",
+        message: error.message || "An unexpected error occurred"
+      },
       { status: 500 }
     )
   }

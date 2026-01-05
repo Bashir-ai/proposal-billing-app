@@ -4,12 +4,21 @@ import { prisma } from "@/lib/prisma"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { Plus, Search } from "lucide-react"
-import { Input } from "@/components/ui/input"
+import { Plus, Upload } from "lucide-react"
+import { isClientActive } from "@/lib/client-activity"
+import { ClientSearch } from "@/components/clients/ClientSearch"
 
-export default async function ClientsPage() {
+export default async function ClientsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ active?: string; search?: string; sort?: string }>
+}) {
   try {
     const session = await getServerSession(authOptions)
+    const params = await searchParams
+    const activeParam = params?.active
+    const searchQuery = params?.search || ""
+    const sortParam = params?.sort || "name" // Default to "name"
     
     if (!session || !session.user) {
       return <div>Please log in to view clients.</div>
@@ -19,17 +28,145 @@ export default async function ClientsPage() {
       return <div>Access denied</div>
     }
 
-    const clients = await prisma.client.findMany({
-      orderBy: { createdAt: "desc" },
+    // Build where clause for search
+    const where: any = {
+      deletedAt: null, // Exclude deleted clients
+      archivedAt: null, // Exclude archived clients
+    }
+    if (searchQuery) {
+      where.OR = [
+        { name: { contains: searchQuery, mode: "insensitive" } },
+        { email: { contains: searchQuery, mode: "insensitive" } },
+        { company: { contains: searchQuery, mode: "insensitive" } },
+        { fullLegalName: { contains: searchQuery, mode: "insensitive" } },
+      ]
+    }
+
+    const allClients = await prisma.client.findMany({
+      where,
       include: {
         _count: {
           select: {
-            proposals: true,
-            bills: true,
+            proposals: {
+              where: {
+                deletedAt: null, // Exclude soft-deleted proposals
+              },
+            },
+            bills: {
+              where: {
+                deletedAt: null, // Exclude soft-deleted bills
+              },
+            },
+            projects: {
+              where: {
+                deletedAt: null, // Exclude soft-deleted projects
+              },
+            },
+          },
+        },
+        projects: {
+          where: {
+            deletedAt: null,
+            status: "ACTIVE",
+          },
+          select: {
+            id: true,
           },
         },
       },
     })
+
+    // Get ongoing todos count per client (todos linked to client's projects or proposals)
+    const clientIds = allClients.map(c => c.id)
+    
+    // Get todos with their related project/proposal client IDs
+    const ongoingTodos = await prisma.todo.findMany({
+      where: {
+        status: {
+          in: ['PENDING', 'IN_PROGRESS'],
+        },
+        OR: [
+          {
+            project: {
+              clientId: { in: clientIds },
+            },
+          },
+          {
+            proposal: {
+              clientId: { in: clientIds },
+            },
+          },
+        ],
+      },
+      include: {
+        project: {
+          select: { clientId: true },
+        },
+        proposal: {
+          select: { clientId: true },
+        },
+      },
+    })
+
+    // Map todos to clients
+    const todosByClient = new Map<string, number>()
+    for (const todo of ongoingTodos) {
+      const clientId = todo.project?.clientId || todo.proposal?.clientId
+      if (clientId) {
+        const current = todosByClient.get(clientId) || 0
+        todosByClient.set(clientId, current + 1)
+      }
+    }
+
+    // Filter by activity if requested
+    let clients = allClients
+    if (activeParam !== undefined) {
+      const isActiveFilter = activeParam === "true"
+      const activityPromises = allClients.map(client => isClientActive(client.id))
+      const activityResults = await Promise.all(activityPromises)
+      
+      clients = allClients.filter((client, index) => {
+        const isActive = activityResults[index]
+        return isActiveFilter ? isActive : !isActive
+      })
+    }
+
+    // Apply sorting
+    if (sortParam === "most-used") {
+      clients.sort((a, b) => {
+        const aActiveProjects = a.projects.length
+        const bActiveProjects = b.projects.length
+        const aOngoingTodos = todosByClient.get(a.id) || 0
+        const bOngoingTodos = todosByClient.get(b.id) || 0
+        const aTotal = aActiveProjects + aOngoingTodos
+        const bTotal = bActiveProjects + bOngoingTodos
+        return bTotal - aTotal // Descending order (most used first)
+      })
+    } else if (sortParam === "name") {
+      clients.sort((a, b) => a.name.localeCompare(b.name))
+    } else if (sortParam === "number") {
+      // Extract numeric portion from client name
+      const extractNumber = (name: string): number => {
+        // Try to find number at the end after a separator (e.g., "Client Name - 123" or "Client #456")
+        const match = name.match(/(?:[-#]\s*)?(\d+)$/)
+        if (match) {
+          return parseInt(match[1], 10)
+        }
+        // If no number found, return a large number to sort to the end
+        return Infinity
+      }
+      clients.sort((a, b) => {
+        const aNum = extractNumber(a.name)
+        const bNum = extractNumber(b.name)
+        if (aNum === Infinity && bNum === Infinity) {
+          // Both have no number, sort alphabetically
+          return a.name.localeCompare(b.name)
+        }
+        if (aNum === Infinity) return 1 // a goes to end
+        if (bNum === Infinity) return -1 // b goes to end
+        return aNum - bNum
+      })
+    }
 
     return (
       <div>
@@ -38,28 +175,40 @@ export default async function ClientsPage() {
             <h1 className="text-3xl font-bold">Clients</h1>
             <p className="text-gray-600 mt-2">Manage your clients</p>
           </div>
-          <Link href="/dashboard/clients/new">
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Client
-            </Button>
-          </Link>
+          <div className="flex gap-2">
+            <Link href="/dashboard/clients/import">
+              <Button variant="outline">
+                <Upload className="h-4 w-4 mr-2" />
+                Import Clients
+              </Button>
+            </Link>
+            <Link href="/dashboard/clients/new">
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Client
+              </Button>
+            </Link>
+          </div>
         </div>
 
         <div className="mb-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <Input
-              placeholder="Search clients..."
-              className="pl-10"
-            />
-          </div>
+          <ClientSearch />
+          {activeParam !== undefined && (
+            <div className="mt-2 text-sm text-gray-600">
+              Filtered by: {activeParam === "true" ? "Active clients" : "Non-active clients"}
+            </div>
+          )}
+          {searchQuery && (
+            <div className="mt-2 text-sm text-gray-600">
+              Search results for: "{searchQuery}"
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {clients.map((client) => (
             <Link key={client.id} href={`/dashboard/clients/${client.id}`}>
-              <Card className="hover:shadow-lg transition-shadow">
+              <Card className={`hover:shadow-lg transition-shadow ${!client.kycCompleted ? "border-yellow-500" : ""}`}>
                 <CardHeader>
                   <CardTitle>{client.name}</CardTitle>
                   {client.company && (
@@ -72,7 +221,10 @@ export default async function ClientsPage() {
                   )}
                   <div className="flex justify-between text-sm text-gray-500">
                     <span>{client._count.proposals} proposals</span>
-                    <span>{client._count.bills} bills</span>
+                    <span>{client._count.bills} invoices</span>
+                    {client._count.projects > 0 && (
+                      <span>{client._count.projects} projects</span>
+                    )}
                   </div>
                 </CardContent>
               </Card>

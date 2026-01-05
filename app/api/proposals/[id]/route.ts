@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import { ProposalType, ProposalStatus } from "@prisma/client"
+import { canEditProposal } from "@/lib/permissions"
 
 const proposalItemSchema = z.object({
   id: z.string().optional(),
@@ -17,10 +18,11 @@ const proposalItemSchema = z.object({
   discountAmount: z.number().optional(),
   amount: z.number(),
   date: z.string().optional(),
+  milestoneIds: z.array(z.string()).optional(), // Array of milestone IDs assigned to this item
 })
 
 const milestoneSchema = z.object({
-  id: z.string().optional(),
+  id: z.string().optional(), // DB ID for existing milestones, temp ID for new ones
   name: z.string().min(1),
   description: z.string().optional(),
   amount: z.number().optional(),
@@ -40,6 +42,7 @@ const paymentTermSchema = z.object({
 
 const proposalUpdateSchema = z.object({
   clientId: z.string().optional(),
+  leadId: z.string().optional(),
   type: z.nativeEnum(ProposalType).optional(),
   title: z.string().min(1).optional().or(z.literal("")),
   description: z.string().optional(),
@@ -89,6 +92,14 @@ export async function GET(
       where: { id },
       include: {
         client: true,
+        lead: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            company: true,
+          },
+        },
         creator: {
           select: {
             name: true,
@@ -102,6 +113,16 @@ export async function GET(
                 id: true,
                 name: true,
                 email: true,
+              },
+            },
+            milestones: {
+              select: {
+                id: true,
+                name: true,
+                description: true,
+                amount: true,
+                percent: true,
+                dueDate: true,
               },
             },
           },
@@ -135,7 +156,10 @@ export async function GET(
     // Check if client can access this proposal
     if (session.user.role === "CLIENT") {
       const client = await prisma.client.findFirst({
-        where: { email: session.user.email },
+        where: { 
+          email: session.user.email,
+          deletedAt: null, // Exclude deleted clients
+        },
       })
       if (!client || proposal.clientId !== client.id) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 })
@@ -179,10 +203,23 @@ export async function PUT(
       return NextResponse.json({ error: "Proposal not found" }, { status: 404 })
     }
 
-    // Only allow editing drafts
-    if (proposal.status !== ProposalStatus.DRAFT && proposal.createdBy !== session.user.id) {
+    // Check edit permissions
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: {
+        id: true,
+        role: true,
+        canEditAllProposals: true,
+      },
+    })
+
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 })
+    }
+
+    if (!canEditProposal(user, { createdBy: proposal.createdBy, status: proposal.status })) {
       return NextResponse.json(
-        { error: "Can only edit draft proposals" },
+        { error: "You don't have permission to edit this proposal" },
         { status: 403 }
       )
     }
@@ -230,10 +267,63 @@ export async function PUT(
       }
     }
 
+    // Validate that either clientId or leadId is provided, but not both (if either is being updated)
+    if ((validatedData.clientId !== undefined || validatedData.leadId !== undefined)) {
+      // Get current proposal to check existing values
+      const currentProposal = await prisma.proposal.findUnique({
+        where: { id },
+        select: { clientId: true, leadId: true },
+      })
+
+      const newClientId = validatedData.clientId !== undefined ? validatedData.clientId : currentProposal?.clientId
+      const newLeadId = validatedData.leadId !== undefined ? validatedData.leadId : currentProposal?.leadId
+
+      if (!newClientId && !newLeadId) {
+        return NextResponse.json(
+          { error: "Either clientId or leadId must be provided" },
+          { status: 400 }
+        )
+      }
+
+      if (newClientId && newLeadId) {
+        return NextResponse.json(
+          { error: "Cannot specify both clientId and leadId. Use either clientId or leadId." },
+          { status: 400 }
+        )
+      }
+
+      // Validate client exists if clientId provided
+      if (validatedData.clientId) {
+        const client = await prisma.client.findUnique({
+          where: { id: validatedData.clientId },
+        })
+        if (!client) {
+          return NextResponse.json(
+            { error: "Client not found" },
+            { status: 404 }
+          )
+        }
+      }
+
+      // Validate lead exists if leadId provided
+      if (validatedData.leadId) {
+        const lead = await prisma.lead.findUnique({
+          where: { id: validatedData.leadId },
+        })
+        if (!lead) {
+          return NextResponse.json(
+            { error: "Lead not found" },
+            { status: 404 }
+          )
+        }
+      }
+    }
+
     // Prepare update data
     const updateData: any = {}
     try {
-      if (validatedData.clientId !== undefined) updateData.clientId = validatedData.clientId
+      if (validatedData.clientId !== undefined) updateData.clientId = validatedData.clientId || null
+      if (validatedData.leadId !== undefined) updateData.leadId = validatedData.leadId || null
       if (validatedData.type !== undefined) updateData.type = validatedData.type
       if (validatedData.title !== undefined) updateData.title = validatedData.title
       if (validatedData.description !== undefined) updateData.description = validatedData.description
@@ -278,57 +368,121 @@ export async function PUT(
       },
     })
 
+    // Update milestones first (need their IDs for item assignments)
+    const milestoneIdMap = new Map<string, string>()
+    if (validatedData.milestones) {
+      try {
+        // Get existing milestones to preserve IDs for updates
+        const existingMilestones = await prisma.milestone.findMany({
+          where: { proposalId: id },
+        })
+
+        // Build map of existing milestone IDs by name (for matching)
+        const existingMilestoneMap = new Map<string, string>()
+        existingMilestones.forEach(m => {
+          if (m.id) existingMilestoneMap.set(m.id, m.id)
+        })
+
+        // Delete all existing milestones (will recreate with assignments)
+        await prisma.milestone.deleteMany({
+          where: { proposalId: id },
+        })
+
+        // Create/update milestones and build ID map
+        if (validatedData.milestones.length > 0) {
+          for (const milestone of validatedData.milestones) {
+            // Check if this is an existing milestone (has DB ID that starts with 'cl' or similar)
+            const isExisting = milestone.id && !milestone.id.startsWith("temp-") && existingMilestoneMap.has(milestone.id)
+            
+            let createdMilestone
+            if (isExisting && milestone.id) {
+              // Recreate with same ID if it was an existing one
+              createdMilestone = await prisma.milestone.create({
+                data: {
+                  id: milestone.id, // Preserve ID if it was existing
+                  proposalId: id,
+                  name: milestone.name,
+                  description: milestone.description || null,
+                  amount: milestone.amount || null,
+                  percent: milestone.percent || null,
+                  dueDate: milestone.dueDate ? new Date(milestone.dueDate) : null,
+                },
+              })
+            } else {
+              // Create new milestone
+              createdMilestone = await prisma.milestone.create({
+                data: {
+                  proposalId: id,
+                  name: milestone.name,
+                  description: milestone.description || null,
+                  amount: milestone.amount || null,
+                  percent: milestone.percent || null,
+                  dueDate: milestone.dueDate ? new Date(milestone.dueDate) : null,
+                },
+              })
+            }
+            
+            // Map temporary ID to actual DB ID
+            if (milestone.id) {
+              milestoneIdMap.set(milestone.id, createdMilestone.id)
+            }
+          }
+        }
+      } catch (milestonesError: any) {
+        console.error("Error updating milestones:", milestonesError?.message || String(milestonesError))
+        throw milestonesError
+      }
+    } else {
+      // If no milestones provided, get existing ones for ID mapping
+      const existingMilestones = await prisma.milestone.findMany({
+        where: { proposalId: id },
+      })
+      existingMilestones.forEach(m => {
+        if (m.id) milestoneIdMap.set(m.id, m.id)
+      })
+    }
+
     // Update items if provided
     if (validatedData.items && Array.isArray(validatedData.items)) {
       try {
-        // Delete existing items
+        // Delete existing items (cascade will handle milestone relations)
         await prisma.proposalItem.deleteMany({
           where: { proposalId: id },
         })
 
-        // Create new items
+        // Create new items with milestone assignments
         if (validatedData.items.length > 0) {
-          await prisma.proposalItem.createMany({
-            data: validatedData.items.map((item) => ({
-              proposalId: id,
-              billingMethod: item.billingMethod || null,
-              personId: item.personId || null,
-              description: item.description,
-              quantity: item.quantity || null,
-              rate: item.rate || null,
-              unitPrice: item.unitPrice || null,
-              discountPercent: item.discountPercent || null,
-              discountAmount: item.discountAmount || null,
-              amount: item.amount,
-              date: null, // Dates are only for actual billing/timesheet entries, not proposals
-            })),
-          })
+          for (const item of validatedData.items) {
+            // Map temporary milestone IDs to actual DB IDs
+            const actualMilestoneIds = (item.milestoneIds || [])
+              .map(tempId => milestoneIdMap.get(tempId))
+              .filter((id): id is string => id !== undefined)
+
+            await prisma.proposalItem.create({
+              data: {
+                proposalId: id,
+                billingMethod: item.billingMethod || null,
+                personId: item.personId || null,
+                description: item.description,
+                quantity: item.quantity || null,
+                rate: item.rate || null,
+                unitPrice: item.unitPrice || null,
+                discountPercent: item.discountPercent || null,
+                discountAmount: item.discountAmount || null,
+                amount: item.amount,
+                date: null, // Dates are only for actual billing/timesheet entries, not proposals
+                milestones: actualMilestoneIds.length > 0 ? {
+                  connect: actualMilestoneIds.map(id => ({ id })),
+                } : undefined,
+              },
+            })
+          }
         }
       } catch (itemsError: any) {
         console.error("Error updating items:", itemsError?.message || String(itemsError))
         console.error("Items data:", JSON.stringify(validatedData.items, null, 2))
         throw itemsError
       }
-    }
-
-    // Update milestones if provided
-    if (validatedData.milestones) {
-      // Delete existing milestones
-      await prisma.milestone.deleteMany({
-        where: { proposalId: id },
-      })
-
-      // Create new milestones
-      await prisma.milestone.createMany({
-        data: validatedData.milestones.map((milestone) => ({
-          proposalId: id,
-          name: milestone.name,
-          description: milestone.description || null,
-          amount: milestone.amount || null,
-          percent: milestone.percent || null,
-          dueDate: milestone.dueDate ? new Date(milestone.dueDate) : null,
-        })),
-      })
     }
 
     // Update payment terms if provided
@@ -401,6 +555,16 @@ export async function PUT(
                 id: true,
                 name: true,
                 email: true,
+              },
+            },
+            milestones: {
+              select: {
+                id: true,
+                name: true,
+                description: true,
+                amount: true,
+                percent: true,
+                dueDate: true,
               },
             },
           },
@@ -519,20 +683,23 @@ export async function DELETE(
       )
     }
 
-    // Only proposal creator or admin can delete
-    if (proposal.createdBy !== session.user.id && session.user.role !== "ADMIN") {
+    // Only admin can delete
+    if (session.user.role !== "ADMIN") {
       return NextResponse.json(
-        { error: "Forbidden" },
+        { error: "Forbidden. Only admins can delete proposals." },
         { status: 403 }
       )
     }
 
-    // Delete the proposal (cascade will handle related records)
-    await prisma.proposal.delete({
+    // Soft delete: set deletedAt timestamp
+    await prisma.proposal.update({
       where: { id },
+      data: {
+        deletedAt: new Date(),
+      },
     })
 
-    return NextResponse.json({ message: "Proposal deleted successfully" })
+    return NextResponse.json({ message: "Proposal moved to junk box successfully" })
   } catch (error: any) {
     console.error("Error deleting proposal:", error)
     const errorMessage = error instanceof Error ? error.message : String(error)

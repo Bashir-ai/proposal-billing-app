@@ -4,13 +4,12 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
-import { UserRole } from "@prisma/client"
 import { useRouter } from "next/navigation"
 
 interface ApprovalButtonProps {
   proposalId?: string
   billId?: string
-  currentUserRole: UserRole
+  currentUserRole: "ADMIN" | "MANAGER" | "STAFF" | "CLIENT"
 }
 
 export function ApprovalButton({ proposalId, billId, currentUserRole }: ApprovalButtonProps) {
@@ -38,6 +37,9 @@ export function ApprovalButton({ proposalId, billId, currentUserRole }: Approval
         throw new Error("Failed to submit approval")
       }
 
+      // Trigger notification refresh
+      window.dispatchEvent(new Event("notifications:refresh"))
+      
       router.refresh()
       setShowForm(false)
       setComments("")

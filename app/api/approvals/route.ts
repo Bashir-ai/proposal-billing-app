@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import { ApprovalStatus, ProposalStatus, BillStatus, UserRole } from "@prisma/client"
+import { canApproveProposals, canApproveInvoices } from "@/lib/permissions"
 
 const approvalSchema = z.object({
   proposalId: z.string().optional(),
@@ -36,7 +37,7 @@ export async function POST(request: Request) {
       )
     }
 
-    // Check if user can approve based on role hierarchy
+    // Check if user can approve based on permissions
     let canApprove = false
     if (validatedData.proposalId) {
       const proposal = await prisma.proposal.findUnique({
@@ -48,14 +49,27 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Proposal not found" }, { status: 404 })
       }
 
-      // Staff submits -> Manager approves
-      // Manager submits -> Admin approves
-      if (proposal.creator.role === "STAFF" && session.user.role === "MANAGER") {
-        canApprove = true
-      } else if (proposal.creator.role === "MANAGER" && session.user.role === "ADMIN") {
-        canApprove = true
-      } else if (session.user.role === "ADMIN") {
-        canApprove = true
+      // Get user with permissions
+      const user = await prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: {
+          id: true,
+          role: true,
+          canApproveProposals: true,
+        },
+      })
+
+      if (!user) {
+        return NextResponse.json({ error: "User not found" }, { status: 404 })
+      }
+
+      // Check if this is a new workflow (with requiredApproverIds) or old workflow
+      if (proposal.internalApprovalRequired && proposal.requiredApproverIds && proposal.requiredApproverIds.length > 0) {
+        // New workflow: user must be in the required approvers list OR have permission override
+        canApprove = proposal.requiredApproverIds.includes(session.user.id) || canApproveProposals(user)
+      } else {
+        // Old workflow: check permission function
+        canApprove = canApproveProposals(user)
       }
     } else if (validatedData.billId) {
       const bill = await prisma.bill.findUnique({
@@ -64,16 +78,30 @@ export async function POST(request: Request) {
       })
 
       if (!bill) {
-        return NextResponse.json({ error: "Bill not found" }, { status: 404 })
+        return NextResponse.json({ error: "Invoice not found" }, { status: 404 })
       }
 
-      // Same logic for bills
-      if (bill.creator.role === "STAFF" && session.user.role === "MANAGER") {
-        canApprove = true
-      } else if (bill.creator.role === "MANAGER" && session.user.role === "ADMIN") {
-        canApprove = true
-      } else if (session.user.role === "ADMIN") {
-        canApprove = true
+      // Get user with permissions
+      const user = await prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: {
+          id: true,
+          role: true,
+          canApproveInvoices: true,
+        },
+      })
+
+      if (!user) {
+        return NextResponse.json({ error: "User not found" }, { status: 404 })
+      }
+
+      // Check if this is a new workflow (with requiredApproverIds) or old workflow
+      if (bill.internalApprovalRequired && bill.requiredApproverIds && bill.requiredApproverIds.length > 0) {
+        // New workflow: user must be in the required approvers list OR have permission override
+        canApprove = bill.requiredApproverIds.includes(session.user.id) || canApproveInvoices(user)
+      } else {
+        // Old workflow: check permission function
+        canApprove = canApproveInvoices(user)
       }
     }
 
@@ -84,34 +112,241 @@ export async function POST(request: Request) {
       )
     }
 
-    // Create approval record
-    const approval = await prisma.approval.create({
-      data: {
-        proposalId: validatedData.proposalId || null,
-        billId: validatedData.billId || null,
-        approverId: session.user.id,
-        status: validatedData.status === "APPROVED" ? ApprovalStatus.APPROVED : ApprovalStatus.REJECTED,
-        comments: validatedData.comments || null,
-      },
-    })
-
-    // Update proposal or bill status
+    // Check if approval already exists (to prevent duplicates)
+    let approval
     if (validatedData.proposalId) {
-      await prisma.proposal.update({
-        where: { id: validatedData.proposalId },
-        data: {
-          status: validatedData.status === "APPROVED" ? ProposalStatus.APPROVED : ProposalStatus.REJECTED,
-          approvedAt: validatedData.status === "APPROVED" ? new Date() : null,
+      approval = await prisma.approval.findFirst({
+        where: {
+          proposalId: validatedData.proposalId,
+          approverId: session.user.id,
         },
       })
     } else if (validatedData.billId) {
-      await prisma.bill.update({
-        where: { id: validatedData.billId },
-        data: {
-          status: validatedData.status === "APPROVED" ? BillStatus.APPROVED : BillStatus.REJECTED,
-          approvedAt: validatedData.status === "APPROVED" ? new Date() : null,
+      approval = await prisma.approval.findFirst({
+        where: {
+          billId: validatedData.billId,
+          approverId: session.user.id,
         },
       })
+    }
+
+    // Update existing approval or create new one
+    if (approval) {
+      approval = await prisma.approval.update({
+        where: { id: approval.id },
+        data: {
+          status: validatedData.status === "APPROVED" ? ApprovalStatus.APPROVED : ApprovalStatus.REJECTED,
+          comments: validatedData.comments || null,
+        },
+      })
+    } else {
+      approval = await prisma.approval.create({
+        data: {
+          proposalId: validatedData.proposalId || null,
+          billId: validatedData.billId || null,
+          approverId: session.user.id,
+          status: validatedData.status === "APPROVED" ? ApprovalStatus.APPROVED : ApprovalStatus.REJECTED,
+          comments: validatedData.comments || null,
+        },
+      })
+    }
+
+    // Handle proposal approval workflow
+    if (validatedData.proposalId) {
+      const proposal = await prisma.proposal.findUnique({
+        where: { id: validatedData.proposalId },
+        include: {
+          client: true,
+          approvals: true,
+        },
+      })
+
+      if (!proposal) {
+        return NextResponse.json({ error: "Proposal not found" }, { status: 404 })
+      }
+
+      // If rejected, update proposal status immediately
+      if (validatedData.status === "REJECTED") {
+        await prisma.proposal.update({
+          where: { id: validatedData.proposalId },
+          data: {
+            status: ProposalStatus.REJECTED,
+            approvedAt: null,
+          },
+        })
+      } else {
+        // Check if internal approvals are complete
+        if (proposal.internalApprovalRequired && !proposal.internalApprovalsComplete) {
+          const requiredApproverIds = proposal.requiredApproverIds || []
+          const approvalType = proposal.internalApprovalType || "ALL"
+          
+          // Get all approvals for this proposal
+          const allApprovals = proposal.approvals.filter(a => 
+            requiredApproverIds.includes(a.approverId)
+          )
+          
+          const approvedCount = allApprovals.filter(a => a.status === ApprovalStatus.APPROVED).length
+          const rejectedCount = allApprovals.filter(a => a.status === ApprovalStatus.REJECTED).length
+          const totalRequired = requiredApproverIds.length
+          
+          let approvalsComplete = false
+          
+          if (approvalType === "ALL") {
+            approvalsComplete = approvedCount === totalRequired
+          } else if (approvalType === "ANY") {
+            approvalsComplete = approvedCount >= 1
+          } else if (approvalType === "MAJORITY") {
+            approvalsComplete = approvedCount > totalRequired / 2
+          }
+          
+          // If any rejection and requirement is ALL, mark as rejected
+          if (rejectedCount > 0 && approvalType === "ALL") {
+            await prisma.proposal.update({
+              where: { id: validatedData.proposalId },
+              data: {
+                status: ProposalStatus.REJECTED,
+                internalApprovalsComplete: false,
+                approvedAt: null,
+              },
+            })
+          } else if (approvalsComplete) {
+            // All required approvals received, send to client
+            const crypto = await import("crypto")
+            const approvalToken = crypto.randomBytes(32).toString("hex")
+            const tokenExpiry = new Date()
+            tokenExpiry.setDate(tokenExpiry.getDate() + 30) // 30 days expiry
+
+            await prisma.proposal.update({
+              where: { id: validatedData.proposalId },
+              data: {
+                internalApprovalsComplete: true,
+                clientApprovalToken: approvalToken,
+                clientApprovalTokenExpiry: tokenExpiry,
+              },
+            })
+
+            // Send client approval email
+            if (proposal.client.email) {
+              const { sendClientApprovalRequest } = await import("@/lib/email")
+              try {
+                await sendClientApprovalRequest(
+                  proposal.client.email,
+                  proposal.client.name,
+                  {
+                    id: proposal.id,
+                    title: proposal.title,
+                    proposalNumber: proposal.proposalNumber,
+                    description: proposal.description,
+                    amount: proposal.amount,
+                    currency: proposal.currency,
+                    issueDate: proposal.issueDate,
+                    expiryDate: proposal.expiryDate,
+                  },
+                  approvalToken
+                )
+                
+                await prisma.proposal.update({
+                  where: { id: validatedData.proposalId },
+                  data: {
+                    clientApprovalEmailSent: true,
+                  },
+                })
+              } catch (emailError) {
+                console.error("Failed to send client approval email:", emailError)
+              }
+            }
+          }
+        } else if (!proposal.internalApprovalRequired) {
+          // No internal approvals required, update status directly
+          await prisma.proposal.update({
+            where: { id: validatedData.proposalId },
+            data: {
+              status: ProposalStatus.APPROVED,
+              approvedAt: new Date(),
+            },
+          })
+        }
+      }
+    } else if (validatedData.billId) {
+      // Handle invoice approval workflow
+      const bill = await prisma.bill.findUnique({
+        where: { id: validatedData.billId },
+        include: {
+          approvals: true,
+        },
+      })
+
+      if (!bill) {
+        return NextResponse.json({ error: "Invoice not found" }, { status: 404 })
+      }
+
+      // If rejected, update invoice status immediately
+      if (validatedData.status === "REJECTED") {
+        await prisma.bill.update({
+          where: { id: validatedData.billId },
+          data: {
+            status: BillStatus.DRAFT, // Revert to draft on rejection
+            approvedAt: null,
+            internalApprovalsComplete: false,
+          },
+        })
+      } else {
+        // Check if internal approvals are complete
+        if (bill.internalApprovalRequired && !bill.internalApprovalsComplete) {
+          const requiredApproverIds = bill.requiredApproverIds || []
+          const approvalType = bill.internalApprovalType || "ALL"
+          
+          // Get all approvals for this invoice
+          const allApprovals = bill.approvals.filter(a => 
+            requiredApproverIds.includes(a.approverId)
+          )
+          
+          const approvedCount = allApprovals.filter(a => a.status === ApprovalStatus.APPROVED).length
+          const rejectedCount = allApprovals.filter(a => a.status === ApprovalStatus.REJECTED).length
+          const totalRequired = requiredApproverIds.length
+          
+          let approvalsComplete = false
+          
+          if (approvalType === "ALL") {
+            approvalsComplete = approvedCount === totalRequired
+          } else if (approvalType === "ANY") {
+            approvalsComplete = approvedCount >= 1
+          } else if (approvalType === "MAJORITY") {
+            approvalsComplete = approvedCount > totalRequired / 2
+          }
+          
+          // If any rejection and requirement is ALL, revert to draft
+          if (rejectedCount > 0 && approvalType === "ALL") {
+            await prisma.bill.update({
+              where: { id: validatedData.billId },
+              data: {
+                status: BillStatus.DRAFT,
+                internalApprovalsComplete: false,
+                approvedAt: null,
+              },
+            })
+          } else if (approvalsComplete) {
+            // All required approvals received, mark as approved
+            await prisma.bill.update({
+              where: { id: validatedData.billId },
+              data: {
+                status: BillStatus.APPROVED,
+                internalApprovalsComplete: true,
+                approvedAt: new Date(),
+              },
+            })
+          }
+        } else if (!bill.internalApprovalRequired) {
+          // No internal approvals required, update status directly
+          await prisma.bill.update({
+            where: { id: validatedData.billId },
+            data: {
+              status: BillStatus.APPROVED,
+              approvedAt: new Date(),
+            },
+          })
+        }
+      }
     }
 
     return NextResponse.json(approval, { status: 201 })

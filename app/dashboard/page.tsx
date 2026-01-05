@@ -5,24 +5,55 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatCurrency } from "@/lib/utils"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { FileText, Receipt, Users, TrendingUp } from "lucide-react"
+import { FileText, Receipt, Users, TrendingUp, FolderKanban } from "lucide-react"
+import { NotificationsBox } from "@/components/dashboard/NotificationsBox"
+import { getNotifications } from "@/lib/notifications"
+import { FinancialSummary } from "@/components/dashboard/FinancialSummary"
+import { calculateTotalUnbilledWork, calculateClosedProposalsNotCharged } from "@/lib/financial-calculations"
+import { QuickTodoButton } from "@/components/dashboard/QuickTodoButton"
 
 export default async function DashboardPage() {
   try {
     const session = await getServerSession(authOptions)
 
-    const [proposalsCount, billsCount, clientsCount, totalRevenue] = await Promise.all([
+    // Fetch notifications server-side
+    let notificationsData = { count: 0, notifications: [] }
+    if (session) {
+      notificationsData = await getNotifications(session.user.id, session.user.role)
+    }
+
+    // Build base where clauses for role-based filtering
+    const clientWhere = session?.user.role === "CLIENT" 
+      ? { client: { email: session?.user.email } }
+      : undefined
+
+    const [
+      proposalsCount,
+      billsCount,
+      clientsCount,
+      projectsCount,
+      totalRevenue,
+      invoicedNotPaid,
+    ] = await Promise.all([
       prisma.proposal.count({
-        where: session?.user.role === "CLIENT" 
-          ? { client: { email: session?.user.email } }
-          : undefined
+        where: {
+          deletedAt: null,
+          ...(clientWhere || {})
+        },
       }),
       prisma.bill.count({
-        where: session?.user.role === "CLIENT"
-          ? { client: { email: session?.user.email } }
-          : undefined
+        where: {
+          deletedAt: null,
+          ...(clientWhere || {})
+        },
       }),
       prisma.client.count(),
+      prisma.project.count({
+        where: {
+          deletedAt: null,
+          ...(clientWhere || {})
+        },
+      }),
       prisma.bill.aggregate({
         where: {
           status: "PAID",
@@ -34,6 +65,23 @@ export default async function DashboardPage() {
           amount: true,
         },
       }),
+      prisma.bill.aggregate({
+        where: {
+          status: { in: ["SUBMITTED", "APPROVED"] },
+          ...(session?.user.role === "CLIENT" 
+            ? { client: { email: session?.user.email } }
+            : {})
+        },
+        _sum: {
+          amount: true,
+        },
+      }),
+    ])
+
+    // Calculate additional financial metrics
+    const [unbilledWork, closedProposalsNotCharged] = await Promise.all([
+      calculateTotalUnbilledWork(session?.user.role === "CLIENT" ? session?.user.email : undefined),
+      calculateClosedProposalsNotCharged(session?.user.role === "CLIENT" ? session?.user.email : undefined),
     ])
 
   const stats = [
@@ -43,13 +91,23 @@ export default async function DashboardPage() {
       icon: FileText,
       href: "/dashboard/proposals",
       color: "text-blue-600",
+      // Clicking will show all proposals, user can filter for accepted/rejected
     },
     {
-      name: "Bills",
+      name: "Projects",
+      value: projectsCount,
+      icon: FolderKanban,
+      href: "/projects",
+      color: "text-indigo-600",
+      // Clicking will show all projects, user can filter for ongoing/closed
+    },
+    {
+      name: "Invoices",
       value: billsCount,
       icon: Receipt,
       href: "/dashboard/bills",
       color: "text-green-600",
+      // Clicking will show all invoices, user can filter for paid/unpaid
     },
     {
       name: "Clients",
@@ -57,21 +115,23 @@ export default async function DashboardPage() {
       icon: Users,
       href: "/dashboard/clients",
       color: "text-purple-600",
-    },
-    {
-      name: "Total Revenue",
-      value: formatCurrency(totalRevenue._sum.amount || 0),
-      icon: TrendingUp,
-      href: "/dashboard/bills",
-      color: "text-orange-600",
+      // Clicking will show all clients, user can filter for active/non-active
     },
   ]
 
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold">Dashboard</h1>
-        <p className="text-gray-600 mt-2">Welcome back, {session?.user.name}</p>
+      <div className="mb-8 flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Dashboard</h1>
+          <p className="text-gray-600 mt-2">Welcome back, {session?.user.name}</p>
+        </div>
+        {session && (
+          <NotificationsBox
+            initialCount={notificationsData.count}
+            initialNotifications={notificationsData.notifications}
+          />
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -95,7 +155,8 @@ export default async function DashboardPage() {
         })}
       </div>
 
-      <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
         <Card>
           <CardHeader>
             <CardTitle>Quick Actions</CardTitle>
@@ -111,7 +172,7 @@ export default async function DashboardPage() {
             {session?.user.role !== "CLIENT" && (
               <Link href="/dashboard/bills/new">
                 <Button className="w-full" variant="outline">
-                  Create New Bill
+                  Create New Invoice
                 </Button>
               </Link>
             )}
@@ -122,8 +183,37 @@ export default async function DashboardPage() {
                 </Button>
               </Link>
             )}
+            {session?.user.role !== "CLIENT" && (
+              <Link href="/dashboard/approvals/proposals">
+                <Button className="w-full" variant="outline">
+                  Approve Proposals
+                </Button>
+              </Link>
+            )}
+            {session?.user.role !== "CLIENT" && (
+              <Link href="/dashboard/approvals/invoices">
+                <Button className="w-full" variant="outline">
+                  Approve Invoices
+                </Button>
+              </Link>
+            )}
+            {session?.user.role !== "CLIENT" && (
+              <QuickTodoButton />
+            )}
           </CardContent>
         </Card>
+        </div>
+        <div className="lg:col-span-1">
+          <FinancialSummary
+            totalRevenue={totalRevenue._sum.amount || 0}
+            invoicedNotPaid={invoicedNotPaid._sum.amount || 0}
+            closedProposalsNotCharged={closedProposalsNotCharged}
+            unbilledWork={{
+              timesheetHours: unbilledWork.timesheetHours,
+              totalAmount: unbilledWork.totalAmount,
+            }}
+          />
+        </div>
       </div>
     </div>
     )

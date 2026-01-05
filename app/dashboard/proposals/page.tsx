@@ -43,6 +43,23 @@ export default function ProposalsPage() {
   const [clients, setClients] = useState<Array<{ id: string; name: string }>>([])
   const [tags, setTags] = useState<Array<{ id: string; name: string }>>([])
 
+  // Read query parameters from URL on mount
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search)
+      const statusParam = params.get("status")
+      const clientApprovalParam = params.get("clientApprovalStatus")
+      
+      if (statusParam && statusParam !== statusFilter) {
+        setStatusFilter(statusParam)
+      }
+      if (clientApprovalParam && clientApprovalParam !== clientApprovalFilter) {
+        setClientApprovalFilter(clientApprovalParam)
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const fetchProposals = useCallback(async () => {
     try {
       const params = new URLSearchParams()

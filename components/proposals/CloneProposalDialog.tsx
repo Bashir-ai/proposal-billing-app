@@ -37,15 +37,33 @@ export function CloneProposalDialog({ proposalId, onClose }: CloneProposalDialog
       })
 
       if (!response.ok) {
-        const data = await response.json()
-        setError(data.error || "Failed to clone proposal")
+        const contentType = response.headers.get("content-type")
+        let errorMessage = "Failed to clone proposal"
+        
+        if (contentType && contentType.includes("application/json")) {
+          try {
+            const data = await response.json()
+            errorMessage = data.error || data.message || errorMessage
+            if (data.details) {
+              console.error("Clone error details:", data.details)
+            }
+          } catch (e) {
+            errorMessage = `${response.status}: ${response.statusText || errorMessage}`
+          }
+        } else {
+          errorMessage = `${response.status}: ${response.statusText || errorMessage}`
+        }
+        
+        setError(errorMessage)
         return
       }
 
       const clonedProposal = await response.json()
       router.push(`/dashboard/proposals/${clonedProposal.id}/edit`)
-    } catch (error) {
-      setError("An error occurred. Please try again.")
+      router.refresh()
+    } catch (error: any) {
+      console.error("Clone proposal error:", error)
+      setError(error?.message || "An error occurred. Please try again.")
     } finally {
       setLoading(false)
     }

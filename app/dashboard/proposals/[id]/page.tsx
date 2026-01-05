@@ -9,6 +9,16 @@ import { ProposalStatus, ProposalType, ClientApprovalStatus } from "@prisma/clie
 import Link from "next/link"
 import { ApprovalButton } from "@/components/shared/ApprovalButton"
 import { ProposalActions } from "@/components/proposals/ProposalActions"
+import { ApproveOnBehalfButton } from "@/components/proposals/ApproveOnBehalfButton"
+import { SendToClientButton } from "@/components/proposals/SendToClientButton"
+import { CreateProjectButton } from "@/components/proposals/CreateProjectButton"
+import { DownloadPdfButton } from "@/components/proposals/DownloadPdfButton"
+import { ViewProjectButton } from "@/components/proposals/ViewProjectButton"
+import { GenerateUpfrontInvoiceButton } from "@/components/proposals/GenerateUpfrontInvoiceButton"
+import { canEditProposal, canApproveProposals, canDeleteItems } from "@/lib/permissions"
+import { DeleteButton } from "@/components/shared/DeleteButton"
+import { getLogoPath } from "@/lib/settings"
+import Image from "next/image"
 
 async function submitProposal(formData: FormData) {
   "use server"
@@ -62,6 +72,16 @@ export default async function ProposalDetailPage({
               email: true,
             },
           },
+          milestones: {
+            select: {
+              id: true,
+              name: true,
+              description: true,
+              amount: true,
+              percent: true,
+              dueDate: true,
+            },
+          },
         },
         orderBy: { createdAt: "asc" },
       },
@@ -74,6 +94,19 @@ export default async function ProposalDetailPage({
         include: {
           approver: {
             select: {
+              id: true,
+              name: true,
+              email: true,
+              role: true,
+            },
+          },
+        },
+        orderBy: { createdAt: "asc" },
+      },
+      approvals: {
+        include: {
+          approver: {
+            select: {
               name: true,
               email: true,
               role: true,
@@ -82,7 +115,11 @@ export default async function ProposalDetailPage({
         },
         orderBy: { createdAt: "desc" },
       },
-      bills: true,
+      bills: {
+        where: {
+          isUpfrontPayment: true,
+        },
+      },
       projects: {
         select: {
           id: true,
@@ -190,15 +227,112 @@ export default async function ProposalDetailPage({
   const tax = calculateTax()
   const grandTotal = calculateGrandTotal()
 
-  const canEdit = proposal.status === ProposalStatus.DRAFT && 
-    (session?.user.role !== "CLIENT" && proposal.createdBy === session?.user.id)
+  // Fetch logo
+  const logoPath = await getLogoPath()
+
+  // Fetch current user with permissions
+  let currentUser = null
+  let canEdit = false
+  let canApprove = false
+  let canResubmit = false
+  let userApproval = null
+  let isAdminOrManager = false
+  let hasGeneralApprovalPermission = false
+  let canStillApprove = true
+
+  if (session?.user.id) {
+    currentUser = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: {
+        id: true,
+        role: true,
+        canApproveProposals: true,
+        canEditAllProposals: true,
+      },
+    })
+
+    if (currentUser) {
+      // Check edit permission using permission function
+      canEdit = canEditProposal(currentUser, {
+        createdBy: proposal.createdBy,
+        status: proposal.status,
+      })
+
+      // Check approval permission
+      // User has general approval permission (ADMIN/MANAGER or override)
+      hasGeneralApprovalPermission = canApproveProposals(currentUser)
+      
+      // Check if user is in the required approvers list
+      const isInRequiredApprovers = proposal.requiredApproverIds && 
+        proposal.requiredApproverIds.length > 0 && 
+        proposal.requiredApproverIds.includes(session.user.id)
+      
+      // ADMIN and MANAGER can approve even if they're the creator
+      isAdminOrManager = currentUser.role === "ADMIN" || currentUser.role === "MANAGER"
+      const isCreator = session.user.id === proposal.createdBy
+      const canApproveOwnProposal = isAdminOrManager || !isCreator
+      
+      // Determine if user can approve based on internal approval requirements
+      let canApproveInternal = false
+      
+      if (proposal.internalApprovalRequired) {
+        // If internal approvals are required
+        if (proposal.requiredApproverIds && proposal.requiredApproverIds.length > 0) {
+          // Specific approvers are required - user must be in the list OR have general permission
+          canApproveInternal = isInRequiredApprovers || hasGeneralApprovalPermission
+        } else {
+          // No specific approvers - anyone with general permission can approve
+          canApproveInternal = hasGeneralApprovalPermission
+        }
+      } else {
+        // No internal approvals required - anyone with general permission can approve
+        canApproveInternal = hasGeneralApprovalPermission
+      }
+      
+      // User can approve if:
+      // 1. Proposal is submitted
+      // 2. User is not a client
+      // 3. User meets internal approval requirements
+      // 4. User can approve own proposal (not creator OR is admin/manager)
+      // Simplified: ADMIN/MANAGER can always approve submitted proposals
+      if (proposal.status === ProposalStatus.SUBMITTED && session.user.role !== "CLIENT") {
+        if (isAdminOrManager) {
+          // ADMIN/MANAGER can approve any submitted proposal (including their own)
+          canApprove = true
+        } else {
+          // Other users (STAFF with permission) can approve if:
+          // - They have general approval permission
+          // - They meet internal approval requirements
+          // - They're not the creator (or have permission override)
+          canApprove = hasGeneralApprovalPermission && canApproveInternal && canApproveOwnProposal
+        }
+      } else {
+        canApprove = false
+      }
+
+      // Check if user already approved
+      userApproval = proposal.approvals.find(
+        (a) => a.approverId === session.user.id
+      )
+      
+      // User can still approve if they have no approval OR if their approval is PENDING
+      canStillApprove = !userApproval || userApproval.status === "PENDING"
+
+      // Can resubmit if:
+      // 1. Proposal is submitted AND user can edit, OR
+      // 2. Proposal is submitted AND user can't edit AND user can't approve (needs to resubmit to get approval)
+      canResubmit = proposal.status === ProposalStatus.SUBMITTED && 
+        (canEdit || (!canEdit && !canApprove))
+    }
+  }
+
   const canSubmit = proposal.status === ProposalStatus.DRAFT && session?.user.role !== "CLIENT"
   const isClient = session?.user.role === "CLIENT"
   const hasProject = proposal.projects && proposal.projects.length > 0
-  // Anyone can delete a proposal that hasn't been accepted by the client
-  const canDelete = proposal.clientApprovalStatus !== "APPROVED" && 
+  // Only admin can delete (soft delete to junk box)
+  const canDelete = session?.user.role === "ADMIN" && 
+    proposal.clientApprovalStatus !== "APPROVED" && 
     !proposal.deletedAt &&
-    (session?.user.role === "ADMIN" || proposal.createdBy === session?.user.id) &&
     (!proposal.projects || proposal.projects.length === 0)
 
   const getClientApprovalColor = (status: ClientApprovalStatus) => {
@@ -214,6 +348,22 @@ export default async function ProposalDetailPage({
 
   return (
     <div>
+      {/* Logo Header */}
+      {logoPath && (
+        <div className="mb-6 flex justify-start">
+          <div className="relative h-20 w-auto">
+            <Image
+              src={logoPath}
+              alt="Company Logo"
+              width={200}
+              height={80}
+              className="object-contain h-20"
+              style={{ maxHeight: "80px" }}
+            />
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-8">
         <div>
           <div className="flex items-center space-x-2 mb-2">
@@ -273,6 +423,12 @@ export default async function ProposalDetailPage({
           clientApprovalStatus={proposal.clientApprovalStatus}
           hasProject={hasProject}
           canDelete={canDelete}
+          canApprove={canApprove}
+          canResubmit={canResubmit}
+          userApproval={userApproval}
+          proposalStatus={proposal.status}
+          currentUserRole={session?.user.role}
+          canStillApprove={canStillApprove}
         />
       </div>
 
@@ -580,27 +736,49 @@ export default async function ProposalDetailPage({
                     const lineSubtotal = item.amount + lineDiscount
                     
                     return (
-                    <tr key={item.id} className="border-b">
-                        {proposal.type === "MIXED_MODEL" && (
-                          <td className="p-2">
-                            <span className="px-2 py-1 rounded text-xs bg-gray-100">
-                              {item.billingMethod === "hourly" ? "Hourly" : "Fixed"}
-                            </span>
+                      <>
+                        <tr key={item.id} className="border-b">
+                          {proposal.type === "MIXED_MODEL" && (
+                            <td className="p-2">
+                              <span className="px-2 py-1 rounded text-xs bg-gray-100">
+                                {item.billingMethod === "hourly" ? "Hourly" : "Fixed"}
+                              </span>
+                            </td>
+                          )}
+                          {(proposal.type === "HOURLY" || proposal.type === "MIXED_MODEL") && item.person && (
+                            <td className="p-2">{item.person.name}</td>
+                          )}
+                          <td className="p-2">{item.description}</td>
+                          <td className="p-2 text-right">{item.quantity || "-"}</td>
+                          <td className="p-2 text-right">
+                            {item.rate ? `${currencySymbol}${item.rate.toFixed(2)}/hr` : item.unitPrice ? `${currencySymbol}${item.unitPrice.toFixed(2)}` : "-"}
                           </td>
+                          <td className="p-2 text-right text-sm text-gray-600">
+                            {item.discountPercent ? `${item.discountPercent}%` : item.discountAmount ? `${currencySymbol}${item.discountAmount.toFixed(2)}` : "-"}
+                          </td>
+                          <td className="p-2 text-right font-semibold">{currencySymbol}{item.amount.toFixed(2)}</td>
+                        </tr>
+                        {/* Display milestones for this line item */}
+                        {item.milestones && item.milestones.length > 0 && (
+                          <tr key={`${item.id}-milestones`} className="bg-gray-50">
+                            <td colSpan={proposal.type === "MIXED_MODEL" ? 6 : (proposal.type === "HOURLY" || (proposal.type === "MIXED_MODEL" && item.person)) ? 5 : 4} className="p-2 pl-8">
+                              <div className="flex flex-wrap gap-2 items-center">
+                                <span className="text-xs font-semibold text-gray-600">Milestones:</span>
+                                {item.milestones.map((milestone) => (
+                                  <span
+                                    key={milestone.id}
+                                    className="px-2 py-1 rounded text-xs bg-blue-100 text-blue-800 border border-blue-200"
+                                  >
+                                    {milestone.name}
+                                    {milestone.percent && ` (${milestone.percent}%)`}
+                                    {milestone.amount && !milestone.percent && ` (${currencySymbol}${milestone.amount.toFixed(2)})`}
+                                  </span>
+                                ))}
+                              </div>
+                            </td>
+                          </tr>
                         )}
-                        {(proposal.type === "HOURLY" || proposal.type === "MIXED_MODEL") && item.person && (
-                          <td className="p-2">{item.person.name}</td>
-                      )}
-                      <td className="p-2">{item.description}</td>
-                        <td className="p-2 text-right">{item.quantity || "-"}</td>
-                        <td className="p-2 text-right">
-                          {item.rate ? `${currencySymbol}${item.rate.toFixed(2)}/hr` : item.unitPrice ? `${currencySymbol}${item.unitPrice.toFixed(2)}` : "-"}
-                        </td>
-                        <td className="p-2 text-right text-sm text-gray-600">
-                          {item.discountPercent ? `${item.discountPercent}%` : item.discountAmount ? `${currencySymbol}${item.discountAmount.toFixed(2)}` : "-"}
-                        </td>
-                        <td className="p-2 text-right font-semibold">{currencySymbol}{item.amount.toFixed(2)}</td>
-                    </tr>
+                      </>
                     )
                   })}
                 </tbody>
@@ -641,18 +819,218 @@ export default async function ProposalDetailPage({
         </CardContent>
       </Card>
 
-      {proposal.status === ProposalStatus.SUBMITTED && 
-       session?.user.role !== "CLIENT" && 
-       session?.user.id !== proposal.createdBy && (
+      {/* Internal Approval Status */}
+      {proposal.internalApprovalRequired && (
         <Card className="mb-8">
           <CardHeader>
-            <CardTitle>Approval</CardTitle>
+            <CardTitle>Internal Approval Status</CardTitle>
+            <CardDescription>
+              Approval requirement: {
+                proposal.internalApprovalType === "ALL" ? "All selected must approve" :
+                proposal.internalApprovalType === "ANY" ? "Any one approval sufficient" :
+                proposal.internalApprovalType === "MAJORITY" ? "Majority must approve" :
+                "Custom"
+              }
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {proposal.internalApprovalsComplete ? (
+              <div className="p-4 bg-green-50 border border-green-200 rounded">
+                <p className="font-semibold text-green-800">✓ All internal approvals complete</p>
+                <p className="text-sm text-green-700 mt-1">
+                  Proposal has been sent to client for approval
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="p-4 bg-yellow-50 border border-yellow-200 rounded">
+                  <p className="font-semibold text-yellow-800">⏳ Waiting for internal approvals</p>
+                  <p className="text-sm text-yellow-700 mt-1">
+                    {proposal.requiredApproverIds?.length || 0} team member{proposal.requiredApproverIds?.length !== 1 ? "s" : ""} selected
+                  </p>
+                </div>
+                {proposal.approvals && proposal.approvals.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-semibold">Approval Progress:</p>
+                    {proposal.approvals
+                      .filter(a => proposal.requiredApproverIds?.includes(a.approverId))
+                      .map((approval) => (
+                        <div key={approval.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                          <div>
+                            <span className="font-medium">{approval.approver.name}</span>
+                            <span className="text-sm text-gray-500 ml-2">({approval.approver.email})</span>
+                          </div>
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            approval.status === "APPROVED" 
+                              ? "bg-green-100 text-green-800"
+                              : approval.status === "REJECTED"
+                              ? "bg-red-100 text-red-800"
+                              : "bg-gray-100 text-gray-800"
+                          }`}>
+                            {approval.status}
+                          </span>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Internal Approval Button (for any user who can approve) */}
+      {proposal.status === ProposalStatus.SUBMITTED && 
+       canApprove &&
+       canStillApprove && (
+        <Card className="mb-8 border-green-300 bg-green-50">
+          <CardHeader>
+            <CardTitle>Your Approval Required</CardTitle>
+            <CardDescription>
+              {proposal.requiredApproverIds?.includes(session?.user.id || "")
+                ? "You have been selected to approve this proposal"
+                : "Review and approve this proposal"}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <ApprovalButton
               proposalId={proposal.id}
               currentUserRole={session?.user.role || "CLIENT"}
             />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Temporary: Always show approval button for debugging if proposal is submitted */}
+      {proposal.status === ProposalStatus.SUBMITTED && 
+       session?.user.role !== "CLIENT" && 
+       canStillApprove && 
+       (isAdminOrManager || hasGeneralApprovalPermission) && (
+        <Card className="mb-8 border-blue-300 bg-blue-50">
+          <CardHeader>
+            <CardTitle>Approval Available (Debug Mode)</CardTitle>
+            <CardDescription>
+              This button is always visible for ADMIN/MANAGER or users with approval permission when proposal is submitted.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ApprovalButton
+              proposalId={proposal.id}
+              currentUserRole={session?.user.role || "CLIENT"}
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Debug info - remove after testing */}
+      {proposal.status === ProposalStatus.SUBMITTED && session?.user.role !== "CLIENT" && (
+        <Card className="mb-8 border-yellow-300 bg-yellow-50">
+          <CardHeader>
+            <CardTitle className="text-sm">Debug Info</CardTitle>
+          </CardHeader>
+          <CardContent className="text-xs space-y-1">
+            <p>Status: {proposal.status}</p>
+            <p>User Role: {session?.user.role}</p>
+            <p>Can Approve: {canApprove ? "Yes" : "No"}</p>
+            <p>User Approval: {userApproval ? `Yes (${userApproval.status})` : "No"}</p>
+            <p>Is Creator: {proposal.createdBy === session?.user.id ? "Yes" : "No"}</p>
+            <p>Internal Approval Required: {proposal.internalApprovalRequired ? "Yes" : "No"}</p>
+            <p>Required Approvers: {proposal.requiredApproverIds?.join(", ") || "None"}</p>
+            <p>In Required List: {proposal.requiredApproverIds?.includes(session?.user.id || "") ? "Yes" : "No"}</p>
+            <p>Has General Approval Permission: {currentUser ? (canApproveProposals(currentUser) ? "Yes" : "No") : "Unknown"}</p>
+            <p>Is Admin/Manager: {currentUser ? ((currentUser.role === "ADMIN" || currentUser.role === "MANAGER") ? "Yes" : "No") : "Unknown"}</p>
+            <p>Can Approve Own: {currentUser && proposal.createdBy === session?.user.id ? ((currentUser.role === "ADMIN" || currentUser.role === "MANAGER") ? "Yes (Admin/Manager)" : "No (Not creator)") : "N/A"}</p>
+            {currentUser && (
+              <>
+                <p>Internal Approvals Complete: {proposal.internalApprovalsComplete ? "Yes" : "No"}</p>
+                <p>Can Approve Internal: {
+                  proposal.internalApprovalRequired 
+                    ? (proposal.requiredApproverIds && proposal.requiredApproverIds.length > 0
+                        ? (proposal.requiredApproverIds.includes(session.user.id) || canApproveProposals(currentUser) ? "Yes" : "No")
+                        : (canApproveProposals(currentUser) ? "Yes" : "No"))
+                    : (canApproveProposals(currentUser) ? "Yes" : "No")
+                }</p>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Client Approval Status */}
+      {proposal.internalApprovalsComplete && proposal.clientApprovalStatus === ClientApprovalStatus.PENDING && (
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle>Client Approval</CardTitle>
+            <CardDescription>
+              {proposal.clientApprovalEmailSent 
+                ? "Approval email has been sent to the client"
+                : "Waiting for client approval email to be sent"}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="p-4 bg-blue-50 border border-blue-200 rounded">
+              <p className="font-semibold text-blue-800">Status: Pending Client Approval</p>
+              {proposal.client?.email && (
+                <p className="text-sm text-blue-700 mt-1">
+                  Email sent to: {proposal.client.email}
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Proposal Actions: PDF, Send Email, Create Project */}
+      {proposal.internalApprovalsComplete && session?.user.role !== "CLIENT" && (
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle>Proposal Actions</CardTitle>
+            <CardDescription>Download PDF, send to client, or create project</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-3">
+              {/* Download PDF Button */}
+              <DownloadPdfButton proposalId={proposal.id} />
+
+              {/* Send to Client Button */}
+              {!proposal.clientApprovalEmailSent && (
+                <SendToClientButton proposalId={proposal.id} />
+              )}
+
+              {/* Generate Upfront Payment Invoice Button */}
+              {proposal.clientApprovalStatus === ClientApprovalStatus.APPROVED && 
+               proposal.paymentTerms.some(pt => pt.upfrontType && pt.upfrontValue) &&
+               proposal.bills.length === 0 && (
+                <GenerateUpfrontInvoiceButton proposalId={proposal.id} />
+              )}
+
+              {/* Create Project Button */}
+              {proposal.status === ProposalStatus.APPROVED && !hasProject && (
+                <CreateProjectButton proposalId={proposal.id} />
+              )}
+
+              {/* View Project Link */}
+              {hasProject && proposal.projects && proposal.projects.length > 0 && (
+                <ViewProjectButton projectId={proposal.projects[0].id} />
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Admin Override Button - Available for any client approval status */}
+      {proposal.internalApprovalsComplete &&
+       (session?.user.role === "ADMIN" || session?.user.role === "MANAGER") && (
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle>Override Client Approval</CardTitle>
+            <CardDescription>
+              As an administrator or manager, you can approve or reject this proposal on behalf of the client.
+              Current status: {proposal.clientApprovalStatus}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ApproveOnBehalfButton proposalId={proposal.id} />
           </CardContent>
         </Card>
       )}

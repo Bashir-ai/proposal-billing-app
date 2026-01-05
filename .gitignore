@@ -38,6 +38,12 @@ next-env.d.ts
 # prisma
 /prisma/migrations
 
+# uploaded files
+/public/uploads/logos/*
+!/public/uploads/logos/.gitkeep
+
+
+
 
 
 

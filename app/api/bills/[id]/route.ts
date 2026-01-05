@@ -4,9 +4,16 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import { BillStatus } from "@prisma/client"
+import { canEditInvoice } from "@/lib/permissions"
 
 const billUpdateSchema = z.object({
   amount: z.number().min(0).optional(),
+  subtotal: z.number().min(0).optional(),
+  description: z.string().optional(),
+  taxInclusive: z.boolean().optional(),
+  taxRate: z.number().min(0).max(100).optional().nullable(),
+  discountPercent: z.number().min(0).max(100).optional().nullable(),
+  discountAmount: z.number().min(0).optional().nullable(),
   dueDate: z.string().optional(),
   status: z.nativeEnum(BillStatus).optional(),
 })
@@ -23,13 +30,35 @@ export async function GET(
     }
 
     const bill = await prisma.bill.findUnique({
-      where: { id },
+      where: { 
+        id,
+        deletedAt: null, // Exclude deleted items
+      },
       include: {
         client: true,
         proposal: {
           include: {
             items: true,
           },
+        },
+        project: {
+          select: {
+            id: true,
+            name: true,
+            currency: true,
+          },
+        },
+        items: {
+          include: {
+            person: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+          orderBy: { createdAt: "asc" },
         },
         creator: {
           select: {
@@ -59,7 +88,10 @@ export async function GET(
     // Check if client can access this bill
     if (session.user.role === "CLIENT") {
       const client = await prisma.client.findFirst({
-        where: { email: session.user.email },
+        where: { 
+          email: session.user.email,
+          deletedAt: null, // Exclude deleted clients
+        },
       })
       if (!client || bill.clientId !== client.id) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 })
@@ -98,13 +130,26 @@ export async function PUT(
     })
 
     if (!bill) {
-      return NextResponse.json({ error: "Bill not found" }, { status: 404 })
+      return NextResponse.json({ error: "Invoice not found" }, { status: 404 })
     }
 
-    // Only allow editing drafts
-    if (bill.status !== BillStatus.DRAFT && bill.createdBy !== session.user.id) {
+    // Check edit permissions
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: {
+        id: true,
+        role: true,
+        canEditAllInvoices: true,
+      },
+    })
+
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 })
+    }
+
+    if (!canEditInvoice(user, { createdBy: bill.createdBy, status: bill.status })) {
       return NextResponse.json(
-        { error: "Can only edit draft bills" },
+        { error: "You don't have permission to edit this invoice" },
         { status: 403 }
       )
     }
@@ -112,19 +157,153 @@ export async function PUT(
     const body = await request.json()
     const validatedData = billUpdateSchema.parse(body)
 
+    // Get current bill with items to recalculate totals
+    const billWithItems = await prisma.bill.findUnique({
+      where: { id },
+      include: {
+        items: true,
+      },
+    })
+
+    if (!billWithItems) {
+      return NextResponse.json({ error: "Invoice not found" }, { status: 404 })
+    }
+
+    // Calculate subtotal from items if not provided
+    let subtotal = validatedData.subtotal
+    if (subtotal === undefined) {
+      subtotal = billWithItems.items.reduce((sum, item) => sum + item.amount, 0)
+    }
+
+    // Get tax and discount values (use provided or existing)
+    const taxInclusive = validatedData.taxInclusive !== undefined ? validatedData.taxInclusive : billWithItems.taxInclusive
+    const taxRate = validatedData.taxRate !== undefined ? validatedData.taxRate : billWithItems.taxRate
+    const discountPercent = validatedData.discountPercent !== undefined ? validatedData.discountPercent : billWithItems.discountPercent
+    const discountAmount = validatedData.discountAmount !== undefined ? validatedData.discountAmount : billWithItems.discountAmount
+
+    // Calculate discount
+    let discountValue = 0
+    if (discountPercent && discountPercent > 0) {
+      discountValue = (subtotal * discountPercent) / 100
+    } else if (discountAmount && discountAmount > 0) {
+      discountValue = discountAmount
+    }
+
+    const afterDiscount = subtotal - discountValue
+
+    // Calculate tax and final amount
+    let taxAmount = 0
+    let finalAmount = afterDiscount
+
+    if (taxRate && taxRate > 0) {
+      if (taxInclusive) {
+        // Tax is included in the amount
+        taxAmount = (afterDiscount * taxRate) / (100 + taxRate)
+        finalAmount = afterDiscount // Amount already includes tax
+      } else {
+        // Tax is added on top
+        taxAmount = (afterDiscount * taxRate) / 100
+        finalAmount = afterDiscount + taxAmount
+      }
+    }
+
+    const newDueDate = validatedData.dueDate ? new Date(validatedData.dueDate) : bill.dueDate
+    const newStatus = validatedData.status !== undefined ? validatedData.status : bill.status
+    
+    // Check if invoice becomes outstanding or is paid
+    const { isInvoiceOutstanding } = await import("@/lib/invoice-helpers")
+    const { notifyOutstandingInvoice } = await import("@/lib/invoice-notifications")
+    
+    const updateData: any = {
+      subtotal: subtotal,
+      amount: finalAmount,
+      taxInclusive: taxInclusive,
+      taxRate: taxRate,
+      discountPercent: discountPercent,
+      discountAmount: discountAmount,
+      dueDate: newDueDate,
+      status: newStatus,
+      submittedAt: newStatus === BillStatus.SUBMITTED ? new Date() : bill.submittedAt,
+    }
+    
+    // Handle outstanding status
+    const wasPaid = bill.status === BillStatus.PAID
+    const isNowPaid = newStatus === BillStatus.PAID
+    
+    if (isNowPaid) {
+      // Clear outstanding tracking when paid
+      updateData.becameOutstandingAt = null
+      updateData.lastReminderSentAt = null
+      updateData.reminderCount = 0
+      // Set paidAt if not already set
+      if (!bill.paidAt) {
+        updateData.paidAt = new Date()
+      }
+    } else if (newDueDate) {
+      // Re-check outstanding status if dueDate changed
+      const tempBill = { ...bill, dueDate: newDueDate, status: newStatus }
+      const isOutstanding = isInvoiceOutstanding(tempBill as any)
+      
+      if (isOutstanding && !bill.becameOutstandingAt) {
+        // First time becoming outstanding
+        updateData.becameOutstandingAt = new Date()
+        updateData.lastReminderSentAt = new Date()
+        updateData.reminderCount = 1
+        
+        // Send notifications
+        const billWithRelations = await prisma.bill.findUnique({
+          where: { id },
+          include: {
+            client: {
+              include: {
+                finders: {
+                  include: {
+                    user: { select: { id: true, name: true, email: true } },
+                  },
+                },
+                clientManager: { select: { id: true, name: true, email: true } },
+              },
+            },
+            project: {
+              include: {
+                projectManagers: {
+                  include: {
+                    user: { select: { id: true, name: true, email: true } },
+                  },
+                },
+              },
+            },
+          },
+        })
+        
+        if (billWithRelations) {
+          await notifyOutstandingInvoice(billWithRelations as any, true, 1)
+        }
+      }
+    }
+
     const updatedBill = await prisma.bill.update({
       where: { id },
-      data: {
-        amount: validatedData.amount,
-        dueDate: validatedData.dueDate ? new Date(validatedData.dueDate) : bill.dueDate,
-        status: validatedData.status,
-        submittedAt: validatedData.status === BillStatus.SUBMITTED ? new Date() : bill.submittedAt,
-      },
+      data: updateData,
       include: {
         client: true,
         proposal: true,
       },
     })
+
+    // Calculate finder fees if invoice was just marked as PAID
+    if (isNowPaid && !wasPaid) {
+      try {
+        const { calculateAndCreateFinderFees } = await import("@/lib/finder-fee-helpers")
+        await calculateAndCreateFinderFees(id)
+      } catch (error) {
+        // Log error but don't fail the request
+        console.error("Error calculating finder fees:", error)
+        if (error instanceof Error) {
+          console.error("Finder fee error details:", error.message, error.stack)
+        }
+      }
+    }
 
     return NextResponse.json(updatedBill)
   } catch (error) {
@@ -196,6 +375,50 @@ export async function POST(
       { error: "Invalid action" },
       { status: 400 }
     )
+  } catch (error) {
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    )
+  }
+}
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params
+    const session = await getServerSession(authOptions)
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    // Only admin can delete
+    if (session.user.role !== "ADMIN") {
+      return NextResponse.json(
+        { error: "Forbidden. Only admins can delete invoices." },
+        { status: 403 }
+      )
+    }
+
+    const bill = await prisma.bill.findUnique({
+      where: { id },
+    })
+
+    if (!bill) {
+      return NextResponse.json({ error: "Invoice not found" }, { status: 404 })
+    }
+
+    // Soft delete: set deletedAt timestamp
+    await prisma.bill.update({
+      where: { id },
+      data: {
+        deletedAt: new Date(),
+      },
+    })
+
+    return NextResponse.json({ message: "Invoice moved to junk box successfully" })
   } catch (error) {
     return NextResponse.json(
       { error: "Internal server error" },

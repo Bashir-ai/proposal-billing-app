@@ -6,12 +6,13 @@ import { ProposalForm } from "./ProposalForm"
 
 interface ProposalFormWrapperProps {
   clients: Array<{ id: string; name: string; company?: string | null; defaultDiscountPercent?: number | null; defaultDiscountAmount?: number | null }>
+  leads?: Array<{ id: string; name: string; company?: string | null }>
   users?: Array<{ id: string; name: string; email: string; defaultHourlyRate?: number | null }>
   initialData?: any
   proposalId?: string
 }
 
-export function ProposalFormWrapper({ clients, users = [], initialData, proposalId }: ProposalFormWrapperProps) {
+export function ProposalFormWrapper({ clients, leads = [], users = [], initialData, proposalId }: ProposalFormWrapperProps) {
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -104,7 +105,7 @@ export function ProposalFormWrapper({ clients, users = [], initialData, proposal
           <p>{error}</p>
         </div>
       )}
-      <ProposalForm clients={clients} users={users} onSubmit={handleSubmit} initialData={initialData} loading={loading} />
+      <ProposalForm clients={clients} leads={leads} users={users} onSubmit={handleSubmit} initialData={initialData} loading={loading} />
     </div>
   )
 }

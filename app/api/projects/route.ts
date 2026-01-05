@@ -11,6 +11,7 @@ const projectSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
   status: z.nativeEnum(ProjectStatus).default(ProjectStatus.ACTIVE),
+  currency: z.string().optional(),
   startDate: z.string().optional(),
   endDate: z.string().optional(),
 })
@@ -25,10 +26,56 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const status = searchParams.get("status")
     const clientId = searchParams.get("clientId")
+    const tagId = searchParams.get("tagId")
+    const name = searchParams.get("name")
+    const responsiblePersonId = searchParams.get("responsiblePersonId")
+    const projectManagerId = searchParams.get("projectManagerId")
 
-    const where: any = {}
-    if (status) where.status = status
+    const where: any = {
+      deletedAt: null, // Exclude deleted items
+    }
+    if (status) {
+      // Support comma-separated status values
+      const statuses = status.split(",").map(s => s.trim())
+      if (statuses.length === 1) {
+        where.status = statuses[0]
+      } else {
+        where.status = { in: statuses }
+      }
+    }
     if (clientId) where.clientId = clientId
+    if (name) {
+      where.name = {
+        contains: name,
+        mode: "insensitive",
+      }
+    }
+    
+    // Handle proposal-related filters
+    if (tagId || responsiblePersonId) {
+      const proposalWhere: any = {}
+      if (tagId) {
+        proposalWhere.tags = {
+          some: {
+            id: tagId,
+          },
+        }
+      }
+      if (responsiblePersonId) {
+        proposalWhere.createdBy = responsiblePersonId
+      }
+      // Only include projects that have proposals matching the criteria
+      where.proposal = proposalWhere
+    }
+
+    // Handle project manager filter
+    if (projectManagerId) {
+      where.projectManagers = {
+        some: {
+          userId: projectManagerId,
+        },
+      }
+    }
 
     const projects = await prisma.project.findMany({
       where,
@@ -46,6 +93,21 @@ export async function GET(request: Request) {
             id: true,
             title: true,
             amount: true,
+            createdBy: true,
+            creator: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+            tags: {
+              select: {
+                id: true,
+                name: true,
+                color: true,
+              },
+            },
           },
         },
         bills: {
@@ -55,11 +117,23 @@ export async function GET(request: Request) {
             status: true,
           },
         },
+        projectManagers: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+        },
       },
     })
 
     return NextResponse.json(projects)
   } catch (error) {
+    console.error("Error fetching projects:", error)
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
@@ -85,9 +159,13 @@ export async function POST(request: Request) {
     const validatedData = projectSchema.parse(body)
 
     // If converting from proposal, verify it exists and is approved
+    let proposalCurrency = "EUR" // Default currency
     if (validatedData.proposalId) {
       const proposal = await prisma.proposal.findUnique({
         where: { id: validatedData.proposalId },
+        include: {
+          projects: true,
+        },
       })
       if (!proposal) {
         return NextResponse.json(
@@ -101,6 +179,15 @@ export async function POST(request: Request) {
           { status: 400 }
         )
       }
+      // Check if project already exists for this proposal
+      if (proposal.projects.length > 0) {
+        return NextResponse.json(
+          { error: "A project already exists for this proposal" },
+          { status: 400 }
+        )
+      }
+      // Inherit currency from proposal
+      proposalCurrency = proposal.currency || "EUR"
     }
 
     const project = await prisma.project.create({
@@ -110,6 +197,7 @@ export async function POST(request: Request) {
         name: validatedData.name,
         description: validatedData.description || null,
         status: validatedData.status,
+        currency: validatedData.currency || proposalCurrency,
         startDate: validatedData.startDate ? new Date(validatedData.startDate) : null,
         endDate: validatedData.endDate ? new Date(validatedData.endDate) : null,
       },

@@ -7,6 +7,10 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useRouter } from "next/navigation"
+import { UserManagement } from "@/components/settings/UserManagement"
+import { JunkBox } from "@/components/settings/JunkBox"
+import { LogoUpload } from "@/components/settings/LogoUpload"
+import { canCreateUsers } from "@/lib/permissions"
 
 export default function SettingsPage() {
   const { data: session, update } = useSession()
@@ -90,7 +94,7 @@ export default function SettingsPage() {
       </Card>
 
       {(session.user.role === "ADMIN" || session.user.role === "MANAGER" || session.user.role === "STAFF") && (
-        <Card>
+        <Card className="mb-6">
           <CardHeader>
             <CardTitle>Hourly Rate</CardTitle>
             <CardDescription>Set your default hourly rate for proposals</CardDescription>
@@ -124,6 +128,26 @@ export default function SettingsPage() {
             </form>
           </CardContent>
         </Card>
+      )}
+
+      {session.user.role === "ADMIN" && (
+        <>
+          <LogoUpload />
+          
+          <UserManagement />
+          
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle>Junk Box</CardTitle>
+              <CardDescription>
+                Recover or permanently delete proposals, projects, and invoices
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <JunkBox />
+            </CardContent>
+          </Card>
+        </>
       )}
     </div>
   )

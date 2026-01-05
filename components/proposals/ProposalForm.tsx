@@ -16,6 +16,7 @@ interface ProposalFormProps {
   onSubmit: (data: any) => Promise<void>
   initialData?: any
   clients: Array<{ id: string; name: string; company?: string | null; defaultDiscountPercent?: number | null; defaultDiscountAmount?: number | null }>
+  leads?: Array<{ id: string; name: string; company?: string | null }>
   users?: Array<{ id: string; name: string; email: string; defaultHourlyRate?: number | null }>
   loading?: boolean
 }
@@ -39,9 +40,11 @@ interface LineItem {
   discountAmount?: number
   amount: number
   date?: string
+  milestoneIds?: string[] // Array of milestone IDs assigned to this item
 }
 
 interface Milestone {
+  id?: string // Temporary ID for tracking (index-based or UUID)
   name: string
   description?: string
   amount?: number
@@ -57,12 +60,13 @@ const CURRENCIES = [
   { code: "AUD", symbol: "A$", name: "Australian Dollar" },
 ]
 
-export function ProposalForm({ onSubmit, initialData, clients, users = [], loading }: ProposalFormProps) {
+export function ProposalForm({ onSubmit, initialData, clients, leads = [], users = [], loading }: ProposalFormProps) {
   const today = new Date().toISOString().split("T")[0]
   const selectedClient = clients.find(c => c.id === (initialData?.clientId || "")) as ClientWithDiscounts | undefined
   
   const [formData, setFormData] = useState({
     clientId: initialData?.clientId || "",
+    leadId: initialData?.leadId || "",
     type: (initialData?.type || "HOURLY") as ProposalType,
     title: initialData?.title || "",
     description: initialData?.description || "",
@@ -92,6 +96,7 @@ export function ProposalForm({ onSubmit, initialData, clients, users = [], loadi
     outOfScopeHourlyRate: initialData?.outOfScopeHourlyRate || 0,
     // Mixed model billing methods (array of selected methods)
     mixedModelMethods: initialData?.mixedModelMethods || [],
+    useMilestones: initialData?.milestones && initialData.milestones.length > 0 ? true : false, // Enable if milestones exist
   })
 
   const [items, setItems] = useState<LineItem[]>(initialData?.items?.map((item: any) => ({
@@ -105,9 +110,12 @@ export function ProposalForm({ onSubmit, initialData, clients, users = [], loadi
     discountAmount: item.discountAmount || undefined,
     amount: item.amount || 0,
     // date field removed - dates are only for actual billing/timesheet entries
+    milestoneIds: item.milestones?.map((m: any) => m.id) || [], // Get milestone IDs from relations
   })) || [])
 
-  const [milestones, setMilestones] = useState<Milestone[]>(initialData?.milestones?.map((m: any) => ({
+  // Initialize milestones with temporary IDs (using index for now, will be replaced with DB IDs on save)
+  const [milestones, setMilestones] = useState<Milestone[]>(initialData?.milestones?.map((m: any, index: number) => ({
+    id: m.id || `temp-${index}`, // Use DB ID if exists, otherwise temp ID
     name: m.name || "",
     description: m.description || "",
     amount: m.amount || undefined,
@@ -268,11 +276,23 @@ export function ProposalForm({ onSubmit, initialData, clients, users = [], loadi
   }
 
   const addMilestone = () => {
-    setMilestones([...milestones, { name: "", description: "", amount: undefined, percent: undefined }])
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    setMilestones([...milestones, { id: tempId, name: "", description: "", amount: undefined, percent: undefined }])
   }
 
   const removeMilestone = (index: number) => {
-    setMilestones(milestones.filter((_, i) => i !== index))
+    const milestoneToRemove = milestones[index]
+    const updatedMilestones = milestones.filter((_, i) => i !== index)
+    setMilestones(updatedMilestones)
+    
+    // Remove this milestone from all line items that reference it
+    if (milestoneToRemove.id) {
+      const updatedItems = items.map(item => ({
+        ...item,
+        milestoneIds: item.milestoneIds?.filter(id => id !== milestoneToRemove.id) || []
+      }))
+      setItems(updatedItems)
+    }
   }
 
   const updateMilestone = (index: number, field: keyof Milestone, value: any) => {
@@ -281,13 +301,19 @@ export function ProposalForm({ onSubmit, initialData, clients, users = [], loadi
     setMilestones(updated)
   }
 
+  const updateItemMilestones = (itemIndex: number, milestoneIds: string[]) => {
+    const updated = [...items]
+    updated[itemIndex] = { ...updated[itemIndex], milestoneIds }
+    setItems(updated)
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setErrors({})
 
     // Validation
-    if (!formData.clientId) {
-      setErrors({ clientId: "Please select a client" })
+    if (!formData.clientId && !formData.leadId) {
+      setErrors({ clientId: "Please select either a client or a lead", leadId: "Please select either a client or a lead" })
       return
     }
 
@@ -301,8 +327,9 @@ export function ProposalForm({ onSubmit, initialData, clients, users = [], loadi
       return
     }
 
-    if (formData.type === "FIXED_FEE" && milestones.length === 0) {
-      setErrors({ milestones: "At least one milestone is required for fixed fee proposals" })
+    // Validation: if milestones are enabled, at least one milestone must be defined
+    if (formData.useMilestones && milestones.length === 0) {
+      setErrors({ milestones: "At least one milestone must be defined when milestones are enabled" })
       return
     }
 
@@ -330,8 +357,10 @@ export function ProposalForm({ onSubmit, initialData, clients, users = [], loadi
         discountAmount: item.discountAmount || undefined,
         amount: calculateLineItemAmount(item),
         // date field removed - dates are only for actual billing/timesheet entries
+        milestoneIds: item.milestoneIds || [], // Include milestone IDs for this line item
       })),
-      milestones: milestones.length > 0 ? milestones.map(m => ({
+      milestones: formData.useMilestones && milestones.length > 0 ? milestones.map(m => ({
+        id: m.id, // Include ID for matching on server
         name: m.name,
         description: m.description || undefined,
         amount: m.amount || undefined,
@@ -618,15 +647,16 @@ export function ProposalForm({ onSubmit, initialData, clients, users = [], loadi
           {formData.taxRate !== undefined && (
             <div className="space-y-2">
               <Label htmlFor="taxRate">Tax Rate (%)</Label>
-              <Input
+              <Select
                 id="taxRate"
-                type="number"
-                step="0.01"
-                min="0"
-                max="100"
-                value={formData.taxRate}
+                value={formData.taxRate.toString()}
                 onChange={(e) => setFormData({ ...formData, taxRate: parseFloat(e.target.value) || 0 })}
-              />
+              >
+                <option value="0">0%</option>
+                <option value="16">16%</option>
+                <option value="22">22%</option>
+                <option value="23">23%</option>
+              </Select>
             </div>
           )}
         </CardContent>
@@ -707,99 +737,6 @@ export function ProposalForm({ onSubmit, initialData, clients, users = [], loadi
         </CardContent>
       </Card>
 
-      {/* Payment Milestones (Payment Schedule) - Available for all billing methods */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Payment Milestones</CardTitle>
-              <CardDescription>Define when fees mature (e.g., 50% upfront, 50% upon completion). Available for all billing methods.</CardDescription>
-            </div>
-            <Button type="button" onClick={addMilestone} size="sm" variant="outline">
-              <Plus className="h-4 w-4 mr-2" />
-              Add Milestone
-            </Button>
-          </div>
-        </CardHeader>
-          <CardContent>
-            {milestones.length === 0 ? (
-              <p className="text-sm text-gray-500 text-center py-4">
-                No milestones added. Add at least one milestone.
-              </p>
-            ) : (
-              <div className="space-y-4">
-                {milestones.map((milestone, index) => (
-                  <Card key={index}>
-                    <CardContent className="pt-6">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label>Milestone Name *</Label>
-                          <Input
-                            value={milestone.name}
-                            onChange={(e) => updateMilestone(index, "name", e.target.value)}
-                            required
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Due Date</Label>
-                          <Input
-                            type="date"
-                            value={milestone.dueDate || ""}
-                            onChange={(e) => updateMilestone(index, "dueDate", e.target.value)}
-                          />
-                        </div>
-                        <div className="space-y-2 md:col-span-2">
-                          <Label>Description</Label>
-                          <Textarea
-                            value={milestone.description || ""}
-                            onChange={(e) => updateMilestone(index, "description", e.target.value)}
-                            rows={2}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Amount ({selectedCurrency.symbol})</Label>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            value={milestone.amount || ""}
-                            onChange={(e) => updateMilestone(index, "amount", parseFloat(e.target.value) || undefined)}
-                            placeholder="Fixed amount"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Percentage (%)</Label>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            max="100"
-                            value={milestone.percent || ""}
-                            onChange={(e) => updateMilestone(index, "percent", parseFloat(e.target.value) || undefined)}
-                            placeholder="Percentage"
-                          />
-                        </div>
-                      </div>
-                      <div className="mt-4 flex justify-end">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeMilestone(index)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-            {errors.milestones && (
-              <p className="text-sm text-destructive mt-2">{String(errors.milestones)}</p>
-            )}
-          </CardContent>
-        </Card>
 
       {formData.type === "CAPPED_FEE" && (
         <Card>
@@ -1205,7 +1142,124 @@ export function ProposalForm({ onSubmit, initialData, clients, users = [], loadi
             </Button>
           </div>
         </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-6">
+            {/* Milestone Enablement Checkbox */}
+            <div className="flex items-center space-x-2 p-4 border rounded">
+              <input
+                type="checkbox"
+                id="useMilestones"
+                checked={formData.useMilestones}
+                onChange={(e) => {
+                  setFormData({ ...formData, useMilestones: e.target.checked })
+                  if (!e.target.checked) {
+                    // Clear milestones and milestone assignments when disabled
+                    setMilestones([])
+                    setItems(items.map(item => ({ ...item, milestoneIds: [] })))
+                  }
+                }}
+                className="h-4 w-4 rounded border-gray-300"
+              />
+              <Label htmlFor="useMilestones" className="cursor-pointer font-semibold">
+                Enable milestone payments
+              </Label>
+              <p className="text-sm text-gray-500">
+                Define milestones and assign them to specific line items
+              </p>
+            </div>
+
+            {/* Milestone Definition Section - Only show when enabled */}
+            {formData.useMilestones && (
+              <div className="space-y-4 p-4 border rounded bg-gray-50">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-semibold text-lg">Define Milestones</h3>
+                    <p className="text-sm text-gray-500">Create milestones that can be assigned to line items below</p>
+                  </div>
+                  <Button type="button" onClick={addMilestone} size="sm" variant="outline">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Milestone
+                  </Button>
+                </div>
+                {milestones.length === 0 ? (
+                  <p className="text-sm text-gray-500 text-center py-4">
+                    No milestones defined. Add at least one milestone to assign to line items.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {milestones.map((milestone, index) => (
+                      <Card key={milestone.id || index}>
+                        <CardContent className="pt-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div className="space-y-2">
+                              <Label>Milestone Name *</Label>
+                              <Input
+                                value={milestone.name}
+                                onChange={(e) => updateMilestone(index, "name", e.target.value)}
+                                required
+                                placeholder="e.g., Milestone A, 50% Upfront"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Due Date</Label>
+                              <Input
+                                type="date"
+                                value={milestone.dueDate || ""}
+                                onChange={(e) => updateMilestone(index, "dueDate", e.target.value)}
+                              />
+                            </div>
+                            <div className="space-y-2 md:col-span-2">
+                              <Label>Description</Label>
+                              <Textarea
+                                value={milestone.description || ""}
+                                onChange={(e) => updateMilestone(index, "description", e.target.value)}
+                                rows={2}
+                                placeholder="Optional description"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Amount ({selectedCurrency.symbol})</Label>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={milestone.amount || ""}
+                                onChange={(e) => updateMilestone(index, "amount", parseFloat(e.target.value) || undefined)}
+                                placeholder="Fixed amount (optional)"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Percentage (%)</Label>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                max="100"
+                                value={milestone.percent || ""}
+                                onChange={(e) => updateMilestone(index, "percent", parseFloat(e.target.value) || undefined)}
+                                placeholder="Percentage (optional)"
+                              />
+                            </div>
+                          </div>
+                          <div className="mt-3 flex justify-end">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => removeMilestone(index)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+                {errors.milestones && (
+                  <p className="text-sm text-destructive mt-2">{String(errors.milestones)}</p>
+                )}
+              </div>
+            )}
             {items.length === 0 ? (
               <p className="text-sm text-gray-500 text-center py-4">
                 No items added yet. Click &quot;Add Line Item&quot; to get started.
@@ -1350,6 +1404,53 @@ export function ProposalForm({ onSubmit, initialData, clients, users = [], loadi
                             className="font-semibold bg-gray-50"
                           />
                         </div>
+
+                        {/* Milestone Assignment - Only show when milestones are enabled */}
+                        {formData.useMilestones && milestones.length > 0 && (
+                          <div className="space-y-2 md:col-span-2 lg:col-span-4">
+                            <Label>Assign Milestones</Label>
+                            <div className="flex flex-wrap gap-2 p-3 border rounded bg-gray-50">
+                              {milestones.map((milestone) => {
+                                const isSelected = item.milestoneIds?.includes(milestone.id || "") || false
+                                return (
+                                  <label
+                                    key={milestone.id || milestone.name}
+                                    className="flex items-center space-x-2 cursor-pointer px-3 py-1.5 border rounded hover:bg-white transition-colors"
+                                    style={{
+                                      backgroundColor: isSelected ? "#3B82F6" : "white",
+                                      color: isSelected ? "white" : "#374151",
+                                      borderColor: isSelected ? "#3B82F6" : "#D1D5DB",
+                                    }}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={isSelected}
+                                      onChange={(e) => {
+                                        const currentIds = item.milestoneIds || []
+                                        if (e.target.checked) {
+                                          updateItemMilestones(index, [...currentIds, milestone.id || ""])
+                                        } else {
+                                          updateItemMilestones(index, currentIds.filter(id => id !== milestone.id))
+                                        }
+                                      }}
+                                      className="rounded"
+                                    />
+                                    <span className="text-sm font-medium">
+                                      {milestone.name}
+                                      {milestone.percent && ` (${milestone.percent}%)`}
+                                      {milestone.amount && !milestone.percent && ` (${selectedCurrency.symbol}${milestone.amount})`}
+                                    </span>
+                                  </label>
+                                )
+                              })}
+                            </div>
+                            {item.milestoneIds && item.milestoneIds.length > 0 && (
+                              <p className="text-xs text-gray-500 mt-1">
+                                {item.milestoneIds.length} milestone{item.milestoneIds.length !== 1 ? "s" : ""} assigned
+                              </p>
+                            )}
+                          </div>
+                        )}
                       </div>
                       <div className="mt-4 flex justify-end">
                         <Button

@@ -79,171 +79,376 @@ enum InstallmentFrequency {
   QUARTERLY
 }
 
+enum ChargeType {
+  ONE_TIME
+  RECURRING
+}
+
+enum RecurringFrequency {
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+enum TodoStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum TodoPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum FinderFeeStatus {
+  PENDING
+  PARTIALLY_PAID
+  PAID
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  PROPOSAL_SENT
+  NEGOTIATING
+  CONVERTED
+  LOST
+}
+
+enum InteractionType {
+  EMAIL_SENT
+  VISIT
+  MEETING
+  PROPOSAL_SENT
+  QUESTIONNAIRE_SENT
+  PHONE_CALL
+  OTHER
+}
+
 model User {
-  id              String   @id @default(cuid())
-  email           String   @unique
-  name            String
-  password        String
-  role            UserRole @default(STAFF)
-  defaultHourlyRate Float?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id                  String   @id @default(cuid())
+  email               String   @unique
+  name                String
+  password            String
+  role                UserRole @default(STAFF)
+  defaultHourlyRate   Float?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  // Permission overrides (null = use role defaults, true/false = override)
+  canApproveProposals Boolean?
+  canApproveInvoices  Boolean?
+  canEditAllProposals Boolean?
+  canEditAllInvoices  Boolean?
+  canViewAllClients   Boolean?
+  canCreateUsers      Boolean? // Admin-only by default
 
   // Relations
-  createdProposals Proposal[] @relation("ProposalCreator")
-  createdBills     Bill[]     @relation("BillCreator")
-  approvals         Approval[]
-  createdClients    Client[]   @relation("ClientCreator")
-  proposalItems     ProposalItem[] @relation("ProposalItemPerson")
-  deletionRequests Proposal[] @relation("DeletionRequester")
-  deletionApprovals Proposal[] @relation("DeletionApprover")
+  createdProposals        Proposal[]          @relation("ProposalCreator")
+  createdBills            Bill[]              @relation("BillCreator")
+  approvals               Approval[]
+  createdClients          Client[]            @relation("ClientCreator")
+  proposalItems           ProposalItem[]      @relation("ProposalItemPerson")
+  deletionRequests        Proposal[]          @relation("DeletionRequester")
+  deletionApprovals       Proposal[]          @relation("DeletionApprover")
+  resubmittedProposals    Proposal[]          @relation("ProposalResubmitter")
+  resubmittedBills        Bill[]              @relation("BillResubmitter")
+  timesheetEntries        TimesheetEntry[]    @relation("TimesheetEntryUser")
+  billItems               BillItem[]          @relation("BillItemPerson")
+  assignedTodos           Todo[]              @relation("TodoAssignee")
+  createdTodos            Todo[]              @relation("TodoCreator")
+  completedTodos          Todo[]              @relation("TodoCompleter")
+  managedProjects         ProjectManager[]    @relation("ProjectManager")
+  todoReassignmentsFrom   TodoReassignment[]  @relation("TodoReassignmentFrom")
+  todoReassignmentsTo     TodoReassignment[]  @relation("TodoReassignmentTo")
+  todoReassignmentsBy     TodoReassignment[]  @relation("TodoReassignmentBy")
+  todoDueDateChanges      TodoDueDateChange[] @relation("TodoDueDateChangeBy")
+  clientFinderAssignments ClientFinder[]      @relation("ClientFinderRelation")
+  managedClients          Client[]            @relation("ClientManager")
+  finderFees              FinderFee[]         @relation("FinderFeeRecipient")
+  finderFeePayments       FinderFeePayment[]  @relation("FinderFeePaymentBy")
+  createdLeads            Lead[]              @relation("LeadCreator")
+  managedLeads            Lead[]              @relation("LeadManager")
+  leadInteractions        LeadInteraction[]  @relation("LeadInteractionCreator")
 }
 
 model Client {
-  id                   String   @id @default(cuid())
-  name                 String
-  email                String?
-  company              String?
-  contactInfo          String?
-  createdBy            String
+  id                     String   @id @default(cuid())
+  name                   String
+  email                  String?
+  company                String?
+  contactInfo            String?
+  createdBy              String
   defaultDiscountPercent Float?
-  defaultDiscountAmount Float?
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  defaultDiscountAmount  Float?
+  // New fields
+  portugueseTaxNumber    String?
+  foreignTaxNumber       String?
+  kycCompleted           Boolean  @default(false)
+  // Client type and legal information
+  isIndividual           Boolean  @default(false) // true for Individual Client, false for Company
+  fullLegalName          String?  // Full legal name of the client/company
+  // Billing address
+  billingAddressLine     String?
+  billingCity            String?
+  billingState           String?
+  billingZipCode         String?
+  billingCountry         String?
+  // Client role assignments
+  clientManagerId        String? // User ID - Client Manager (person managing the client relationship)
+  deletedAt              DateTime? // Soft delete
+  archivedAt              DateTime? // Archive (different from delete - can be unarchived)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
   // Relations
-  creator   User       @relation("ClientCreator", fields: [createdBy], references: [id])
-  proposals Proposal[]
-  bills     Bill[]
-  projects  Project[]
+  creator       User            @relation("ClientCreator", fields: [createdBy], references: [id])
+  clientManager User?           @relation("ClientManager", fields: [clientManagerId], references: [id])
+  finders       ClientFinder[] // Multiple Client Finders with percentages
+  proposals     Proposal[]
+  bills         Bill[]
+  projects      Project[]
+  contacts      ClientContact[] // One or more contact persons
+  finderFees    FinderFee[] // Finder fees earned for this client
+  todos         Todo[] // Todos associated with this client
+  convertedFrom Lead?        @relation("ConvertedLead")
+}
+
+model ClientContact {
+  id        String   @id @default(cuid())
+  clientId  String
+  name      String
+  email     String?
+  phone     String?
+  position  String? // e.g., "CEO", "CFO", "Project Manager"
+  isPrimary Boolean  @default(false) // Mark one as primary contact
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+}
+
+model ClientFinder {
+  id               String   @id @default(cuid())
+  clientId         String
+  userId           String // The Client Finder user
+  finderFeePercent Float    @default(0) // Percentage of finder's fee (0-100)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Relations
+  client     Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  user       User        @relation("ClientFinderRelation", fields: [userId], references: [id])
+  finderFees FinderFee[] // Finder fees generated for this finder-client relationship
+
+  @@unique([clientId, userId])
 }
 
 model Proposal {
-  id                   String         @id @default(cuid())
-  clientId             String
-  createdBy            String
-  type                 ProposalType
-  status               ProposalStatus @default(DRAFT)
-  title                String
-  description          String?
-  amount               Float?
-  proposalNumber       String?        @unique
-  issueDate            DateTime?
-  expiryDate           DateTime?
-  currency             String         @default("EUR")
-  taxInclusive         Boolean        @default(false)
-  taxRate              Float?
-  clientDiscountPercent Float?
-  clientDiscountAmount Float?
-  estimatedHours       Float?
-  hourlyRateRangeMin   Float?
-  hourlyRateRangeMax   Float?
-  hourlyCapHours      Float?
-  cappedAmount         Float?
-  retainerMonthlyAmount Float?
-  retainerHourlyCap    Float?
-  blendedRate          Float?
-  useBlendedRate      Boolean        @default(false)
-  successFeePercent    Float?
-  successFeeAmount     Float?
-  successFeeValue      Float?
-  fixedAmount          Float?
-  outOfScopeHourlyRate Float?
-  customTags           String[]       @default([])
-  clientApprovalStatus ClientApprovalStatus @default(PENDING)
-  clientApprovedAt     DateTime?
-  clientRejectedAt     DateTime?
-  clientRejectionReason String?
-  deletionRequestedAt  DateTime?
-  deletionRequestedBy  String?
-  deletionApprovedAt   DateTime?
-  deletionApprovedBy   String?
-  deletedAt            DateTime?
-  createdAt            DateTime       @default(now())
-  updatedAt            DateTime       @updatedAt
-  submittedAt          DateTime?
-  approvedAt           DateTime?
+  id                        String               @id @default(cuid())
+  clientId                  String?
+  leadId                    String?
+  createdBy                 String
+  type                      ProposalType
+  status                    ProposalStatus       @default(DRAFT)
+  title                     String
+  description               String?
+  amount                    Float?
+  proposalNumber            String?              @unique
+  issueDate                 DateTime?
+  expiryDate                DateTime?
+  currency                  String               @default("EUR")
+  taxInclusive              Boolean              @default(false)
+  taxRate                   Float?
+  clientDiscountPercent     Float?
+  clientDiscountAmount      Float?
+  estimatedHours            Float?
+  hourlyRateRangeMin        Float?
+  hourlyRateRangeMax        Float?
+  hourlyCapHours            Float?
+  cappedAmount              Float?
+  retainerMonthlyAmount     Float?
+  retainerHourlyCap         Float?
+  blendedRate               Float?
+  useBlendedRate            Boolean              @default(false)
+  successFeePercent         Float?
+  successFeeAmount          Float?
+  successFeeValue           Float?
+  fixedAmount               Float?
+  outOfScopeHourlyRate      Float?
+  customTags                String[]             @default([])
+  clientApprovalStatus      ClientApprovalStatus @default(PENDING)
+  clientApprovedAt          DateTime?
+  clientRejectedAt          DateTime?
+  clientRejectionReason     String?
+  deletionRequestedAt       DateTime?
+  deletionRequestedBy       String?
+  deletionApprovedAt        DateTime?
+  deletionApprovedBy        String?
+  deletedAt                 DateTime?
+  createdAt                 DateTime             @default(now())
+  updatedAt                 DateTime             @updatedAt
+  submittedAt               DateTime?
+  approvedAt                DateTime?
+  // Internal approval workflow fields
+  internalApprovalRequired  Boolean              @default(false)
+  internalApprovalType      String? // "ALL", "ANY", "MAJORITY"
+  requiredApproverIds       String[]             @default([]) // IDs of users who must approve
+  internalApprovalsComplete Boolean              @default(false)
+  // Client email approval fields
+  clientApprovalEmailSent   Boolean              @default(false)
+  clientApprovalToken       String?              @unique // Token for email approval links
+  clientApprovalTokenExpiry DateTime? // Token expiry date
+  // Resubmission tracking
+  resubmittedAt             DateTime?
+  resubmittedBy             String?
+  resubmissionCount         Int                  @default(0)
 
   // Relations
-  client       Client         @relation(fields: [clientId], references: [id])
-  creator      User           @relation("ProposalCreator", fields: [createdBy], references: [id])
-  items        ProposalItem[]
-  milestones   Milestone[]
-  bills        Bill[]
-  approvals    Approval[]
-  tags         ProposalTag[]
-  paymentTerms PaymentTerm[]
-  projects     Project[]
-  deletionRequester User?      @relation("DeletionRequester", fields: [deletionRequestedBy], references: [id])
-  deletionApprover User?       @relation("DeletionApprover", fields: [deletionApprovedBy], references: [id])
+  client            Client?        @relation(fields: [clientId], references: [id])
+  lead              Lead?          @relation(fields: [leadId], references: [id])
+  creator           User           @relation("ProposalCreator", fields: [createdBy], references: [id])
+  items             ProposalItem[]
+  milestones        Milestone[]
+  bills             Bill[]
+  approvals         Approval[]
+  tags              ProposalTag[]
+  paymentTerms      PaymentTerm[]
+  projects          Project[]
+  deletionRequester User?          @relation("DeletionRequester", fields: [deletionRequestedBy], references: [id])
+  deletionApprover  User?          @relation("DeletionApprover", fields: [deletionApprovedBy], references: [id])
+  resubmitter       User?          @relation("ProposalResubmitter", fields: [resubmittedBy], references: [id])
+  todos             Todo[]
 }
 
 model ProposalItem {
-  id            String   @id @default(cuid())
-  proposalId    String
-  type          String?  // For hourly: "timeEntry", for subject: "lineItem", etc.
-  billingMethod String?  // Which billing method applies to this line (for mixed models)
-  personId      String?  // User ID for person-specific hourly rates
-  description   String
-  quantity      Float?
-  rate          Float?
-  unitPrice     Float?
+  id              String    @id @default(cuid())
+  proposalId      String
+  type            String? // For hourly: "timeEntry", for subject: "lineItem", etc.
+  billingMethod   String? // Which billing method applies to this line (for mixed models)
+  personId        String? // User ID for person-specific hourly rates
+  description     String
+  quantity        Float?
+  rate            Float?
+  unitPrice       Float?
   discountPercent Float?
-  discountAmount Float?
-  amount        Float
-  date          DateTime? // For hourly entries
-  createdAt     DateTime @default(now())
+  discountAmount  Float?
+  amount          Float
+  date            DateTime? // For hourly entries
+  createdAt       DateTime  @default(now())
 
   // Relations
   proposal     Proposal     @relation(fields: [proposalId], references: [id], onDelete: Cascade)
   person       User?        @relation("ProposalItemPerson", fields: [personId], references: [id])
   paymentTerms PaymentTerm?
+  milestones   Milestone[] // Many-to-many: milestones assigned to this line item
+  todos        Todo[]
 }
 
 model Bill {
-  id          String     @id @default(cuid())
-  proposalId String?
-  projectId  String?
-  clientId   String
-  createdBy  String
-  status     BillStatus @default(DRAFT)
-  amount     Float
-  dueDate    DateTime?
-  createdAt  DateTime   @default(now())
-  updatedAt  DateTime   @updatedAt
-  submittedAt DateTime?
-  approvedAt DateTime?
-  paidAt     DateTime?
+  id                        String     @id @default(cuid())
+  proposalId                String?
+  projectId                 String?
+  clientId                  String
+  createdBy                 String
+  status                    BillStatus @default(DRAFT)
+  amount                    Float // Final total amount (after discount and tax)
+  subtotal                  Float? // Subtotal before discount and tax (nullable for backward compatibility)
+  invoiceNumber             String?    @unique
+  description               String? // Description of services/products for invoices created from scratch
+  dueDate                   DateTime?
+  // Tax fields
+  taxInclusive              Boolean    @default(false)
+  taxRate                   Float?
+  // Discount fields
+  discountPercent           Float?
+  discountAmount            Float?
+  createdAt                 DateTime   @default(now())
+  updatedAt                 DateTime   @updatedAt
+  submittedAt               DateTime?
+  approvedAt                DateTime?
+  paidAt                    DateTime?
+  // Resubmission tracking
+  resubmittedAt             DateTime?
+  resubmittedBy             String?
+  resubmissionCount         Int        @default(0)
+  // Internal approval workflow fields
+  internalApprovalRequired  Boolean    @default(false)
+  internalApprovalType      String? // "ALL", "ANY", "MAJORITY"
+  requiredApproverIds       String[]   @default([]) // IDs of users who must approve
+  internalApprovalsComplete Boolean    @default(false)
+  // Upfront payment and credit tracking
+  isUpfrontPayment          Boolean    @default(false)
+  creditApplied             Float      @default(0) // Amount of credit already applied from this invoice
+  relatedInvoiceId          String? // Reference to the final invoice this credit was applied to
+  // Outstanding invoice tracking
+  becameOutstandingAt       DateTime? // When invoice first became outstanding
+  lastReminderSentAt        DateTime? // Last time a reminder was sent
+  reminderCount             Int        @default(0) // Number of reminders sent
+  deletedAt                 DateTime?
 
   // Relations
-  proposal  Proposal?  @relation(fields: [proposalId], references: [id])
-  project   Project?   @relation(fields: [projectId], references: [id])
-  client    Client     @relation(fields: [clientId], references: [id])
-  creator   User       @relation("BillCreator", fields: [createdBy], references: [id])
-  approvals Approval[]
+  proposal    Proposal?   @relation(fields: [proposalId], references: [id])
+  project     Project?    @relation(fields: [projectId], references: [id])
+  client      Client      @relation(fields: [clientId], references: [id])
+  creator     User        @relation("BillCreator", fields: [createdBy], references: [id])
+  resubmitter User?       @relation("BillResubmitter", fields: [resubmittedBy], references: [id])
+  approvals   Approval[]
+  items       BillItem[]
+  todos       Todo[]
+  finderFees  FinderFee[] // Finder fees generated when invoice is paid
+}
+
+model BillItem {
+  id               String    @id @default(cuid())
+  billId           String
+  type             String // "TIMESHEET" or "CHARGE"
+  timesheetEntryId String? // Reference to TimesheetEntry if type is TIMESHEET
+  chargeId         String? // Reference to ProjectCharge if type is CHARGE
+  personId         String? // User ID for timesheet entries
+  description      String
+  quantity         Float?
+  rate             Float?
+  unitPrice        Float?
+  discountPercent  Float? // Item-level discount percentage
+  discountAmount   Float? // Item-level discount amount
+  amount           Float // Final amount for this item (after discount)
+  isCredit         Boolean   @default(false) // Flag for credit line items (negative amounts)
+  date             DateTime? // Date for timesheet entries
+  createdAt        DateTime  @default(now())
+
+  // Relations
+  bill   Bill  @relation(fields: [billId], references: [id], onDelete: Cascade)
+  person User? @relation("BillItemPerson", fields: [personId], references: [id])
 }
 
 model Milestone {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   proposalId  String
   name        String
   description String?
-  amount      Float?   // Fixed amount milestone
-  percent     Float?   // Percentage milestone
+  amount      Float? // Fixed amount milestone
+  percent     Float? // Percentage milestone
   dueDate     DateTime?
   completedAt DateTime?
-  createdAt   DateTime @default(now())
-  
-  proposal Proposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+
+  proposal      Proposal       @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  proposalItems ProposalItem[] // Many-to-many: line items that have this milestone assigned
 }
 
 model ProposalTag {
-  id          String     @id @default(cuid())
-  name        String     @unique
+  id          String   @id @default(cuid())
+  name        String   @unique
   description String?
-  color       String?    // For UI display
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  color       String? // For UI display
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   // Relations
   proposals Proposal[]
@@ -256,29 +461,35 @@ model Project {
   name        String
   description String?
   status      ProjectStatus @default(ACTIVE)
+  currency    String        @default("EUR")
   startDate   DateTime?
   endDate     DateTime?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
+  deletedAt   DateTime?
 
   // Relations
-  proposal Proposal? @relation(fields: [proposalId], references: [id])
-  client   Client    @relation(fields: [clientId], references: [id])
-  bills    Bill[]
+  proposal         Proposal?        @relation(fields: [proposalId], references: [id])
+  client           Client           @relation(fields: [clientId], references: [id])
+  bills            Bill[]
+  timesheetEntries TimesheetEntry[]
+  charges          ProjectCharge[]
+  projectManagers  ProjectManager[]
+  todos            Todo[]
 }
 
 model PaymentTerm {
-  id                  String              @id @default(cuid())
-  proposalId          String?
-  proposalItemId      String?              @unique
-  upfrontType         UpfrontPaymentType?
-  upfrontValue        Float?
-  installmentType     InstallmentType?
-  installmentCount    Int?
+  id                   String                @id @default(cuid())
+  proposalId           String?
+  proposalItemId       String?               @unique
+  upfrontType          UpfrontPaymentType?
+  upfrontValue         Float?
+  installmentType      InstallmentType?
+  installmentCount     Int?
   installmentFrequency InstallmentFrequency?
-  milestoneIds        String[]            @default([])
-  createdAt           DateTime            @default(now())
-  updatedAt           DateTime            @updatedAt
+  milestoneIds         String[]              @default([])
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
 
   // Relations
   proposal     Proposal?     @relation(fields: [proposalId], references: [id], onDelete: Cascade)
@@ -286,14 +497,14 @@ model PaymentTerm {
 }
 
 model Approval {
-  id          String          @id @default(cuid())
+  id         String         @id @default(cuid())
   proposalId String?
   billId     String?
   approverId String
-  status     ApprovalStatus  @default(PENDING)
+  status     ApprovalStatus @default(PENDING)
   comments   String?
-  createdAt  DateTime        @default(now())
-  updatedAt  DateTime        @updatedAt
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
 
   // Relations
   proposal Proposal? @relation(fields: [proposalId], references: [id], onDelete: Cascade)
@@ -301,5 +512,247 @@ model Approval {
   approver User      @relation(fields: [approverId], references: [id])
 }
 
+model TimesheetEntry {
+  id          String   @id @default(cuid())
+  projectId   String
+  userId      String // Person who worked
+  date        DateTime
+  hours       Float
+  rate        Float?
+  description String?
+  billable    Boolean  @default(true)
+  billed      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
+  // Relations
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation("TimesheetEntryUser", fields: [userId], references: [id])
+}
 
+model ProjectCharge {
+  id                 String              @id @default(cuid())
+  projectId          String
+  description        String
+  amount             Float
+  quantity           Float?              @default(1)
+  unitPrice          Float?
+  chargeType         ChargeType          @default(ONE_TIME)
+  recurringFrequency RecurringFrequency?
+  startDate          DateTime?
+  endDate            DateTime?
+  billed             Boolean             @default(false)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  // Relations
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model Todo {
+  id               String       @id @default(cuid())
+  title            String
+  description      String?
+  projectId        String?
+  proposalId       String?
+  proposalItemId   String?
+  invoiceId        String?
+  clientId         String?
+  leadId           String?
+  assignedTo       String
+  createdBy        String
+  status           TodoStatus   @default(PENDING)
+  priority         TodoPriority @default(MEDIUM)
+  isPersonal       Boolean      @default(false)
+  startDate        DateTime?
+  estimatedEndDate DateTime?
+  dueDate          DateTime?
+  readAt           DateTime?
+  completedAt      DateTime?
+  completedBy      String?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  // Relations
+  project        Project?            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  proposal       Proposal?           @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  proposalItem   ProposalItem?       @relation(fields: [proposalItemId], references: [id], onDelete: Cascade)
+  invoice        Bill?               @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  client         Client?             @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  lead           Lead?               @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  assignee       User                @relation("TodoAssignee", fields: [assignedTo], references: [id])
+  creator        User                @relation("TodoCreator", fields: [createdBy], references: [id])
+  completer      User?               @relation("TodoCompleter", fields: [completedBy], references: [id])
+  reassignments  TodoReassignment[]
+  dueDateChanges TodoDueDateChange[]
+}
+
+model TodoReassignment {
+  id           String   @id @default(cuid())
+  todoId       String
+  fromUserId   String
+  toUserId     String
+  reassignedBy String
+  reason       String?
+  createdAt    DateTime @default(now())
+
+  // Relations
+  todo             Todo @relation(fields: [todoId], references: [id], onDelete: Cascade)
+  fromUser         User @relation("TodoReassignmentFrom", fields: [fromUserId], references: [id])
+  toUser           User @relation("TodoReassignmentTo", fields: [toUserId], references: [id])
+  reassignedByUser User @relation("TodoReassignmentBy", fields: [reassignedBy], references: [id])
+}
+
+model TodoDueDateChange {
+  id         String    @id @default(cuid())
+  todoId     String
+  oldDueDate DateTime?
+  newDueDate DateTime?
+  changedBy  String
+  reason     String?
+  createdAt  DateTime  @default(now())
+
+  // Relations
+  todo          Todo @relation(fields: [todoId], references: [id], onDelete: Cascade)
+  changedByUser User @relation("TodoDueDateChangeBy", fields: [changedBy], references: [id])
+}
+
+model ProjectManager {
+  id        String   @id @default(cuid())
+  projectId String
+  userId    String
+  createdAt DateTime @default(now())
+
+  // Relations
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation("ProjectManager", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+}
+
+model FinderFee {
+  id             String @id @default(cuid())
+  billId         String // Invoice that generated this fee
+  clientId       String // Client for this invoice
+  finderId       String // User who gets the finder's fee
+  clientFinderId String // Reference to ClientFinder (for percentage used)
+
+  // Amounts
+  invoiceNetAmount Float // Net invoice amount (after taxes, before expense reimbursements)
+  finderFeePercent Float // Percentage applied
+  finderFeeAmount  Float // Calculated: invoiceNetAmount * (finderFeePercent / 100)
+
+  // Status
+  status          FinderFeeStatus @default(PENDING) // PENDING, PARTIALLY_PAID, PAID
+  paidAmount      Float           @default(0) // Amount paid so far
+  remainingAmount Float // finderFeeAmount - paidAmount
+
+  // Dates
+  earnedAt DateTime // When invoice was paid
+  paidAt   DateTime? // When fully paid (null if not fully paid)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  bill         Bill               @relation(fields: [billId], references: [id], onDelete: Cascade)
+  client       Client             @relation(fields: [clientId], references: [id])
+  finder       User               @relation("FinderFeeRecipient", fields: [finderId], references: [id])
+  clientFinder ClientFinder       @relation(fields: [clientFinderId], references: [id])
+  payments     FinderFeePayment[] // Payment transactions
+}
+
+model FinderFeePayment {
+  id          String   @id @default(cuid())
+  finderFeeId String
+  amount      Float // Payment amount
+  paymentDate DateTime @default(now())
+  notes       String? // Optional notes
+  paidBy      String // User who recorded the payment (Admin)
+  createdAt   DateTime @default(now())
+
+  // Relations
+  finderFee  FinderFee @relation(fields: [finderFeeId], references: [id], onDelete: Cascade)
+  paidByUser User      @relation("FinderFeePaymentBy", fields: [paidBy], references: [id])
+}
+
+model Lead {
+  id                     String   @id @default(cuid())
+  name                   String
+  email                  String?
+  company                String?
+  phone                  String?
+  contactInfo            String?
+  createdBy              String
+  // Address fields
+  addressLine            String?
+  city                   String?
+  state                  String?
+  zipCode                String?
+  country                String?
+  // Lead-specific fields
+  status                 LeadStatus @default(NEW)
+  areaOfLawId            String?
+  sectorOfActivityId    String?
+  leadManagerId         String? // User ID - Lead Manager
+  convertedToClientId    String? @unique // Client ID if converted (one-to-one)
+  convertedAt            DateTime?
+  deletedAt              DateTime? // Soft delete
+  archivedAt             DateTime? // Archive
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  // Relations
+  creator            User                @relation("LeadCreator", fields: [createdBy], references: [id])
+  leadManager       User?               @relation("LeadManager", fields: [leadManagerId], references: [id])
+  areaOfLaw         AreaOfLaw?          @relation(fields: [areaOfLawId], references: [id])
+  sectorOfActivity  SectorOfActivity?   @relation(fields: [sectorOfActivityId], references: [id])
+  interactions      LeadInteraction[]
+  todos             Todo[]
+  proposals         Proposal[]
+  convertedToClient Client?             @relation("ConvertedLead", fields: [convertedToClientId], references: [id])
+}
+
+model LeadInteraction {
+  id             String          @id @default(cuid())
+  leadId         String
+  interactionType InteractionType
+  notes          String?
+  date           DateTime        @default(now())
+  createdBy      String
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  // Relations
+  lead    Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  creator User @relation("LeadInteractionCreator", fields: [createdBy], references: [id])
+}
+
+model AreaOfLaw {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  leads Lead[]
+}
+
+model SectorOfActivity {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  leads Lead[]
+}
+
+model Settings {
+  id        String   @id @default("app-settings") // Single record
+  logoPath  String?  // Path to the logo file (e.g., "/uploads/logos/logo.png")
+  updatedAt DateTime @updatedAt
+  updatedBy String?   // User ID who last updated (no relation needed)
+}

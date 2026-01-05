@@ -35,7 +35,10 @@ export async function POST(
     // Check if user is the client for this proposal
     if (session.user.role === "CLIENT") {
       const client = await prisma.client.findFirst({
-        where: { email: session.user.email },
+        where: { 
+          email: session.user.email,
+          deletedAt: null, // Exclude deleted clients
+        },
       })
       if (!client || proposal.clientId !== client.id) {
         return NextResponse.json(
@@ -87,5 +90,7 @@ export async function POST(
     )
   }
 }
+
+
 
 

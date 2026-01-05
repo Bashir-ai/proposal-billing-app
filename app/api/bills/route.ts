@@ -4,11 +4,19 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import { BillStatus } from "@prisma/client"
+import { generateInvoiceNumber } from "@/lib/invoice-number"
 
 const billSchema = z.object({
   proposalId: z.string().optional(),
+  projectId: z.string().optional(),
   clientId: z.string(),
-  amount: z.number().min(0),
+  amount: z.number().min(0).optional(),
+  subtotal: z.number().min(0).optional(),
+  description: z.string().optional(),
+  taxInclusive: z.boolean().optional(),
+  taxRate: z.number().min(0).max(100).optional().nullable(),
+  discountPercent: z.number().min(0).max(100).optional().nullable(),
+  discountAmount: z.number().min(0).optional().nullable(),
   dueDate: z.string().optional(),
 })
 
@@ -22,13 +30,33 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const status = searchParams.get("status")
     const clientId = searchParams.get("clientId")
+    const projectId = searchParams.get("projectId")
 
-    const where: any = {}
-    if (status) where.status = status
+    const where: any = {
+      deletedAt: null, // Exclude deleted items
+    }
+    if (status) {
+      // Support comma-separated status values and "outstanding"
+      if (status === "OUTSTANDING") {
+        where.status = { not: "PAID" }
+        where.dueDate = { lt: new Date() }
+      } else {
+        const statuses = status.split(",").map(s => s.trim())
+        if (statuses.length === 1) {
+          where.status = statuses[0]
+        } else {
+          where.status = { in: statuses }
+        }
+      }
+    }
     if (clientId) where.clientId = clientId
+    if (projectId) where.projectId = projectId
     if (session.user.role === "CLIENT") {
       const client = await prisma.client.findFirst({
-        where: { email: session.user.email },
+        where: { 
+          email: session.user.email,
+          deletedAt: null, // Exclude deleted clients
+        },
       })
       if (client) {
         where.clientId = client.id
@@ -52,6 +80,12 @@ export async function GET(request: Request) {
           select: {
             id: true,
             title: true,
+          },
+        },
+        project: {
+          select: {
+            id: true,
+            name: true,
           },
         },
         creator: {
@@ -89,12 +123,75 @@ export async function POST(request: Request) {
     const body = await request.json()
     const validatedData = billSchema.parse(body)
 
+    // Calculate subtotal and amount if not provided
+    let subtotal = validatedData.subtotal || validatedData.amount || 0
+    const taxInclusive = validatedData.taxInclusive || false
+    const taxRate = validatedData.taxRate || null
+    const discountPercent = validatedData.discountPercent || null
+    const discountAmount = validatedData.discountAmount || null
+
+    // Calculate discount
+    let discountValue = 0
+    if (discountPercent && discountPercent > 0) {
+      discountValue = (subtotal * discountPercent) / 100
+    } else if (discountAmount && discountAmount > 0) {
+      discountValue = discountAmount
+    }
+
+    const afterDiscount = subtotal - discountValue
+
+    // Calculate tax and final amount
+    let taxAmount = 0
+    let finalAmount = afterDiscount
+
+    if (taxRate && taxRate > 0) {
+      if (taxInclusive) {
+        // Tax is included in the amount
+        taxAmount = (afterDiscount * taxRate) / (100 + taxRate)
+        finalAmount = afterDiscount // Amount already includes tax
+      } else {
+        // Tax is added on top
+        taxAmount = (afterDiscount * taxRate) / 100
+        finalAmount = afterDiscount + taxAmount
+      }
+    }
+
+    // If amount was provided but not subtotal, use amount as subtotal
+    if (validatedData.amount && !validatedData.subtotal) {
+      subtotal = validatedData.amount
+      finalAmount = validatedData.amount
+    }
+
+    // Generate invoice number for invoices created from scratch (no proposal or project)
+    let invoiceNumber: string | null = null
+    if (!validatedData.proposalId && !validatedData.projectId) {
+      invoiceNumber = await generateInvoiceNumber()
+      
+      // Check if invoice number already exists (shouldn't happen, but safety check)
+      const existingInvoice = await prisma.bill.findUnique({
+        where: { invoiceNumber },
+      })
+      
+      if (existingInvoice) {
+        // If exists, generate a new one (shouldn't happen with sequential numbers, but just in case)
+        invoiceNumber = await generateInvoiceNumber()
+      }
+    }
+
     const bill = await prisma.bill.create({
       data: {
         proposalId: validatedData.proposalId || null,
+        projectId: validatedData.projectId || null,
         clientId: validatedData.clientId,
         createdBy: session.user.id,
-        amount: validatedData.amount,
+        amount: finalAmount,
+        subtotal: subtotal,
+        description: validatedData.description || null,
+        invoiceNumber: invoiceNumber,
+        taxInclusive: taxInclusive,
+        taxRate: taxRate,
+        discountPercent: discountPercent,
+        discountAmount: discountAmount,
         dueDate: validatedData.dueDate ? new Date(validatedData.dueDate) : null,
         status: BillStatus.DRAFT,
       },
@@ -106,6 +203,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(bill, { status: 201 })
   } catch (error) {
+    console.error("Error creating bill:", error)
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: "Invalid input", details: error.errors },
@@ -113,8 +211,13 @@ export async function POST(request: Request) {
       )
     }
 
+    if (error instanceof Error) {
+      console.error("Error message:", error.message)
+      console.error("Error stack:", error.stack)
+    }
+
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Internal server error", message: error instanceof Error ? error.message : "Unknown error" },
       { status: 500 }
     )
   }

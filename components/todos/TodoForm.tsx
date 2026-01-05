@@ -1,0 +1,507 @@
+"use client"
+
+import { useState, useEffect } from "react"
+import { useSession } from "next-auth/react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Select } from "@/components/ui/select"
+import { Label } from "@/components/ui/label"
+import { useRouter } from "next/navigation"
+
+interface TodoFormProps {
+  initialData?: {
+    id?: string
+    title?: string
+    description?: string
+    projectId?: string
+    proposalId?: string
+    proposalItemId?: string
+    invoiceId?: string
+    clientId?: string
+    leadId?: string
+    assignedTo?: string
+    priority?: string
+    startDate?: string
+    estimatedEndDate?: string
+    dueDate?: string
+  }
+  projects?: Array<{ id: string; name: string; clientId?: string }>
+  proposals?: Array<{ id: string; title: string; proposalNumber?: string | null }>
+  proposalItems?: Array<{ id: string; description: string }>
+  invoices?: Array<{ id: string; invoiceNumber?: string | null }>
+  clients?: Array<{ id: string; name: string; company?: string | null }>
+  leads?: Array<{ id: string; name: string; company?: string | null }>
+  users?: Array<{ id: string; name: string; email: string; role?: string }>
+  creator?: { id: string; role: string }
+  currentAssignee?: { id: string; role: string }
+  currentUser?: { id: string; role: string }
+  onSubmit: (data: any) => Promise<void>
+  onCancel?: () => void
+}
+
+export function TodoForm({
+  initialData,
+  projects = [],
+  proposals = [],
+  proposalItems = [],
+  invoices = [],
+  clients = [],
+  leads = [],
+  users = [],
+  creator,
+  currentAssignee,
+  currentUser,
+  onSubmit,
+  onCancel,
+}: TodoFormProps) {
+  const router = useRouter()
+  const { data: session } = useSession()
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
+  const [reassignmentReason, setReassignmentReason] = useState("")
+  const [dueDateChangeReason, setDueDateChangeReason] = useState("")
+  const [formData, setFormData] = useState({
+    title: initialData?.title || "",
+    description: initialData?.description || "",
+    projectId: initialData?.projectId || "",
+    proposalId: initialData?.proposalId || "",
+    proposalItemId: initialData?.proposalItemId || "",
+    invoiceId: initialData?.invoiceId || "",
+    clientId: initialData?.clientId || "",
+    leadId: initialData?.leadId || "",
+    assignedTo: initialData?.assignedTo || "",
+    priority: initialData?.priority || "MEDIUM",
+    isPersonal: initialData?.isPersonal || false,
+    startDate: initialData?.startDate ? new Date(initialData.startDate).toISOString().split("T")[0] : "",
+    estimatedEndDate: initialData?.estimatedEndDate ? new Date(initialData.estimatedEndDate).toISOString().split("T")[0] : "",
+    dueDate: initialData?.dueDate ? new Date(initialData.dueDate).toISOString().split("T")[0] : "",
+  })
+
+  const [filteredProjects, setFilteredProjects] = useState(projects)
+
+  // Check if reassignment is allowed
+  const canReassign = creator && currentAssignee && currentUser && 
+    (currentUser.role === "ADMIN" || 
+     creator.id === currentUser.id ||
+     (currentUser.id === currentAssignee.id && 
+      ((creator.role === "ADMIN" && currentAssignee.role !== "ADMIN") ||
+       (creator.role === "MANAGER" && (currentAssignee.role === "STAFF" || currentAssignee.role === "CLIENT")))))
+  
+  const isReassigning = initialData?.id && formData.assignedTo !== initialData.assignedTo && canReassign
+
+  const [filteredProposalItems, setFilteredProposalItems] = useState(proposalItems)
+
+  // Filter projects when client is selected
+  useEffect(() => {
+    if (formData.clientId) {
+      const filtered = projects.filter((p) => p.clientId === formData.clientId)
+      setFilteredProjects(filtered)
+      // Clear project selection if it doesn't belong to selected client
+      if (formData.projectId) {
+        const selectedProject = projects.find((p) => p.id === formData.projectId)
+        if (selectedProject && selectedProject.clientId !== formData.clientId) {
+          setFormData((prev) => ({ ...prev, projectId: "" }))
+        }
+      }
+    } else {
+      setFilteredProjects(projects)
+    }
+  }, [formData.clientId, projects, formData.projectId])
+
+  // Auto-set client when project is selected
+  useEffect(() => {
+    if (formData.projectId && !formData.clientId) {
+      const selectedProject = projects.find((p) => p.id === formData.projectId)
+      if (selectedProject && selectedProject.clientId) {
+        setFormData((prev) => ({ ...prev, clientId: selectedProject.clientId }))
+      }
+    }
+  }, [formData.projectId, projects, formData.clientId])
+
+  useEffect(() => {
+    if (formData.proposalId) {
+      // Fetch proposal items for the selected proposal
+      fetch(`/api/proposals/${formData.proposalId}`)
+        .then((res) => res.json())
+        .then((data) => {
+          setFilteredProposalItems(
+            data.items?.map((item: any) => ({
+              id: item.id,
+              description: item.description,
+            })) || []
+          )
+        })
+        .catch((error) => {
+          console.error("Failed to fetch proposal items:", error)
+          setFilteredProposalItems([])
+        })
+    } else {
+      setFilteredProposalItems([])
+    }
+  }, [formData.proposalId])
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError("")
+    setLoading(true)
+
+    try {
+      if (!formData.title.trim()) {
+        setError("Title is required")
+        return
+      }
+      // If personal, automatically set assignedTo to current user
+      if (formData.isPersonal && session?.user?.id) {
+        formData.assignedTo = session.user.id
+      }
+
+      if (!formData.isPersonal && !formData.assignedTo) {
+        setError("Assignee is required for non-personal ToDos")
+        return
+      }
+
+      // Check if due date is being changed by assignee
+      const isDueDateChanging = initialData?.id && 
+        formData.dueDate !== (initialData.dueDate ? new Date(initialData.dueDate).toISOString().split("T")[0] : "")
+      const isAssignee = session?.user?.id === initialData?.assignedTo
+
+      await onSubmit({
+        ...formData,
+        projectId: formData.projectId || undefined,
+        proposalId: formData.proposalId || undefined,
+        proposalItemId: formData.proposalItemId || undefined,
+        invoiceId: formData.invoiceId || undefined,
+        clientId: formData.clientId || undefined,
+        leadId: formData.leadId || undefined,
+        assignedTo: formData.isPersonal ? session?.user?.id : (formData.assignedTo || undefined),
+        startDate: formData.startDate || undefined,
+        estimatedEndDate: formData.estimatedEndDate || undefined,
+        dueDate: formData.dueDate || undefined,
+        reassignmentReason: isReassigning ? reassignmentReason : undefined,
+        dueDateChangeReason: isDueDateChanging && isAssignee ? dueDateChangeReason : undefined,
+      })
+    } catch (err: any) {
+        setError(err.message || "Failed to save ToDo")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{initialData?.id ? "Edit ToDo" : "Create ToDo"}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="title">Title *</Label>
+            <Input
+              id="title"
+              value={formData.title}
+              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+              required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="description">Description</Label>
+            <Textarea
+              id="description"
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              rows={3}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="isPersonal"
+                checked={formData.isPersonal}
+                onChange={(e) => {
+                  const isPersonal = e.target.checked
+                  setFormData({
+                    ...formData,
+                    isPersonal,
+                    assignedTo: isPersonal && session?.user?.id ? session.user.id : formData.assignedTo,
+                  })
+                }}
+                className="h-4 w-4 rounded border-gray-300"
+              />
+              <Label htmlFor="isPersonal" className="font-medium">
+                Personal/Private ToDo
+              </Label>
+            </div>
+            {formData.isPersonal && (
+              <p className="text-xs text-gray-600 ml-6">
+                This ToDo will be hidden from other users and can only be seen by you.
+              </p>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="assignedTo">Assign To *</Label>
+              <Select
+                id="assignedTo"
+                value={formData.assignedTo}
+                onChange={(e) => setFormData({ ...formData, assignedTo: e.target.value })}
+                required={!formData.isPersonal}
+                disabled={formData.isPersonal}
+              >
+                <option value="">Select user...</option>
+                {users.map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {user.name} ({user.email})
+                  </option>
+                ))}
+              </Select>
+              {formData.isPersonal && (
+                <p className="text-xs text-gray-500 mt-1">
+                  Personal ToDos are automatically assigned to you.
+                </p>
+              )}
+              {initialData?.id && currentAssignee && !formData.isPersonal && (
+                <p className="text-xs text-gray-500 mt-1">
+                  Current assignee: {users.find(u => u.id === currentAssignee.id)?.name || "Unknown"}
+                </p>
+              )}
+              {isReassigning && !formData.isPersonal && (
+                <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded text-sm">
+                  <p className="font-semibold text-yellow-800 mb-1">⚠️ Reassignment Notice</p>
+                  <p className="text-yellow-700">
+                    This reassignment will be tracked. The ToDo is being reassigned from {users.find(u => u.id === currentAssignee?.id)?.name || "current assignee"} to the new assignee.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="priority">Priority</Label>
+              <Select
+                id="priority"
+                value={formData.priority}
+                onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
+              >
+                <option value="LOW">Low</option>
+                <option value="MEDIUM">Medium</option>
+                <option value="HIGH">High</option>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="clientId">Client (Optional)</Label>
+              <Select
+                id="clientId"
+                value={formData.clientId}
+                onChange={(e) => {
+                  const newClientId = e.target.value
+                  setFormData({ 
+                    ...formData, 
+                    clientId: newClientId, 
+                    leadId: "", // Clear lead when client is selected
+                    projectId: "" 
+                  })
+                }}
+              >
+                <option value="">No client</option>
+                {clients.map((client) => (
+                  <option key={client.id} value={client.id}>
+                    {client.name} {client.company ? `(${client.company})` : ""}
+                  </option>
+                ))}
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="leadId">Lead (Optional)</Label>
+              <Select
+                id="leadId"
+                value={formData.leadId}
+                onChange={(e) => {
+                  const newLeadId = e.target.value
+                  setFormData({ 
+                    ...formData, 
+                    leadId: newLeadId,
+                    clientId: "", // Clear client when lead is selected
+                    projectId: "" // Clear project when lead is selected
+                  })
+                }}
+                disabled={!!formData.clientId}
+              >
+                <option value="">No lead</option>
+                {leads.map((lead) => (
+                  <option key={lead.id} value={lead.id}>
+                    {lead.name} {lead.company ? `(${lead.company})` : ""}
+                  </option>
+                ))}
+              </Select>
+              {formData.clientId && (
+                <p className="text-sm text-gray-500">Select either Client or Lead, not both</p>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="projectId">Project (Optional)</Label>
+              <Select
+                id="projectId"
+                value={formData.projectId}
+                onChange={(e) => setFormData({ ...formData, projectId: e.target.value })}
+                disabled={formData.clientId && filteredProjects.length === 0 || !!formData.leadId}
+              >
+                <option value="">No project</option>
+                {filteredProjects.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.name}
+                  </option>
+                ))}
+              </Select>
+              {formData.clientId && filteredProjects.length === 0 && (
+                <p className="text-sm text-gray-500">No projects found for this client</p>
+              )}
+              {formData.leadId && (
+                <p className="text-sm text-gray-500">Projects can only be selected when a Client is selected</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="proposalId">Proposal (Optional)</Label>
+              <Select
+                id="proposalId"
+                value={formData.proposalId}
+                onChange={(e) => setFormData({ ...formData, proposalId: e.target.value, proposalItemId: "" })}
+              >
+                <option value="">No proposal</option>
+                {proposals.map((proposal) => (
+                  <option key={proposal.id} value={proposal.id}>
+                    {proposal.title} {proposal.proposalNumber && `(#${proposal.proposalNumber})`}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          </div>
+
+          {formData.proposalId && filteredProposalItems.length > 0 && (
+            <div className="space-y-2">
+              <Label htmlFor="proposalItemId">Proposal Line Item (Optional)</Label>
+              <Select
+                id="proposalItemId"
+                value={formData.proposalItemId}
+                onChange={(e) => setFormData({ ...formData, proposalItemId: e.target.value })}
+              >
+                <option value="">No specific line item</option>
+                {filteredProposalItems.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.description}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="invoiceId">Invoice (Optional)</Label>
+              <Select
+                id="invoiceId"
+                value={formData.invoiceId}
+                onChange={(e) => setFormData({ ...formData, invoiceId: e.target.value })}
+              >
+                <option value="">No invoice</option>
+                {invoices.map((invoice) => (
+                  <option key={invoice.id} value={invoice.id}>
+                    {invoice.invoiceNumber || invoice.id.slice(0, 8)}
+                  </option>
+                ))}
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="startDate">Start Date (Optional)</Label>
+              <Input
+                id="startDate"
+                type="date"
+                value={formData.startDate}
+                onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="estimatedEndDate">Estimated End Date (Optional)</Label>
+              <Input
+                id="estimatedEndDate"
+                type="date"
+                value={formData.estimatedEndDate}
+                onChange={(e) => setFormData({ ...formData, estimatedEndDate: e.target.value })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="dueDate">Due Date (Optional)</Label>
+              <Input
+                id="dueDate"
+                type="date"
+                value={formData.dueDate}
+                onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
+              />
+            </div>
+          </div>
+
+          {isReassigning && (
+            <div className="space-y-2">
+              <Label htmlFor="reassignmentReason">Reassignment Reason (Optional)</Label>
+              <Textarea
+                id="reassignmentReason"
+                value={reassignmentReason}
+                onChange={(e) => setReassignmentReason(e.target.value)}
+                rows={2}
+                placeholder="Explain why this ToDo is being reassigned..."
+              />
+            </div>
+          )}
+
+          {initialData?.id && 
+           formData.dueDate !== (initialData.dueDate ? new Date(initialData.dueDate).toISOString().split("T")[0] : "") &&
+           session?.user?.id === initialData.assignedTo && (
+            <div className="space-y-2">
+              <Label htmlFor="dueDateChangeReason">Due Date Change Reason (Optional)</Label>
+              <Textarea
+                id="dueDateChangeReason"
+                value={dueDateChangeReason}
+                onChange={(e) => setDueDateChangeReason(e.target.value)}
+                rows={2}
+                placeholder="Explain why the due date is being changed..."
+              />
+            </div>
+          )}
+
+          {error && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm">
+              {error}
+            </div>
+          )}
+
+          <div className="flex space-x-2">
+            <Button type="submit" disabled={loading}>
+              {loading ? "Saving..." : initialData?.id ? "Update ToDo" : "Create ToDo"}
+            </Button>
+            {onCancel && (
+              <Button type="button" variant="outline" onClick={onCancel} disabled={loading}>
+                Cancel
+              </Button>
+            )}
+          </div>
+        </form>
+      </CardContent>
+    </Card>
+  )
+}
+
