@@ -96,6 +96,7 @@ export function PaymentTermsSection({
       
       updateProposalTerm("installmentMaturityDates", dates)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [proposalTerm.installmentType, proposalTerm.installmentCount, proposalTerm.installmentFrequency, proposalTerm.recurringStartDate])
 
   return (

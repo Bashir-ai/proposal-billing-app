@@ -102,6 +102,7 @@ export function QuickTodoDialog({ open, onOpenChange }: QuickTodoDialogProps) {
     } else {
       setFilteredProjects(projects)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.clientId, formData.leadId, projects])
 
   // Auto-set client when project is selected
