@@ -1415,8 +1415,8 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                   <Card key={index}>
                     <CardContent className="pt-6">
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {/* Billing Method Selector - Show for MIXED_MODEL or always allow per-item billing (but not for RECURRING) */}
-                        {(formData.type === "MIXED_MODEL" || formData.type === "FIXED_FEE" || formData.type === "SUCCESS_FEE" || formData.type === "HOURLY" || formData.type === "CAPPED_FEE") && formData.type !== "RECURRING" && (
+                        {/* Billing Method Selector - Show for MIXED_MODEL or always allow per-item billing */}
+                        {(formData.type === "MIXED_MODEL" || formData.type === "FIXED_FEE" || formData.type === "SUCCESS_FEE" || formData.type === "HOURLY" || formData.type === "CAPPED_FEE") && (
                           <div className="space-y-2">
                             <Label>Billing Method</Label>
                             <Select

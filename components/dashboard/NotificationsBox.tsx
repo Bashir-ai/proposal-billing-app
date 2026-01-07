@@ -16,8 +16,8 @@ interface Notification {
   invoiceNumber?: string
   client?: {
     name: string
-    company?: string
-  }
+    company?: string | null
+  } | null
   createdAt: string
 }
 
