@@ -9,7 +9,7 @@ import { Select } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { formatCurrency } from "@/lib/utils"
+import { formatCurrency, formatDate } from "@/lib/utils"
 
 export default function NewBillPage() {
   const router = useRouter()
@@ -23,6 +23,8 @@ export default function NewBillPage() {
     projectId: "",
     clientId: "",
     subtotal: "",
+    description: "",
+    paymentDetailsId: "",
     taxInclusive: false,
     taxRate: "0",
     discountPercent: "",
@@ -30,11 +32,32 @@ export default function NewBillPage() {
     dueDate: "",
   })
   const [calculatedAmount, setCalculatedAmount] = useState(0)
+  const [paymentDetails, setPaymentDetails] = useState<Array<{ id: string; name: string; isDefault: boolean }>>([])
+  const [unbilledItems, setUnbilledItems] = useState<{
+    timesheetEntries: Array<{ id: string; date: string; hours: number; rate: number | null; amount: number; description: string | null; user: { id: string; name: string; email: string } }>
+    charges: Array<{ id: string; description: string; amount: number; quantity: number | null; project?: { id: string; name: string } }>
+    totals: { timesheets: number; charges: number; total: number }
+  } | null>(null)
+  const [selectedTimesheetIds, setSelectedTimesheetIds] = useState<string[]>([])
+  const [selectedChargeIds, setSelectedChargeIds] = useState<string[]>([])
+  const [loadingUnbilled, setLoadingUnbilled] = useState(false)
 
   useEffect(() => {
     fetch("/api/clients")
       .then((res) => res.json())
       .then((data) => setClients(data))
+      .catch(console.error)
+    
+    fetch("/api/payment-details")
+      .then((res) => res.json())
+      .then((data) => {
+        setPaymentDetails(data)
+        // Set default payment details if available
+        const defaultPd = data.find((pd: any) => pd.isDefault)
+        if (defaultPd) {
+          setFormData(prev => ({ ...prev, paymentDetailsId: defaultPd.id }))
+        }
+      })
       .catch(console.error)
   }, [])
 
@@ -53,9 +76,50 @@ export default function NewBillPage() {
     } else {
       setProposals([])
       setProjects([])
+      setUnbilledItems(null)
+      setSelectedTimesheetIds([])
+      setSelectedChargeIds([])
       setFormData((prev) => ({ ...prev, proposalId: "", projectId: "" }))
     }
   }, [formData.clientId])
+
+  // Fetch unbilled items when project is selected
+  useEffect(() => {
+    if (formData.projectId) {
+      setLoadingUnbilled(true)
+      fetch(`/api/projects/${formData.projectId}/unbilled-items`)
+        .then(res => res.json())
+        .then(data => {
+          setUnbilledItems(data)
+          setSelectedTimesheetIds([])
+          setSelectedChargeIds([])
+        })
+        .catch(err => {
+          console.error("Error fetching unbilled items:", err)
+          setUnbilledItems(null)
+        })
+        .finally(() => setLoadingUnbilled(false))
+    } else if (formData.clientId && !formData.projectId) {
+      // Fetch unbilled items for all client projects
+      setLoadingUnbilled(true)
+      fetch(`/api/clients/${formData.clientId}/unbilled-items`)
+        .then(res => res.json())
+        .then(data => {
+          setUnbilledItems(data)
+          setSelectedTimesheetIds([])
+          setSelectedChargeIds([])
+        })
+        .catch(err => {
+          console.error("Error fetching unbilled items:", err)
+          setUnbilledItems(null)
+        })
+        .finally(() => setLoadingUnbilled(false))
+    } else {
+      setUnbilledItems(null)
+      setSelectedTimesheetIds([])
+      setSelectedChargeIds([])
+    }
+  }, [formData.projectId, formData.clientId])
 
   useEffect(() => {
     if (formData.proposalId && proposals.length > 0) {
@@ -73,9 +137,38 @@ export default function NewBillPage() {
     }
   }, [formData.proposalId, proposals])
 
-  // Calculate totals when tax/discount changes
+  // Calculate totals when tax/discount changes or selected items change
   useEffect(() => {
-    const subtotal = parseFloat(formData.subtotal) || 0
+    // Calculate subtotal from selected items if any are selected, otherwise use manual subtotal
+    let subtotal = parseFloat(formData.subtotal) || 0
+    
+    if (unbilledItems && (selectedTimesheetIds.length > 0 || selectedChargeIds.length > 0)) {
+      let itemsSubtotal = 0
+      
+      // Add selected timesheet amounts
+      selectedTimesheetIds.forEach(id => {
+        const entry = unbilledItems.timesheetEntries.find(e => e.id === id)
+        if (entry) {
+          itemsSubtotal += entry.amount
+        }
+      })
+      
+      // Add selected charge amounts
+      selectedChargeIds.forEach(id => {
+        const charge = unbilledItems.charges.find(c => c.id === id)
+        if (charge) {
+          itemsSubtotal += charge.amount
+        }
+      })
+      
+      // Use items subtotal if items are selected
+      if (itemsSubtotal > 0) {
+        subtotal = itemsSubtotal
+        // Update formData subtotal when items are selected
+        setFormData(prev => ({ ...prev, subtotal: itemsSubtotal.toFixed(2) }))
+      }
+    }
+    
     const taxRate = parseFloat(formData.taxRate) || 0
     const discountPercent = parseFloat(formData.discountPercent) || 0
     const discountAmount = parseFloat(formData.discountAmount) || 0
@@ -104,7 +197,7 @@ export default function NewBillPage() {
     }
 
     setCalculatedAmount(finalAmount)
-  }, [formData.subtotal, formData.taxRate, formData.taxInclusive, formData.discountPercent, formData.discountAmount])
+  }, [formData.subtotal, formData.taxRate, formData.taxInclusive, formData.discountPercent, formData.discountAmount, selectedTimesheetIds, selectedChargeIds, unbilledItems])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -120,11 +213,15 @@ export default function NewBillPage() {
           projectId: formData.projectId || undefined,
           clientId: formData.clientId,
           subtotal: formData.subtotal ? parseFloat(formData.subtotal) : undefined,
+          description: formData.description || undefined,
+          paymentDetailsId: formData.paymentDetailsId || undefined,
           taxInclusive: formData.taxInclusive,
           taxRate: formData.taxRate ? parseFloat(formData.taxRate) : null,
           discountPercent: formData.discountPercent ? parseFloat(formData.discountPercent) : null,
           discountAmount: formData.discountAmount ? parseFloat(formData.discountAmount) : null,
           dueDate: formData.dueDate || undefined,
+          timesheetEntryIds: selectedTimesheetIds.length > 0 ? selectedTimesheetIds : undefined,
+          chargeIds: selectedChargeIds.length > 0 ? selectedChargeIds : undefined,
         }),
       })
 
@@ -229,6 +326,145 @@ export default function NewBillPage() {
                 placeholder="Describe the services or products being invoiced..."
               />
             </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="paymentDetailsId">Payment Details</Label>
+              <Select
+                id="paymentDetailsId"
+                value={formData.paymentDetailsId}
+                onChange={(e) => setFormData({ ...formData, paymentDetailsId: e.target.value })}
+              >
+                <option value="">No payment details</option>
+                {paymentDetails.map((pd) => (
+                  <option key={pd.id} value={pd.id}>
+                    {pd.name} {pd.isDefault ? "(Default)" : ""}
+                  </option>
+                ))}
+              </Select>
+              <p className="text-xs text-gray-500">Select payment details to display at the bottom of the invoice PDF</p>
+            </div>
+
+            {/* Unbilled Items Section */}
+            {(formData.projectId || (formData.clientId && !formData.projectId)) && (
+              <div className="space-y-4 border-t pt-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold">Unbilled Items</h3>
+                  {unbilledItems && (unbilledItems.timesheetEntries.length > 0 || unbilledItems.charges.length > 0) && (
+                    <div className="flex space-x-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const allTimesheetIds = unbilledItems.timesheetEntries.map(e => e.id)
+                          const allChargeIds = unbilledItems.charges.map(c => c.id)
+                          setSelectedTimesheetIds(allTimesheetIds)
+                          setSelectedChargeIds(allChargeIds)
+                        }}
+                      >
+                        Select All
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedTimesheetIds([])
+                          setSelectedChargeIds([])
+                        }}
+                      >
+                        Clear All
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                {loadingUnbilled ? (
+                  <p className="text-sm text-gray-500">Loading unbilled items...</p>
+                ) : unbilledItems && (unbilledItems.timesheetEntries.length > 0 || unbilledItems.charges.length > 0) ? (
+                  <div className="space-y-4">
+                    {unbilledItems.timesheetEntries.length > 0 && (
+                      <div>
+                        <h4 className="font-medium mb-2">Timesheet Entries</h4>
+                        <div className="space-y-2 max-h-60 overflow-y-auto border rounded p-3">
+                          {unbilledItems.timesheetEntries.map((entry) => (
+                            <label
+                              key={entry.id}
+                              className="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded cursor-pointer"
+                            >
+                              <Checkbox
+                                checked={selectedTimesheetIds.includes(entry.id)}
+                                onCheckedChange={(checked) => {
+                                  if (checked) {
+                                    setSelectedTimesheetIds([...selectedTimesheetIds, entry.id])
+                                  } else {
+                                    setSelectedTimesheetIds(selectedTimesheetIds.filter(id => id !== entry.id))
+                                  }
+                                }}
+                              />
+                              <div className="flex-1 grid grid-cols-4 gap-2 text-sm">
+                                <span>{formatDate(entry.date)}</span>
+                                <span>{entry.user.name}</span>
+                                <span>{entry.hours}h @ {formatCurrency(entry.rate || 0)}</span>
+                                <span className="text-right font-medium">{formatCurrency(entry.amount)}</span>
+                              </div>
+                            </label>
+                          ))}
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Total: {formatCurrency(unbilledItems.totals.timesheets)}
+                        </p>
+                      </div>
+                    )}
+
+                    {unbilledItems.charges.length > 0 && (
+                      <div>
+                        <h4 className="font-medium mb-2">Charges</h4>
+                        <div className="space-y-2 max-h-60 overflow-y-auto border rounded p-3">
+                          {unbilledItems.charges.map((charge) => (
+                            <label
+                              key={charge.id}
+                              className="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded cursor-pointer"
+                            >
+                              <Checkbox
+                                checked={selectedChargeIds.includes(charge.id)}
+                                onCheckedChange={(checked) => {
+                                  if (checked) {
+                                    setSelectedChargeIds([...selectedChargeIds, charge.id])
+                                  } else {
+                                    setSelectedChargeIds(selectedChargeIds.filter(id => id !== charge.id))
+                                  }
+                                }}
+                              />
+                              <div className="flex-1 grid grid-cols-3 gap-2 text-sm">
+                                <span className="col-span-2">{charge.description}</span>
+                                <span className="text-right font-medium">{formatCurrency(charge.amount)}</span>
+                              </div>
+                            </label>
+                          ))}
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Total: {formatCurrency(unbilledItems.totals.charges)}
+                        </p>
+                      </div>
+                    )}
+
+                    {(selectedTimesheetIds.length > 0 || selectedChargeIds.length > 0) && (
+                      <div className="p-3 bg-blue-50 border border-blue-200 rounded">
+                        <p className="text-sm font-medium text-blue-900">
+                          Selected: {selectedTimesheetIds.length} timesheet{selectedTimesheetIds.length !== 1 ? "s" : ""}, {selectedChargeIds.length} charge{selectedChargeIds.length !== 1 ? "s" : ""}
+                        </p>
+                        <p className="text-xs text-blue-700 mt-1">
+                          Subtotal will be calculated from selected items
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ) : unbilledItems ? (
+                  <p className="text-sm text-gray-500">No unbilled items found for this {formData.projectId ? "project" : "client"}</p>
+                ) : null}
+              </div>
+            )}
 
             <div className="space-y-4 border-t pt-4">
               <h3 className="font-semibold">Discount</h3>
