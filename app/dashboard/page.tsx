@@ -1,6 +1,7 @@
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { Notification } from "@prisma/client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatCurrency } from "@/lib/utils"
 import Link from "next/link"
@@ -17,7 +18,7 @@ export default async function DashboardPage() {
     const session = await getServerSession(authOptions)
 
     // Fetch notifications server-side
-    let notificationsData = { count: 0, notifications: [] }
+    let notificationsData: { count: number; notifications: Notification[] } = { count: 0, notifications: [] }
     if (session) {
       notificationsData = await getNotifications(session.user.id, session.user.role)
     }
@@ -78,11 +79,32 @@ export default async function DashboardPage() {
       }),
     ])
 
-    // Calculate additional financial metrics
-    const [unbilledWork, closedProposalsNotCharged] = await Promise.all([
-      calculateTotalUnbilledWork(session?.user.role === "CLIENT" ? session?.user.email : undefined),
-      calculateClosedProposalsNotCharged(session?.user.role === "CLIENT" ? session?.user.email : undefined),
-    ])
+    // Calculate additional financial metrics (with timeout protection)
+    // These can be slow, so we'll catch errors and show 0 if they fail
+    let unbilledWork = { timesheetHours: 0, totalAmount: 0, timesheetAmount: 0, chargesAmount: 0 }
+    let closedProposalsNotCharged = 0
+    
+    try {
+      const calculationsPromise = Promise.all([
+        calculateTotalUnbilledWork(session?.user.role === "CLIENT" ? session?.user.email : undefined),
+        calculateClosedProposalsNotCharged(session?.user.role === "CLIENT" ? session?.user.email : undefined),
+      ])
+      
+      const timeoutPromise = new Promise<[typeof unbilledWork, number]>((_, reject) => 
+        setTimeout(() => reject(new Error('Calculation timeout')), 10000) // 10 second timeout
+      )
+      
+      const result = await Promise.race([
+        calculationsPromise,
+        timeoutPromise,
+      ])
+      
+      unbilledWork = result[0]
+      closedProposalsNotCharged = result[1]
+    } catch (error) {
+      console.warn("Financial calculations timed out or failed:", error)
+      // Use default values (already set above)
+    }
 
   const stats = [
     {
