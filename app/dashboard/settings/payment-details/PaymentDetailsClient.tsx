@@ -227,7 +227,7 @@ export function PaymentDetailsClient() {
         {paymentDetails.length === 0 ? (
           <Card>
             <CardContent className="py-8 text-center text-gray-500">
-              No payment details created yet. Click "Add Payment Details" to get started.
+              No payment details created yet. Click &quot;Add Payment Details&quot; to get started.
             </CardContent>
           </Card>
         ) : (
