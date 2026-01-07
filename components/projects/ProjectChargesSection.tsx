@@ -11,14 +11,14 @@ interface ProjectCharge {
   id: string
   description: string
   amount: number
-  quantity: number
-  unitPrice: number
+  quantity: number | null
+  unitPrice: number | null
   chargeType: "ONE_TIME" | "RECURRING"
   recurringFrequency: "WEEKLY" | "MONTHLY" | "QUARTERLY" | "YEARLY" | null
-  startDate: string | null
-  endDate: string | null
+  startDate: string | Date | null
+  endDate: string | Date | null
   billed: boolean
-  createdAt: string
+  createdAt: string | Date
 }
 
 interface ProposalItem {
