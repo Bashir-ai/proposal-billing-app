@@ -11,12 +11,12 @@ interface ProjectCharge {
   id?: string
   description: string
   amount?: number
-  quantity?: number
-  unitPrice?: number
+  quantity?: number | null
+  unitPrice?: number | null
   chargeType: "ONE_TIME" | "RECURRING"
   recurringFrequency?: "WEEKLY" | "MONTHLY" | "QUARTERLY" | "YEARLY" | null
-  startDate?: string | null
-  endDate?: string | null
+  startDate?: string | Date | null
+  endDate?: string | Date | null
 }
 
 interface ProposalItem {
@@ -57,7 +57,7 @@ export function ProjectChargeForm({
     startDate: charge?.startDate || null,
     endDate: charge?.endDate || null,
   })
-  const [useQuantityPrice, setUseQuantityPrice] = useState(!charge?.amount && (charge?.quantity || charge?.unitPrice))
+  const [useQuantityPrice, setUseQuantityPrice] = useState<boolean>(!!(!charge?.amount && (charge?.quantity || charge?.unitPrice)))
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedProposalItemId, setSelectedProposalItemId] = useState<string>("")
@@ -74,7 +74,7 @@ export function ProjectChargeForm({
         startDate: charge.startDate || null,
         endDate: charge.endDate || null,
       })
-      setUseQuantityPrice(!charge.amount && (charge.quantity || charge.unitPrice))
+      setUseQuantityPrice(!!(!charge.amount && (charge.quantity || charge.unitPrice)))
     } else {
       setFormData({
         description: "",

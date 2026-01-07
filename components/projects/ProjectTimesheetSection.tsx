@@ -100,9 +100,9 @@ export function ProjectTimesheetSection({ projectId, initialEntries, proposal }:
   }
 
   const totalHours = entries.reduce((sum, entry) => sum + entry.hours, 0)
-  const totalAmount = entries.reduce((sum, entry) => sum + (entry.hours * entry.rate), 0)
+  const totalAmount = entries.reduce((sum, entry) => sum + (entry.hours * (entry.rate ?? 0)), 0)
   const billableHours = entries.filter(e => e.billable).reduce((sum, entry) => sum + entry.hours, 0)
-  const billableAmount = entries.filter(e => e.billable).reduce((sum, entry) => sum + (entry.hours * entry.rate), 0)
+  const billableAmount = entries.filter(e => e.billable).reduce((sum, entry) => sum + (entry.hours * (entry.rate ?? 0)), 0)
 
   return (
     <>
@@ -146,8 +146,8 @@ export function ProjectTimesheetSection({ projectId, initialEntries, proposal }:
                         <td className="p-2">{formatDate(entry.date)}</td>
                         <td className="p-2">{entry.user.name}</td>
                         <td className="p-2 text-right">{entry.hours.toFixed(2)}</td>
-                        <td className="p-2 text-right">{formatCurrency(entry.rate)}</td>
-                        <td className="p-2 text-right">{formatCurrency(entry.hours * entry.rate)}</td>
+                        <td className="p-2 text-right">{formatCurrency(entry.rate ?? 0)}</td>
+                        <td className="p-2 text-right">{formatCurrency(entry.hours * (entry.rate ?? 0))}</td>
                         <td className="p-2">{entry.description || "-"}</td>
                         <td className="p-2 text-center">
                           {entry.billable ? (

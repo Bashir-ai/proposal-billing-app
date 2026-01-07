@@ -116,7 +116,8 @@ export function TodoForm({
     if (formData.projectId && !formData.clientId) {
       const selectedProject = projects.find((p) => p.id === formData.projectId)
       if (selectedProject && selectedProject.clientId) {
-        setFormData((prev) => ({ ...prev, clientId: selectedProject.clientId }))
+        const newClientId = selectedProject.clientId
+        setFormData((prev) => ({ ...prev, clientId: newClientId }))
       }
     }
   }, [formData.projectId, projects, formData.clientId])

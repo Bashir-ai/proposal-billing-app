@@ -8,6 +8,7 @@ interface User {
   canEditAllProposals?: boolean | null
   canEditAllInvoices?: boolean | null
   canViewAllClients?: boolean | null
+  canCreateUsers?: boolean | null
 }
 
 export function canApproveProposals(user: User): boolean {

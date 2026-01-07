@@ -14,11 +14,19 @@ interface Todo {
   status: string
   priority: string
   isPersonal?: boolean
+  startDate?: string | null
+  estimatedEndDate?: string | null
   dueDate?: string | null
   readAt?: string | null
   assignedTo: string
   assignee: {
     name: string
+  }
+  creator: {
+    id: string
+    name: string
+    email: string
+    role: string
   }
   project?: {
     id: string
