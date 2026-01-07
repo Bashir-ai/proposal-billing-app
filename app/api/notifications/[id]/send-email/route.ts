@@ -64,7 +64,7 @@ export async function POST(
       notification.user.name,
       {
         title: notification.title,
-        message: notification.message,
+        message: notification.message ?? "",
         type: notification.type,
         url,
       }
