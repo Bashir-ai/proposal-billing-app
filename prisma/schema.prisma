@@ -24,6 +24,7 @@ enum ProposalType {
   RETAINER
   BLENDED_RATE
   SUCCESS_FEE
+  RECURRING
   MIXED_MODEL
   // Keep existing for backward compatibility
   LUMP_SUM
@@ -89,6 +90,32 @@ enum RecurringFrequency {
   MONTHLY
   QUARTERLY
   YEARLY
+}
+
+enum RecurringPaymentFrequency {
+  MONTHLY_1
+  MONTHLY_3
+  MONTHLY_6
+  YEARLY_12
+  CUSTOM
+}
+
+enum BalancePaymentType {
+  MILESTONE_BASED
+  TIME_BASED
+  FULL_UPFRONT
+}
+
+enum NotificationType {
+  RECURRING_PAYMENT_DUE
+  INSTALLMENT_DUE
+  BALANCE_PAYMENT_DUE
+  PROPOSAL_APPROVAL
+  INVOICE_APPROVAL
+  PROPOSAL_PENDING_CLIENT
+  TODO_ASSIGNMENT
+  INVOICE_OUTSTANDING
+  INVOICE_REMINDER
 }
 
 enum TodoStatus {
@@ -174,6 +201,7 @@ model User {
   createdLeads            Lead[]              @relation("LeadCreator")
   managedLeads            Lead[]              @relation("LeadManager")
   leadInteractions        LeadInteraction[]  @relation("LeadInteractionCreator")
+  notifications           Notification[]
 }
 
 model Client {
@@ -204,6 +232,11 @@ model Client {
   archivedAt              DateTime? // Archive (different from delete - can be unarchived)
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
+
+  @@index([email])
+  @@index([deletedAt])
+  @@index([clientManagerId])
+  @@index([createdBy])
 
   // Relations
   creator       User            @relation("ClientCreator", fields: [createdBy], references: [id])
@@ -308,6 +341,21 @@ model Proposal {
   resubmittedAt             DateTime?
   resubmittedBy             String?
   resubmissionCount         Int                  @default(0)
+  // Recurring payment fields
+  recurringEnabled          Boolean              @default(false)
+  recurringFrequency        RecurringPaymentFrequency?
+  recurringCustomMonths     Int? // For CUSTOM frequency
+  recurringStartDate        DateTime?
+  lastRecurringInvoiceDate   DateTime?
+
+  @@index([clientId])
+  @@index([leadId])
+  @@index([status])
+  @@index([clientApprovalStatus])
+  @@index([deletedAt])
+  @@index([createdBy])
+  @@index([status, clientApprovalStatus])
+  @@index([recurringEnabled, lastRecurringInvoiceDate])
 
   // Relations
   client            Client?        @relation(fields: [clientId], references: [id])
@@ -324,13 +372,15 @@ model Proposal {
   deletionApprover  User?          @relation("DeletionApprover", fields: [deletionApprovedBy], references: [id])
   resubmitter       User?          @relation("ProposalResubmitter", fields: [resubmittedBy], references: [id])
   todos             Todo[]
+  notifications     Notification[]
+  installmentInvoices InstallmentInvoice[]
 }
 
 model ProposalItem {
   id              String    @id @default(cuid())
   proposalId      String
   type            String? // For hourly: "timeEntry", for subject: "lineItem", etc.
-  billingMethod   String? // Which billing method applies to this line (for mixed models)
+  billingMethod   String? // Which billing method applies to this line (for mixed models): FIXED_FEE, SUCCESS_FEE, RECURRING, HOURLY, CAPPED_FEE
   personId        String? // User ID for person-specific hourly rates
   description     String
   quantity        Float?
@@ -341,6 +391,12 @@ model ProposalItem {
   amount          Float
   date            DateTime? // For hourly entries
   createdAt       DateTime  @default(now())
+  // Recurring payment fields (for item-level recurring)
+  recurringEnabled          Boolean              @default(false)
+  recurringFrequency        RecurringPaymentFrequency?
+  recurringCustomMonths     Int? // For CUSTOM frequency
+  recurringStartDate        DateTime?
+  lastRecurringInvoiceDate   DateTime?
 
   // Relations
   proposal     Proposal     @relation(fields: [proposalId], references: [id], onDelete: Cascade)
@@ -348,6 +404,8 @@ model ProposalItem {
   paymentTerms PaymentTerm?
   milestones   Milestone[] // Many-to-many: milestones assigned to this line item
   todos        Todo[]
+  notifications Notification[]
+  installmentInvoices InstallmentInvoice[]
 }
 
 model Bill {
@@ -361,6 +419,7 @@ model Bill {
   subtotal                  Float? // Subtotal before discount and tax (nullable for backward compatibility)
   invoiceNumber             String?    @unique
   description               String? // Description of services/products for invoices created from scratch
+  paymentDetailsId          String? // Reference to payment details template
   dueDate                   DateTime?
   // Tax fields
   taxInclusive              Boolean    @default(false)
@@ -392,16 +451,27 @@ model Bill {
   reminderCount             Int        @default(0) // Number of reminders sent
   deletedAt                 DateTime?
 
+  @@index([clientId])
+  @@index([projectId])
+  @@index([proposalId])
+  @@index([status])
+  @@index([deletedAt])
+  @@index([status, dueDate])
+  @@index([isUpfrontPayment])
+  @@index([createdBy])
+
   // Relations
-  proposal    Proposal?   @relation(fields: [proposalId], references: [id])
-  project     Project?    @relation(fields: [projectId], references: [id])
-  client      Client      @relation(fields: [clientId], references: [id])
-  creator     User        @relation("BillCreator", fields: [createdBy], references: [id])
-  resubmitter User?       @relation("BillResubmitter", fields: [resubmittedBy], references: [id])
-  approvals   Approval[]
-  items       BillItem[]
-  todos       Todo[]
-  finderFees  FinderFee[] // Finder fees generated when invoice is paid
+  proposal       Proposal?       @relation(fields: [proposalId], references: [id])
+  project        Project?        @relation(fields: [projectId], references: [id])
+  client         Client          @relation(fields: [clientId], references: [id])
+  creator        User            @relation("BillCreator", fields: [createdBy], references: [id])
+  resubmitter    User?           @relation("BillResubmitter", fields: [resubmittedBy], references: [id])
+  paymentDetails PaymentDetails? @relation(fields: [paymentDetailsId], references: [id])
+  approvals      Approval[]
+  items          BillItem[]
+  todos          Todo[]
+  finderFees     FinderFee[] // Finder fees generated when invoice is paid
+  installmentInvoices InstallmentInvoice[]
 }
 
 model BillItem {
@@ -468,6 +538,11 @@ model Project {
   updatedAt   DateTime      @updatedAt
   deletedAt   DateTime?
 
+  @@index([clientId])
+  @@index([proposalId])
+  @@index([status])
+  @@index([deletedAt])
+
   // Relations
   proposal         Proposal?        @relation(fields: [proposalId], references: [id])
   client           Client           @relation(fields: [clientId], references: [id])
@@ -488,12 +563,24 @@ model PaymentTerm {
   installmentCount     Int?
   installmentFrequency InstallmentFrequency?
   milestoneIds         String[]              @default([])
+  // Balance payment fields
+  balancePaymentType   BalancePaymentType?
+  balanceDueDate       DateTime? // For time-based balance payments
+  // Installment maturity dates (custom dates for each installment)
+  installmentMaturityDates DateTime[]        @default([])
+  // Recurring payment fields
+  recurringEnabled     Boolean               @default(false)
+  recurringFrequency   RecurringPaymentFrequency?
+  recurringCustomMonths Int? // For CUSTOM frequency
+  recurringStartDate   DateTime?
   createdAt            DateTime              @default(now())
   updatedAt            DateTime              @updatedAt
 
   // Relations
   proposal     Proposal?     @relation(fields: [proposalId], references: [id], onDelete: Cascade)
   proposalItem ProposalItem? @relation(fields: [proposalItemId], references: [id], onDelete: Cascade)
+  installmentInvoices InstallmentInvoice[]
+  notifications Notification[]
 }
 
 model Approval {
@@ -525,6 +612,12 @@ model TimesheetEntry {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  @@index([projectId])
+  @@index([userId])
+  @@index([billed])
+  @@index([billable, billed])
+  @@index([date])
+
   // Relations
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   user    User    @relation("TimesheetEntryUser", fields: [userId], references: [id])
@@ -544,6 +637,10 @@ model ProjectCharge {
   billed             Boolean             @default(false)
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
+
+  @@index([projectId])
+  @@index([billed])
+  @@index([chargeType])
 
   // Relations
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -572,6 +669,14 @@ model Todo {
   completedBy      String?
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
+
+  @@index([assignedTo])
+  @@index([status])
+  @@index([clientId])
+  @@index([projectId])
+  @@index([proposalId])
+  @@index([dueDate])
+  @@index([status, dueDate])
 
   // Relations
   project        Project?            @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -755,4 +860,65 @@ model Settings {
   logoPath  String?  // Path to the logo file (e.g., "/uploads/logos/logo.png")
   updatedAt DateTime @updatedAt
   updatedBy String?   // User ID who last updated (no relation needed)
+}
+
+model PaymentDetails {
+  id          String   @id @default(cuid())
+  name        String   // Name/title for this payment details template (e.g., "Main Bank Account", "PayPal")
+  details     String   // The actual payment details text (bank account, IBAN, payment instructions, etc.)
+  isDefault   Boolean  @default(false) // Whether this is the default payment details
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdBy   String   // User ID who created this
+  updatedBy   String?  // User ID who last updated this
+
+  // Relations
+  bills       Bill[]
+}
+
+model Notification {
+  id            String          @id @default(cuid())
+  userId        String
+  type          NotificationType
+  proposalId    String?
+  proposalItemId String?
+  paymentTermId String?
+  title         String
+  message       String?
+  dueDate       DateTime?
+  readAt        DateTime?
+  createdAt     DateTime        @default(now())
+
+  @@index([userId])
+  @@index([type])
+  @@index([readAt])
+  @@index([userId, readAt])
+  @@index([proposalId])
+  @@index([paymentTermId])
+
+  // Relations
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  proposal     Proposal?       @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  proposalItem ProposalItem?   @relation(fields: [proposalItemId], references: [id], onDelete: Cascade)
+  paymentTerm  PaymentTerm?     @relation(fields: [paymentTermId], references: [id], onDelete: Cascade)
+}
+
+model InstallmentInvoice {
+  id            String    @id @default(cuid())
+  proposalId    String
+  proposalItemId String?
+  paymentTermId String
+  installmentNumber Int
+  amount        Float
+  dueDate       DateTime
+  invoicedAt    DateTime?
+  billId        String? // Reference to the invoice (Bill) created for this installment
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  proposal     Proposal     @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  proposalItem ProposalItem? @relation(fields: [proposalItemId], references: [id], onDelete: Cascade)
+  paymentTerm  PaymentTerm  @relation(fields: [paymentTermId], references: [id], onDelete: Cascade)
+  bill         Bill?        @relation(fields: [billId], references: [id], onDelete: SetNull)
 }
