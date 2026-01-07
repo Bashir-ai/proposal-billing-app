@@ -12,6 +12,9 @@ import { SubmitInvoiceButton } from "@/components/invoices/SubmitInvoiceButton"
 import { canEditInvoice, canApproveInvoices, canDeleteItems } from "@/lib/permissions"
 import { DeleteButton } from "@/components/shared/DeleteButton"
 import { OutstandingInvoiceAlert } from "@/components/invoices/OutstandingInvoiceAlert"
+import { DownloadPdfButton } from "@/components/invoices/DownloadPdfButton"
+import { SendInvoiceEmailButton } from "@/components/invoices/SendInvoiceEmailButton"
+import { SendPaymentReminderButton } from "@/components/invoices/SendPaymentReminderButton"
 import { getLogoPath } from "@/lib/settings"
 import Image from "next/image"
 
@@ -156,7 +159,7 @@ export default async function BillDetailPage({
 
   // Check if user can approve
   const userApproval = bill.approvals.find(a => a.approverId === session?.user.id)
-  const canApprove = user && bill.status === BillStatus.SUBMITTED && (
+  const canApprove = user && session && bill.status === BillStatus.SUBMITTED && (
     bill.requiredApproverIds.includes(session.user.id) ||
     (canApproveInvoices(user) && (!userApproval || userApproval.status === "PENDING"))
   )
@@ -197,6 +200,15 @@ export default async function BillDetailPage({
           </span>
         </div>
         <div className="flex space-x-2">
+          <DownloadPdfButton billId={bill.id} />
+          {bill.client?.email && (
+            <>
+              <SendInvoiceEmailButton invoiceId={bill.id} />
+              {bill.status !== BillStatus.PAID && bill.dueDate && new Date(bill.dueDate) < new Date() && (
+                <SendPaymentReminderButton invoiceId={bill.id} />
+              )}
+            </>
+          )}
           {canEdit && (
             <Link href={`/dashboard/bills/${bill.id}/edit`}>
               <Button variant="outline">Edit</Button>
