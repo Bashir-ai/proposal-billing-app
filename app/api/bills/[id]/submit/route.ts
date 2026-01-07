@@ -109,10 +109,10 @@ export async function POST(
           await sendInternalApprovalRequest(approver.email, approver.name, {
             id: bill.id,
             title: `Invoice ${bill.invoiceNumber || bill.id}`,
-            proposalNumber: bill.invoiceNumber || undefined,
+            proposalNumber: bill.invoiceNumber ?? null,
             client: {
               name: bill.client.name,
-              company: bill.client.company || undefined,
+              company: bill.client.company ?? null,
             },
             creator: {
               name: bill.creator.name || bill.creator.email,
