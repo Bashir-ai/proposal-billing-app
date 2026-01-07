@@ -23,6 +23,7 @@ interface TodoFormProps {
     leadId?: string
     assignedTo?: string
     priority?: string
+    isPersonal?: boolean
     startDate?: string
     estimatedEndDate?: string
     dueDate?: string
