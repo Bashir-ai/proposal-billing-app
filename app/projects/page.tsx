@@ -111,10 +111,6 @@ export default function ProjectsPage() {
     fetchTags()
   }, [])
 
-  useEffect(() => {
-    fetchProjects()
-  }, [fetchProjects])
-
   const fetchClients = async () => {
     try {
       const response = await fetch("/api/clients")
@@ -186,6 +182,11 @@ export default function ProjectsPage() {
       setLoading(false)
     }
   }, [filters])
+
+  // Fetch projects when filters change or on mount
+  useEffect(() => {
+    fetchProjects()
+  }, [fetchProjects])
 
   const handleFilterChange = (key: keyof typeof filters, value: string) => {
     setFilters((prev) => ({
