@@ -17,9 +17,9 @@ interface User {
 interface TimesheetEntry {
   id: string
   userId: string
-  date: string
+  date: string | Date
   hours: number
-  rate: number
+  rate: number | null
   description?: string | null
   billable: boolean
   billed: boolean
