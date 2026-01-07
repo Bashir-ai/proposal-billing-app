@@ -7,7 +7,7 @@ import { ProposalType, ProposalStatus } from "@prisma/client"
 import { generateProposalNumber } from "@/lib/proposal-number"
 
 const proposalItemSchema = z.object({
-  billingMethod: z.string().optional(),
+  billingMethod: z.enum(["FIXED_FEE", "SUCCESS_FEE", "RECURRING", "HOURLY", "CAPPED_FEE"]).optional(),
   personId: z.string().optional(),
   description: z.string(),
   quantity: z.number().optional(),
@@ -18,6 +18,11 @@ const proposalItemSchema = z.object({
   amount: z.number(),
   date: z.string().optional(),
   milestoneIds: z.array(z.string()).optional(), // Array of milestone IDs assigned to this item
+  // Recurring payment fields (for item-level recurring)
+  recurringEnabled: z.boolean().optional(),
+  recurringFrequency: z.enum(["MONTHLY_1", "MONTHLY_3", "MONTHLY_6", "YEARLY_12", "CUSTOM"]).optional(),
+  recurringCustomMonths: z.number().optional(),
+  recurringStartDate: z.string().optional(),
 })
 
 const milestoneSchema = z.object({
@@ -30,12 +35,23 @@ const milestoneSchema = z.object({
 })
 
 const paymentTermSchema = z.object({
+  proposalItemId: z.string().optional(), // Reference to specific proposal item (null for proposal-level terms)
   upfrontType: z.enum(["PERCENT", "FIXED_AMOUNT"]).optional(),
   upfrontValue: z.number().optional(),
   installmentType: z.enum(["TIME_BASED", "MILESTONE_BASED"]).optional(),
   installmentCount: z.number().optional(),
   installmentFrequency: z.enum(["WEEKLY", "MONTHLY", "QUARTERLY"]).optional(),
   milestoneIds: z.array(z.string()).optional(),
+  // Balance payment fields
+  balancePaymentType: z.enum(["MILESTONE_BASED", "TIME_BASED", "FULL_UPFRONT"]).optional(),
+  balanceDueDate: z.string().optional(), // ISO date string
+  // Installment maturity dates (custom dates for each installment)
+  installmentMaturityDates: z.array(z.string()).optional(), // Array of ISO date strings
+  // Recurring payment fields
+  recurringEnabled: z.boolean().optional(),
+  recurringFrequency: z.enum(["MONTHLY_1", "MONTHLY_3", "MONTHLY_6", "YEARLY_12", "CUSTOM"]).optional(),
+  recurringCustomMonths: z.number().optional(),
+  recurringStartDate: z.string().optional(), // ISO date string
 })
 
 const proposalSchema = z.object({
@@ -73,6 +89,11 @@ const proposalSchema = z.object({
   milestones: z.array(milestoneSchema).optional(),
   paymentTerms: z.array(paymentTermSchema).optional(),
   mixedModelMethods: z.array(z.string()).optional(), // Not stored in DB, just for validation
+  // Recurring payment fields (proposal-level)
+  recurringEnabled: z.boolean().optional(),
+  recurringFrequency: z.enum(["MONTHLY_1", "MONTHLY_3", "MONTHLY_6", "YEARLY_12", "CUSTOM"]).optional(),
+  recurringCustomMonths: z.number().optional(),
+  recurringStartDate: z.string().optional(),
 })
 
 export async function GET(request: Request) {
@@ -278,6 +299,11 @@ export async function POST(request: Request) {
         outOfScopeHourlyRate: validatedData.outOfScopeHourlyRate || null,
         customTags: validatedData.customTags || [],
         status: ProposalStatus.DRAFT,
+        // Recurring payment fields
+        recurringEnabled: validatedData.recurringEnabled ?? false,
+        recurringFrequency: validatedData.recurringFrequency || null,
+        recurringCustomMonths: validatedData.recurringCustomMonths || null,
+        recurringStartDate: validatedData.recurringStartDate ? new Date(validatedData.recurringStartDate) : null,
         tags: validatedData.tagIds ? {
           connect: validatedData.tagIds.map(id => ({ id })),
         } : undefined,
@@ -326,6 +352,11 @@ export async function POST(request: Request) {
             discountAmount: item.discountAmount || null,
             amount: item.amount,
             date: null, // Dates are only for actual billing/timesheet entries, not proposals
+            // Recurring payment fields (for item-level recurring)
+            recurringEnabled: item.recurringEnabled ?? false,
+            recurringFrequency: item.recurringFrequency || null,
+            recurringCustomMonths: item.recurringCustomMonths || null,
+            recurringStartDate: item.recurringStartDate ? new Date(item.recurringStartDate) : null,
             milestones: actualMilestoneIds.length > 0 ? {
               connect: actualMilestoneIds.map(id => ({ id })),
             } : undefined,
@@ -361,6 +392,18 @@ export async function POST(request: Request) {
             installmentCount: term.installmentCount || null,
             installmentFrequency: term.installmentFrequency || null,
             milestoneIds: Array.isArray(term.milestoneIds) ? term.milestoneIds : [],
+            // Balance payment fields
+            balancePaymentType: term.balancePaymentType || null,
+            balanceDueDate: term.balanceDueDate ? new Date(term.balanceDueDate) : null,
+            // Installment maturity dates
+            installmentMaturityDates: Array.isArray(term.installmentMaturityDates) 
+              ? term.installmentMaturityDates.map(date => new Date(date))
+              : [],
+            // Recurring payment fields
+            recurringEnabled: term.recurringEnabled ?? false,
+            recurringFrequency: term.recurringFrequency || null,
+            recurringCustomMonths: term.recurringCustomMonths || null,
+            recurringStartDate: term.recurringStartDate ? new Date(term.recurringStartDate) : null,
           }
         })
 
