@@ -338,13 +338,23 @@ export async function POST(request: Request) {
           }
         } else if (!bill.internalApprovalRequired) {
           // No internal approvals required, update status directly
-          await prisma.bill.update({
-            where: { id: validatedData.billId },
-            data: {
-              status: BillStatus.APPROVED,
-              approvedAt: new Date(),
-            },
-          })
+          if (validatedData.status === "REJECTED") {
+            await prisma.bill.update({
+              where: { id: validatedData.billId },
+              data: {
+                status: BillStatus.DRAFT, // Revert to draft on rejection
+                approvedAt: null,
+              },
+            })
+          } else {
+            await prisma.bill.update({
+              where: { id: validatedData.billId },
+              data: {
+                status: BillStatus.APPROVED,
+                approvedAt: new Date(),
+              },
+            })
+          }
         }
       }
     }
