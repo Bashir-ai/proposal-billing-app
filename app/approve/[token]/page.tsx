@@ -169,13 +169,15 @@ export default async function ClientApprovalPage({
             )}
           </CardHeader>
           <CardContent className="space-y-4">
-            <div>
-              <p className="text-sm text-gray-600">Client</p>
-              <p className="font-semibold">{proposal.client.name}</p>
-              {proposal.client.company && (
-                <p className="text-sm text-gray-600">{proposal.client.company}</p>
-              )}
-            </div>
+            {proposal.client && (
+              <div>
+                <p className="text-sm text-gray-600">Client</p>
+                <p className="font-semibold">{proposal.client.name}</p>
+                {proposal.client.company && (
+                  <p className="text-sm text-gray-600">{proposal.client.company}</p>
+                )}
+              </div>
+            )}
             {proposal.description && (
               <div>
                 <p className="text-sm text-gray-600 mb-2">Description</p>
@@ -276,6 +278,8 @@ export default async function ClientApprovalPage({
     </div>
   )
 }
+
+
 
 
 
