@@ -290,72 +290,65 @@ export async function POST(request: Request) {
             internalApprovalsComplete: false,
           },
         })
-      } else {
-        // Check if internal approvals are complete
-        if (bill.internalApprovalRequired && !bill.internalApprovalsComplete) {
-          const requiredApproverIds = bill.requiredApproverIds || []
-          const approvalType = bill.internalApprovalType || "ALL"
-          
-          // Get all approvals for this invoice
-          const allApprovals = bill.approvals.filter(a => 
-            requiredApproverIds.includes(a.approverId)
-          )
-          
-          const approvedCount = allApprovals.filter(a => a.status === ApprovalStatus.APPROVED).length
-          const rejectedCount = allApprovals.filter(a => a.status === ApprovalStatus.REJECTED).length
-          const totalRequired = requiredApproverIds.length
-          
-          let approvalsComplete = false
-          
-          if (approvalType === "ALL") {
-            approvalsComplete = approvedCount === totalRequired
-          } else if (approvalType === "ANY") {
-            approvalsComplete = approvedCount >= 1
-          } else if (approvalType === "MAJORITY") {
-            approvalsComplete = approvedCount > totalRequired / 2
-          }
-          
-          // If any rejection and requirement is ALL, revert to draft
-          if (rejectedCount > 0 && approvalType === "ALL") {
-            await prisma.bill.update({
-              where: { id: validatedData.billId },
-              data: {
-                status: BillStatus.DRAFT,
-                internalApprovalsComplete: false,
-                approvedAt: null,
-              },
-            })
-          } else if (approvalsComplete) {
-            // All required approvals received, mark as approved
-            await prisma.bill.update({
-              where: { id: validatedData.billId },
-              data: {
-                status: BillStatus.APPROVED,
-                internalApprovalsComplete: true,
-                approvedAt: new Date(),
-              },
-            })
-          }
-        } else if (!bill.internalApprovalRequired) {
-          // No internal approvals required, update status directly
-          if (validatedData.status === "REJECTED") {
-            await prisma.bill.update({
-              where: { id: validatedData.billId },
-              data: {
-                status: BillStatus.DRAFT, // Revert to draft on rejection
-                approvedAt: null,
-              },
-            })
-          } else {
-            await prisma.bill.update({
-              where: { id: validatedData.billId },
-              data: {
-                status: BillStatus.APPROVED,
-                approvedAt: new Date(),
-              },
-            })
-          }
+        // Early return after handling rejection
+        return NextResponse.json(approval, { status: 201 })
+      }
+
+      // Handle approval (status is "APPROVED" at this point)
+      // Check if internal approvals are complete
+      if (bill.internalApprovalRequired && !bill.internalApprovalsComplete) {
+        const requiredApproverIds = bill.requiredApproverIds || []
+        const approvalType = bill.internalApprovalType || "ALL"
+        
+        // Get all approvals for this invoice
+        const allApprovals = bill.approvals.filter(a => 
+          requiredApproverIds.includes(a.approverId)
+        )
+        
+        const approvedCount = allApprovals.filter(a => a.status === ApprovalStatus.APPROVED).length
+        const rejectedCount = allApprovals.filter(a => a.status === ApprovalStatus.REJECTED).length
+        const totalRequired = requiredApproverIds.length
+        
+        let approvalsComplete = false
+        
+        if (approvalType === "ALL") {
+          approvalsComplete = approvedCount === totalRequired
+        } else if (approvalType === "ANY") {
+          approvalsComplete = approvedCount >= 1
+        } else if (approvalType === "MAJORITY") {
+          approvalsComplete = approvedCount > totalRequired / 2
         }
+        
+        // If any rejection and requirement is ALL, revert to draft
+        if (rejectedCount > 0 && approvalType === "ALL") {
+          await prisma.bill.update({
+            where: { id: validatedData.billId },
+            data: {
+              status: BillStatus.DRAFT,
+              internalApprovalsComplete: false,
+              approvedAt: null,
+            },
+          })
+        } else if (approvalsComplete) {
+          // All required approvals received, mark as approved
+          await prisma.bill.update({
+            where: { id: validatedData.billId },
+            data: {
+              status: BillStatus.APPROVED,
+              internalApprovalsComplete: true,
+              approvedAt: new Date(),
+            },
+          })
+        }
+      } else if (!bill.internalApprovalRequired) {
+        // No internal approvals required, update status directly to approved
+        await prisma.bill.update({
+          where: { id: validatedData.billId },
+          data: {
+            status: BillStatus.APPROVED,
+            approvedAt: new Date(),
+          },
+        })
       }
     }
 
