@@ -124,8 +124,8 @@ export async function GET(
 
     await browser.close()
 
-    // Return PDF
-    return new NextResponse(pdf, {
+    // Return PDF (convert Uint8Array to Buffer for NextResponse)
+    return new NextResponse(Buffer.from(pdf), {
       headers: {
         'Content-Type': 'application/pdf',
         'Content-Disposition': `attachment; filename="proposal-${proposal.proposalNumber || proposal.id}.pdf"`,
