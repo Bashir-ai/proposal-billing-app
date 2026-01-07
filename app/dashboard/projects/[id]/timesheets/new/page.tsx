@@ -54,10 +54,11 @@ export default function NewTimesheetEntryPage() {
   useEffect(() => {
     if (formData.userId) {
       const selectedUser = users.find((u) => u.id === formData.userId)
-      if (selectedUser?.defaultHourlyRate) {
+      if (selectedUser && selectedUser.defaultHourlyRate != null) {
+        const hourlyRate = selectedUser.defaultHourlyRate
         setFormData((prev) => ({
           ...prev,
-          rate: selectedUser.defaultHourlyRate.toString(),
+          rate: hourlyRate.toString(),
         }))
       }
     }
