@@ -11,6 +11,13 @@ const ALLOWED_MIME_TYPES = ["image/png", "image/jpeg", "image/jpg", "image/svg+x
 const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
 const UPLOAD_DIR = join(process.cwd(), "public", "uploads", "logos")
 
+// WARNING: File system writes will NOT work on Vercel (read-only filesystem)
+// For production deployment on Vercel, you need to use cloud storage:
+// - Vercel Blob Storage: https://vercel.com/docs/storage/vercel-blob
+// - AWS S3
+// - Cloudinary
+// - Or any other cloud storage solution
+
 export async function GET() {
   try {
     const session = await getServerSession(authOptions)

@@ -49,19 +49,26 @@ export default function RecordPaymentPage() {
       return
     }
 
-    // Fetch finder fee details
-    fetch(`/api/finder-fees?userId=${session.user.id}`)
-      .then((res) => res.json())
-      .then((data) => {
-        const fee = data.find((f: any) => f.id === finderFeeId)
+    // Fetch finder fee details directly by ID
+    fetch(`/api/finder-fees/${finderFeeId}`)
+      .then((res) => {
+        if (!res.ok) {
+          if (res.status === 404) {
+            setError("Finder fee not found")
+            setLoading(false)
+            return
+          }
+          throw new Error("Failed to fetch finder fee")
+        }
+        return res.json()
+      })
+      .then((fee) => {
         if (fee) {
           setFinderFee(fee)
           setFormData((prev) => ({
             ...prev,
             amount: fee.remainingAmount > 0 ? fee.remainingAmount.toString() : "",
           }))
-        } else {
-          setError("Finder fee not found")
         }
         setLoading(false)
       })

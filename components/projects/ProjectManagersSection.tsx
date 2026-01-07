@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Select } from "@/components/ui/select"
@@ -39,12 +39,7 @@ export function ProjectManagersSection({
 
   const canEdit = session?.user.role === "ADMIN" || session?.user.role === "MANAGER"
 
-  useEffect(() => {
-    fetchUsers()
-    fetchManagers()
-  }, [projectId])
-
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
       const response = await fetch("/api/users")
       if (response.ok) {
@@ -55,9 +50,9 @@ export function ProjectManagersSection({
     } catch (error) {
       console.error("Failed to fetch users:", error)
     }
-  }
+  }, [])
 
-  const fetchManagers = async () => {
+  const fetchManagers = useCallback(async () => {
     try {
       const response = await fetch(`/api/projects/${projectId}/managers`)
       if (response.ok) {
@@ -67,7 +62,12 @@ export function ProjectManagersSection({
     } catch (error) {
       console.error("Failed to fetch managers:", error)
     }
-  }
+  }, [projectId])
+
+  useEffect(() => {
+    fetchUsers()
+    fetchManagers()
+  }, [fetchUsers, fetchManagers])
 
   const handleAddManagers = async () => {
     if (selectedUserIds.length === 0) {

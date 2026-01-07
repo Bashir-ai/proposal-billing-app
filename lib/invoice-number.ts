@@ -39,3 +39,5 @@ export async function generateInvoiceNumber(): Promise<string> {
   return `${prefix}${formattedNumber}`
 }
 
+
+

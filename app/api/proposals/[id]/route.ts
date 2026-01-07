@@ -8,7 +8,7 @@ import { canEditProposal } from "@/lib/permissions"
 
 const proposalItemSchema = z.object({
   id: z.string().optional(),
-  billingMethod: z.string().optional(),
+  billingMethod: z.enum(["FIXED_FEE", "SUCCESS_FEE", "RECURRING", "HOURLY", "CAPPED_FEE"]).optional(),
   personId: z.string().optional(),
   description: z.string(),
   quantity: z.number().optional(),
@@ -19,6 +19,11 @@ const proposalItemSchema = z.object({
   amount: z.number(),
   date: z.string().optional(),
   milestoneIds: z.array(z.string()).optional(), // Array of milestone IDs assigned to this item
+  // Recurring payment fields (for item-level recurring)
+  recurringEnabled: z.boolean().optional(),
+  recurringFrequency: z.enum(["MONTHLY_1", "MONTHLY_3", "MONTHLY_6", "YEARLY_12", "CUSTOM"]).optional(),
+  recurringCustomMonths: z.number().optional(),
+  recurringStartDate: z.string().optional(),
 })
 
 const milestoneSchema = z.object({
@@ -38,6 +43,16 @@ const paymentTermSchema = z.object({
   installmentFrequency: z.enum(["WEEKLY", "MONTHLY", "QUARTERLY"]).optional().nullable(),
   milestoneIds: z.array(z.string()).optional().nullable(),
   proposalItemId: z.string().optional().nullable(),
+  // Balance payment fields
+  balancePaymentType: z.enum(["MILESTONE_BASED", "TIME_BASED", "FULL_UPFRONT"]).optional().nullable(),
+  balanceDueDate: z.string().optional().nullable(), // ISO date string
+  // Installment maturity dates (custom dates for each installment)
+  installmentMaturityDates: z.array(z.string()).optional().nullable(), // Array of ISO date strings
+  // Recurring payment fields
+  recurringEnabled: z.boolean().optional().nullable(),
+  recurringFrequency: z.enum(["MONTHLY_1", "MONTHLY_3", "MONTHLY_6", "YEARLY_12", "CUSTOM"]).optional().nullable(),
+  recurringCustomMonths: z.number().optional().nullable(),
+  recurringStartDate: z.string().optional().nullable(), // ISO date string
 })
 
 const proposalUpdateSchema = z.object({
@@ -75,6 +90,11 @@ const proposalUpdateSchema = z.object({
   items: z.array(proposalItemSchema).optional(),
   milestones: z.array(milestoneSchema).optional(),
   paymentTerms: z.array(paymentTermSchema).optional(),
+  // Recurring payment fields (proposal-level)
+  recurringEnabled: z.boolean().optional(),
+  recurringFrequency: z.enum(["MONTHLY_1", "MONTHLY_3", "MONTHLY_6", "YEARLY_12", "CUSTOM"]).optional(),
+  recurringCustomMonths: z.number().optional(),
+  recurringStartDate: z.string().optional(),
 })
 
 export async function GET(
@@ -181,8 +201,6 @@ export async function PUT(
 ) {
   try {
     const { id } = await params
-    console.log("PUT /api/proposals/[id] - Starting update for proposal:", id)
-    
     const session = await getServerSession(authOptions)
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -227,7 +245,6 @@ export async function PUT(
     let body
     try {
       body = await request.json()
-      console.log("PUT /api/proposals/[id] - Request body received")
     } catch (parseError: any) {
       console.error("PUT /api/proposals/[id] - Error parsing request body:", parseError?.message || String(parseError))
       return NextResponse.json(
@@ -239,7 +256,6 @@ export async function PUT(
     let validatedData
     try {
       validatedData = proposalUpdateSchema.parse(body)
-      console.log("PUT /api/proposals/[id] - Validation passed")
     } catch (validationError: any) {
       console.error("PUT /api/proposals/[id] - Validation error:", validationError?.message || String(validationError))
       if (validationError instanceof z.ZodError) {
@@ -352,6 +368,11 @@ export async function PUT(
       if (validatedData.outOfScopeHourlyRate !== undefined) updateData.outOfScopeHourlyRate = validatedData.outOfScopeHourlyRate || null
       if (validatedData.status !== undefined) updateData.status = validatedData.status
       if (validatedData.customTags !== undefined) updateData.customTags = validatedData.customTags
+      // Recurring payment fields (proposal-level)
+      if (validatedData.recurringEnabled !== undefined) updateData.recurringEnabled = validatedData.recurringEnabled
+      if (validatedData.recurringFrequency !== undefined) updateData.recurringFrequency = validatedData.recurringFrequency || null
+      if (validatedData.recurringCustomMonths !== undefined) updateData.recurringCustomMonths = validatedData.recurringCustomMonths || null
+      if (validatedData.recurringStartDate !== undefined) updateData.recurringStartDate = validatedData.recurringStartDate ? new Date(validatedData.recurringStartDate) : null
     } catch (updateDataError: any) {
       console.error("Error building updateData:", updateDataError?.message || String(updateDataError))
       throw new Error(`Failed to prepare update data: ${updateDataError?.message || String(updateDataError)}`)
@@ -471,6 +492,11 @@ export async function PUT(
                 discountAmount: item.discountAmount || null,
                 amount: item.amount,
                 date: null, // Dates are only for actual billing/timesheet entries, not proposals
+                // Recurring payment fields (for item-level recurring)
+                recurringEnabled: item.recurringEnabled ?? false,
+                recurringFrequency: item.recurringFrequency || null,
+                recurringCustomMonths: item.recurringCustomMonths || null,
+                recurringStartDate: item.recurringStartDate ? new Date(item.recurringStartDate) : null,
                 milestones: actualMilestoneIds.length > 0 ? {
                   connect: actualMilestoneIds.map(id => ({ id })),
                 } : undefined,
@@ -480,7 +506,6 @@ export async function PUT(
         }
       } catch (itemsError: any) {
         console.error("Error updating items:", itemsError?.message || String(itemsError))
-        console.error("Items data:", JSON.stringify(validatedData.items, null, 2))
         throw itemsError
       }
     }
@@ -523,6 +548,18 @@ export async function PUT(
             installmentCount: term.installmentCount || null,
             installmentFrequency: term.installmentFrequency || null,
             milestoneIds: Array.isArray(term.milestoneIds) ? term.milestoneIds : [],
+            // Balance payment fields
+            balancePaymentType: term.balancePaymentType || null,
+            balanceDueDate: term.balanceDueDate ? new Date(term.balanceDueDate) : null,
+            // Installment maturity dates
+            installmentMaturityDates: Array.isArray(term.installmentMaturityDates)
+              ? term.installmentMaturityDates.map(date => new Date(date))
+              : [],
+            // Recurring payment fields
+            recurringEnabled: term.recurringEnabled ?? false,
+            recurringFrequency: term.recurringFrequency || null,
+            recurringCustomMonths: term.recurringCustomMonths || null,
+            recurringStartDate: term.recurringStartDate ? new Date(term.recurringStartDate) : null,
           })
           
           // Only increment item index for non-proposal-level terms
@@ -538,7 +575,6 @@ export async function PUT(
         }
       } catch (paymentTermsError: any) {
         console.error("Error updating payment terms:", paymentTermsError?.message || String(paymentTermsError))
-        console.error("Payment terms data:", JSON.stringify(validatedData.paymentTerms, null, 2))
         // Don't fail the entire update if payment terms fail - log and continue
         // The proposal update should still succeed even if payment terms fail
       }
@@ -581,7 +617,7 @@ export async function PUT(
     console.error("Error type:", error?.constructor?.name || "Unknown")
     
     if (error instanceof z.ZodError) {
-      console.error("Validation error updating proposal:", JSON.stringify(error.errors, null, 2))
+      console.error("Validation error updating proposal:", error.errors)
       return NextResponse.json(
         { 
           error: "Invalid input", 
@@ -597,8 +633,7 @@ export async function PUT(
     const errorCode = error?.code || "UNKNOWN"
     
     // Safely log error details without trying to inspect problematic objects
-    console.error("Error message:", errorMessage)
-    console.error("Error code:", errorCode)
+    console.error("Error details:", { message: errorMessage, code: errorCode })
     if (error?.stack) {
       console.error("Error stack:", error.stack)
     }

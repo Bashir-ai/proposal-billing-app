@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatCurrency } from "@/lib/utils"
 
@@ -18,6 +19,8 @@ export default function EditBillPage() {
   const [error, setError] = useState("")
   const [formData, setFormData] = useState({
     subtotal: "",
+    description: "",
+    paymentDetailsId: "",
     taxInclusive: false,
     taxRate: "",
     discountPercent: "",
@@ -25,22 +28,28 @@ export default function EditBillPage() {
     dueDate: "",
   })
   const [calculatedAmount, setCalculatedAmount] = useState(0)
+  const [paymentDetails, setPaymentDetails] = useState<Array<{ id: string; name: string; isDefault: boolean }>>([])
 
   useEffect(() => {
     if (!billId) return
     
-    fetch(`/api/bills/${billId}`)
-      .then((res) => res.json())
-      .then((data) => {
+    Promise.all([
+      fetch(`/api/bills/${billId}`).then(res => res.json()),
+      fetch("/api/payment-details").then(res => res.json()),
+    ])
+      .then(([billData, paymentDetailsData]) => {
         setFormData({
-          subtotal: data.subtotal?.toString() || data.amount?.toString() || "",
-          taxInclusive: data.taxInclusive || false,
-          taxRate: data.taxRate?.toString() || "0",
-          discountPercent: data.discountPercent?.toString() || "",
-          discountAmount: data.discountAmount?.toString() || "",
-          dueDate: data.dueDate ? new Date(data.dueDate).toISOString().split("T")[0] : "",
+          subtotal: billData.subtotal?.toString() || billData.amount?.toString() || "",
+          description: billData.description || "",
+          paymentDetailsId: billData.paymentDetailsId || "",
+          taxInclusive: billData.taxInclusive || false,
+          taxRate: billData.taxRate?.toString() || "0",
+          discountPercent: billData.discountPercent?.toString() || "",
+          discountAmount: billData.discountAmount?.toString() || "",
+          dueDate: billData.dueDate ? new Date(billData.dueDate).toISOString().split("T")[0] : "",
         })
-        setCalculatedAmount(data.amount || 0)
+        setCalculatedAmount(billData.amount || 0)
+        setPaymentDetails(paymentDetailsData)
         setLoadingData(false)
       })
       .catch((err) => {
@@ -93,6 +102,8 @@ export default function EditBillPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           subtotal: parseFloat(formData.subtotal) || 0,
+          description: formData.description || undefined,
+          paymentDetailsId: formData.paymentDetailsId || null,
           taxInclusive: formData.taxInclusive,
           taxRate: formData.taxRate ? parseFloat(formData.taxRate) : null,
           discountPercent: formData.discountPercent ? parseFloat(formData.discountPercent) : null,
@@ -140,6 +151,34 @@ export default function EditBillPage() {
                 required
               />
               <p className="text-xs text-gray-500">Total of all line items before discount and tax</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="description">Description of Services/Products</Label>
+              <Textarea
+                id="description"
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                rows={4}
+                placeholder="Describe the services or products being invoiced..."
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="paymentDetailsId">Payment Details</Label>
+              <Select
+                id="paymentDetailsId"
+                value={formData.paymentDetailsId}
+                onChange={(e) => setFormData({ ...formData, paymentDetailsId: e.target.value })}
+              >
+                <option value="">No payment details</option>
+                {paymentDetails.map((pd) => (
+                  <option key={pd.id} value={pd.id}>
+                    {pd.name} {pd.isDefault ? "(Default)" : ""}
+                  </option>
+                ))}
+              </Select>
+              <p className="text-xs text-gray-500">Select payment details to display at the bottom of the invoice PDF</p>
             </div>
 
             <div className="space-y-4 border-t pt-4">

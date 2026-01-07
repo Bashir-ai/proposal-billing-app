@@ -238,6 +238,96 @@ export async function getNotifications(userId: string, userRole: string): Promis
       count++
     })
 
+    // 6. Recurring payment notifications
+    const recurringNotifications = await prisma.notification.findMany({
+      where: {
+        userId,
+        type: "RECURRING_PAYMENT_DUE",
+        readAt: null,
+      },
+      include: {
+        proposal: {
+          select: {
+            id: true,
+            title: true,
+            proposalNumber: true,
+            client: {
+              select: {
+                name: true,
+                company: true,
+              },
+            },
+          },
+        },
+        proposalItem: {
+          select: {
+            id: true,
+            description: true,
+          },
+        },
+      },
+      orderBy: { dueDate: "asc" },
+      take: 10,
+    })
+
+    recurringNotifications.forEach(notification => {
+      notifications.push({
+        type: "recurring_payment_due",
+        id: notification.id,
+        itemId: notification.proposalId || notification.proposalItemId || "",
+        title: notification.title,
+        proposalNumber: notification.proposal?.proposalNumber || undefined,
+        client: notification.proposal?.client,
+        createdAt: notification.createdAt.toISOString(),
+      })
+      count++
+    })
+
+    // 7. Installment due notifications
+    const installmentNotifications = await prisma.notification.findMany({
+      where: {
+        userId,
+        type: "INSTALLMENT_DUE",
+        readAt: null,
+      },
+      include: {
+        proposal: {
+          select: {
+            id: true,
+            title: true,
+            proposalNumber: true,
+            client: {
+              select: {
+                name: true,
+                company: true,
+              },
+            },
+          },
+        },
+        proposalItem: {
+          select: {
+            id: true,
+            description: true,
+          },
+        },
+      },
+      orderBy: { dueDate: "asc" },
+      take: 10,
+    })
+
+    installmentNotifications.forEach(notification => {
+      notifications.push({
+        type: "installment_due",
+        id: notification.id,
+        itemId: notification.proposalId || notification.proposalItemId || "",
+        title: notification.title,
+        proposalNumber: notification.proposal?.proposalNumber || undefined,
+        client: notification.proposal?.client,
+        createdAt: notification.createdAt.toISOString(),
+      })
+      count++
+    })
+
     return { count, notifications: notifications.slice(0, 20) } // Limit to 20 most recent
   } catch (error) {
     console.error("Error fetching notifications:", error)

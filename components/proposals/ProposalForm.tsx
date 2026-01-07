@@ -8,7 +8,7 @@ import { Select } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { ProposalType } from "@prisma/client"
-import { Plus, Trash2 } from "lucide-react"
+import { Plus, Trash2, X } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
 import { PaymentTermsSection } from "./PaymentTermsSection"
 
@@ -19,6 +19,7 @@ interface ProposalFormProps {
   leads?: Array<{ id: string; name: string; company?: string | null }>
   users?: Array<{ id: string; name: string; email: string; defaultHourlyRate?: number | null }>
   loading?: boolean
+  onLeadCreated?: (lead: { id: string; name: string; company?: string | null }) => void
 }
 
 interface ClientWithDiscounts {
@@ -41,6 +42,11 @@ interface LineItem {
   amount: number
   date?: string
   milestoneIds?: string[] // Array of milestone IDs assigned to this item
+  // Recurring payment fields (when billingMethod is "RECURRING")
+  recurringEnabled?: boolean
+  recurringFrequency?: "MONTHLY_1" | "MONTHLY_3" | "MONTHLY_6" | "YEARLY_12" | "CUSTOM"
+  recurringCustomMonths?: number
+  recurringStartDate?: string
 }
 
 interface Milestone {
@@ -60,7 +66,7 @@ const CURRENCIES = [
   { code: "AUD", symbol: "A$", name: "Australian Dollar" },
 ]
 
-export function ProposalForm({ onSubmit, initialData, clients, leads = [], users = [], loading }: ProposalFormProps) {
+export function ProposalForm({ onSubmit, initialData, clients, leads = [], users = [], loading, onLeadCreated }: ProposalFormProps) {
   const today = new Date().toISOString().split("T")[0]
   const selectedClient = clients.find(c => c.id === (initialData?.clientId || "")) as ClientWithDiscounts | undefined
   
@@ -97,6 +103,11 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
     // Mixed model billing methods (array of selected methods)
     mixedModelMethods: initialData?.mixedModelMethods || [],
     useMilestones: initialData?.milestones && initialData.milestones.length > 0 ? true : false, // Enable if milestones exist
+    // Recurring payment fields (for RECURRING proposal type)
+    recurringEnabled: initialData?.recurringEnabled || false,
+    recurringFrequency: initialData?.recurringFrequency || undefined,
+    recurringCustomMonths: initialData?.recurringCustomMonths || undefined,
+    recurringStartDate: initialData?.recurringStartDate ? new Date(initialData.recurringStartDate).toISOString().split("T")[0] : undefined,
   })
 
   const [items, setItems] = useState<LineItem[]>(initialData?.items?.map((item: any) => ({
@@ -111,6 +122,11 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
     amount: item.amount || 0,
     // date field removed - dates are only for actual billing/timesheet entries
     milestoneIds: item.milestones?.map((m: any) => m.id) || [], // Get milestone IDs from relations
+    // Recurring payment fields
+    recurringEnabled: item.recurringEnabled || false,
+    recurringFrequency: item.recurringFrequency || undefined,
+    recurringCustomMonths: item.recurringCustomMonths || undefined,
+    recurringStartDate: item.recurringStartDate ? new Date(item.recurringStartDate).toISOString().split("T")[0] : undefined,
   })) || [])
 
   // Initialize milestones with temporary IDs (using index for now, will be replaced with DB IDs on save)
@@ -134,6 +150,14 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
   )
 
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [showCreateLeadDialog, setShowCreateLeadDialog] = useState(false)
+  const [creatingLead, setCreatingLead] = useState(false)
+  const [newLeadData, setNewLeadData] = useState({
+    name: "",
+    email: "",
+    company: "",
+    phone: "",
+  })
 
   // Fetch available tags
   useEffect(() => {
@@ -162,34 +186,48 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
     }
   }, [formData.clientId, selectedClient])
 
-  const calculateLineItemAmount = (item: LineItem): number => {
-    let baseAmount = 0
-    
-    // Use blended rate if enabled, otherwise use item rate
-    const effectiveRate = formData.useBlendedRate && formData.blendedRate > 0 
-      ? formData.blendedRate 
-      : (item.rate || item.unitPrice || 0)
-    
-    if (item.quantity && effectiveRate) {
-      baseAmount = item.quantity * effectiveRate
-    } else if (item.unitPrice && !formData.useBlendedRate) {
-      baseAmount = item.unitPrice
-    } else {
-      baseAmount = item.amount || 0
+  const handleCreateLead = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newLeadData.name.trim()) return
+
+    setCreatingLead(true)
+    try {
+      const response = await fetch("/api/leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newLeadData.name.trim(),
+          email: newLeadData.email.trim() || null,
+          company: newLeadData.company.trim() || null,
+          phone: newLeadData.phone.trim() || null,
+        }),
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || "Failed to create lead")
+      }
+
+      const newLead = await response.json()
+      setShowCreateLeadDialog(false)
+      setNewLeadData({ name: "", email: "", company: "", phone: "" })
+      
+      // Notify parent to refresh leads list
+      if (onLeadCreated) {
+        onLeadCreated(newLead)
+      }
+      
+      // Select the newly created lead
+      setFormData(prev => ({ ...prev, leadId: newLead.id, clientId: "" }))
+    } catch (err: any) {
+      alert(err.message || "Failed to create lead")
+    } finally {
+      setCreatingLead(false)
     }
-    
-    // Apply line item discount
-    if (item.discountPercent) {
-      baseAmount = baseAmount * (1 - item.discountPercent / 100)
-    } else if (item.discountAmount) {
-      baseAmount = baseAmount - item.discountAmount
-    }
-    
-    return Math.max(0, baseAmount)
   }
 
   const calculateSubtotal = (): number => {
-    return items.reduce((sum, item) => sum + calculateLineItemAmount(item), 0)
+    return items.reduce((sum, item) => sum + (item.amount || 0), 0)
   }
 
   const calculateClientDiscount = (): number => {
@@ -235,18 +273,17 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
       amount: 0,
     }
     
-    if (formData.type === "HOURLY" || formData.type === "MIXED_MODEL") {
-      newItem.quantity = 0
-      newItem.rate = 0
-    } else {
-      newItem.unitPrice = 0
+    // Set default billing method for mixed model
+    if (formData.type === "MIXED_MODEL" && formData.mixedModelMethods.length > 0) {
+      newItem.billingMethod = formData.mixedModelMethods[0]
+    } else if (formData.type !== "MIXED_MODEL" && formData.type !== "RECURRING") {
+      // For non-mixed models (except RECURRING), set the billing method to match the proposal type
+      newItem.billingMethod = formData.type
+    } else if (formData.type === "RECURRING") {
+      // For RECURRING proposals, set billing method to RECURRING
+      newItem.billingMethod = "RECURRING"
     }
     
-    if (formData.type === "MIXED_MODEL") {
-      newItem.billingMethod = "fixed"
-    }
-    
-    // Date field removed - dates are only for actual billing/timesheet entries, not proposals
     setItems([...items, newItem])
   }
 
@@ -257,11 +294,6 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
   const updateItem = (index: number, field: keyof LineItem, value: any) => {
     const updated = [...items]
     updated[index] = { ...updated[index], [field]: value }
-    
-    // Auto-calculate amount when relevant fields change
-    if (field === "quantity" || field === "rate" || field === "unitPrice" || field === "discountPercent" || field === "discountAmount") {
-      updated[index].amount = calculateLineItemAmount(updated[index])
-    }
     
     // Auto-fill rate from person's default rate
     if (field === "personId" && value) {
@@ -346,18 +378,23 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
       clientDiscountAmount: formData.clientDiscountType === "amount" ? formData.clientDiscountAmount : undefined,
       tagIds: selectedTagIds,
       customTags: customTags.filter(t => t.trim() !== ""),
+      // Recurring payment fields (for RECURRING proposal type)
+      recurringEnabled: formData.type === "RECURRING" ? true : undefined,
+      recurringFrequency: formData.type === "RECURRING" ? (formData.recurringFrequency || undefined) : undefined,
+      recurringCustomMonths: formData.type === "RECURRING" && formData.recurringFrequency === "CUSTOM" ? (formData.recurringCustomMonths || undefined) : undefined,
+      recurringStartDate: formData.type === "RECURRING" ? (formData.recurringStartDate || undefined) : undefined,
       items: items.map(item => ({
         billingMethod: item.billingMethod || undefined,
         personId: item.personId || undefined,
         description: item.description,
-        quantity: item.quantity || undefined,
-        rate: item.rate || undefined,
-        unitPrice: item.unitPrice || undefined,
-        discountPercent: item.discountPercent || undefined,
-        discountAmount: item.discountAmount || undefined,
-        amount: calculateLineItemAmount(item),
+        amount: item.amount || 0,
         // date field removed - dates are only for actual billing/timesheet entries
         milestoneIds: item.milestoneIds || [], // Include milestone IDs for this line item
+        // Recurring payment fields (when billingMethod is RECURRING)
+        recurringEnabled: item.billingMethod === "RECURRING" ? true : undefined,
+        recurringFrequency: item.billingMethod === "RECURRING" ? (item.recurringFrequency || undefined) : undefined,
+        recurringCustomMonths: item.billingMethod === "RECURRING" && item.recurringFrequency === "CUSTOM" ? (item.recurringCustomMonths || undefined) : undefined,
+        recurringStartDate: item.billingMethod === "RECURRING" ? (item.recurringStartDate || undefined) : undefined,
       })),
       milestones: formData.useMilestones && milestones.length > 0 ? milestones.map(m => ({
         id: m.id, // Include ID for matching on server
@@ -412,11 +449,14 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="clientId">Client *</Label>
+              <Label htmlFor="clientId">Client</Label>
               <Select
                 id="clientId"
                 value={formData.clientId}
-                onChange={(e) => setFormData({ ...formData, clientId: e.target.value })}
+                onChange={(e) => {
+                  const value = e.target.value
+                  setFormData({ ...formData, clientId: value, leadId: value ? "" : formData.leadId })
+                }}
               >
                 <option value="">Select a client</option>
                 {clients.map((client) => (
@@ -430,6 +470,42 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
               )}
             </div>
 
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="leadId">Lead</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowCreateLeadDialog(true)}
+                  className="text-xs"
+                >
+                  <Plus className="h-3 w-3 mr-1" />
+                  Create Lead
+                </Button>
+              </div>
+              <Select
+                id="leadId"
+                value={formData.leadId}
+                onChange={(e) => {
+                  const value = e.target.value
+                  setFormData({ ...formData, leadId: value, clientId: value ? "" : formData.clientId })
+                }}
+              >
+                <option value="">Select a lead</option>
+                {leads.map((lead) => (
+                  <option key={lead.id} value={lead.id}>
+                    {lead.name} {lead.company ? `(${lead.company})` : ""}
+                  </option>
+                ))}
+              </Select>
+              {errors.leadId && (
+                <p className="text-sm text-destructive">{errors.leadId}</p>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="proposalNumber">Proposal Number</Label>
               <Input
@@ -501,6 +577,7 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                 <option value="HOURLY">Hourly (with estimate and range)</option>
                 <option value="RETAINER">Retainer (with drawdown rules)</option>
                 <option value="SUCCESS_FEE">Success Fee</option>
+                <option value="RECURRING">Recurring</option>
                 <option value="MIXED_MODEL">Mixed Model (Fixed + Hourly)</option>
               </Select>
             </div>
@@ -888,6 +965,67 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
         </CardContent>
       </Card>
 
+      {formData.type === "RECURRING" && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Recurring Payment Configuration</CardTitle>
+            <CardDescription>Configure how often invoices will be generated for this recurring proposal</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="recurringFrequency">Frequency</Label>
+                <Select
+                  id="recurringFrequency"
+                  value={formData.recurringFrequency || ""}
+                  onChange={(e) => {
+                    setFormData({ 
+                      ...formData, 
+                      recurringFrequency: e.target.value || undefined,
+                      recurringCustomMonths: e.target.value !== "CUSTOM" ? undefined : formData.recurringCustomMonths
+                    })
+                  }}
+                >
+                  <option value="">Select frequency</option>
+                  <option value="MONTHLY_1">1 Month</option>
+                  <option value="MONTHLY_3">3 Months</option>
+                  <option value="MONTHLY_6">6 Months</option>
+                  <option value="YEARLY_12">12 Months</option>
+                  <option value="CUSTOM">Custom</option>
+                </Select>
+              </div>
+              {formData.recurringFrequency === "CUSTOM" && (
+                <div className="space-y-2">
+                  <Label htmlFor="recurringCustomMonths">Custom Months</Label>
+                  <Input
+                    id="recurringCustomMonths"
+                    type="number"
+                    min="1"
+                    value={formData.recurringCustomMonths || ""}
+                    onChange={(e) => setFormData({ ...formData, recurringCustomMonths: parseInt(e.target.value) || undefined })}
+                    placeholder="e.g., 2"
+                  />
+                </div>
+              )}
+              <div className="space-y-2">
+                <Label htmlFor="recurringStartDate">Start Date</Label>
+                <Input
+                  id="recurringStartDate"
+                  type="date"
+                  value={formData.recurringStartDate || ""}
+                  onChange={(e) => setFormData({ ...formData, recurringStartDate: e.target.value || undefined })}
+                />
+              </div>
+            </div>
+            <div className="p-3 bg-blue-50 rounded">
+              <p className="text-sm text-gray-600">
+                This proposal will generate recurring invoices based on the selected frequency, starting from the specified start date.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {formData.type === "SUCCESS_FEE" && (
         <Card>
           <CardHeader>
@@ -1269,46 +1407,60 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                 {items.map((item, index) => (
                   <Card key={index}>
                     <CardContent className="pt-6">
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                        {formData.type === "MIXED_MODEL" && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {/* Billing Method Selector - Show for MIXED_MODEL or always allow per-item billing (but not for RECURRING) */}
+                        {(formData.type === "MIXED_MODEL" || formData.type === "FIXED_FEE" || formData.type === "SUCCESS_FEE" || formData.type === "HOURLY" || formData.type === "CAPPED_FEE") && formData.type !== "RECURRING" && (
                           <div className="space-y-2">
                             <Label>Billing Method</Label>
                             <Select
-                              value={item.billingMethod || formData.mixedModelMethods[0] || ""}
-                              onChange={(e) => updateItem(index, "billingMethod", e.target.value)}
+                              value={item.billingMethod || ""}
+                              onChange={(e) => {
+                                const newBillingMethod = e.target.value || undefined
+                                // If switching to RECURRING, enable recurring and set defaults
+                                if (newBillingMethod === "RECURRING") {
+                                  const updatedItem = { ...items[index] }
+                                  updatedItem.billingMethod = newBillingMethod
+                                  updatedItem.recurringEnabled = true
+                                  updatedItem.recurringFrequency = updatedItem.recurringFrequency || "MONTHLY_1"
+                                  if (!updatedItem.recurringStartDate) {
+                                    updatedItem.recurringStartDate = new Date().toISOString().split("T")[0]
+                                  }
+                                  const newItems = [...items]
+                                  newItems[index] = updatedItem
+                                  setItems(newItems)
+                                } else {
+                                  // If switching away from RECURRING, clear recurring fields
+                                  const updatedItem = { ...items[index] }
+                                  updatedItem.billingMethod = newBillingMethod
+                                  if (updatedItem.billingMethod !== "RECURRING") {
+                                    updatedItem.recurringEnabled = false
+                                    updatedItem.recurringFrequency = undefined
+                                    updatedItem.recurringCustomMonths = undefined
+                                    updatedItem.recurringStartDate = undefined
+                                  }
+                                  const newItems = [...items]
+                                  newItems[index] = updatedItem
+                                  setItems(newItems)
+                                }
+                              }}
                             >
                               <option value="">Select method</option>
-                              {formData.mixedModelMethods.map((method) => (
-                                <option key={method} value={method}>
-                                  {method.replace("_", " ")}
-                                </option>
-                              ))}
+                              {formData.type === "MIXED_MODEL" ? (
+                                <>
+                                  <option value="FIXED_FEE">Fixed Fee</option>
+                                  <option value="SUCCESS_FEE">Success Fee</option>
+                                  <option value="RECURRING">Recurring</option>
+                                  <option value="HOURLY">Hourly</option>
+                                  <option value="CAPPED_FEE">Capped Fee</option>
+                                </>
+                              ) : (
+                                <option value={formData.type}>{formData.type.replace("_", " ")}</option>
+                              )}
                             </Select>
                           </div>
                         )}
 
-                        {(formData.type === "HOURLY" || (formData.type === "MIXED_MODEL" && (item.billingMethod === "HOURLY" || item.billingMethod === "hourly"))) && (
-                          <>
-                            {users.length > 0 && (
-                              <div className="space-y-2">
-                                <Label>Person</Label>
-                                <Select
-                                  value={item.personId || ""}
-                                  onChange={(e) => updateItem(index, "personId", e.target.value)}
-                                >
-                                  <option value="">Select person</option>
-                                  {users.map((user) => (
-                                    <option key={user.id} value={user.id}>
-                                      {user.name} {user.defaultHourlyRate ? `(${selectedCurrency.symbol}${user.defaultHourlyRate}/hr)` : ""}
-                                    </option>
-                                  ))}
-                                </Select>
-                              </div>
-                            )}
-                          </>
-                        )}
-
-                        <div className={`space-y-2 ${formData.type === "MIXED_MODEL" ? "" : "md:col-span-2"}`}>
+                        <div className={`space-y-2 ${(formData.type === "MIXED_MODEL" || formData.type === "FIXED_FEE" || formData.type === "SUCCESS_FEE" || formData.type === "HOURLY" || formData.type === "CAPPED_FEE") ? "" : "md:col-span-2"}`}>
                           <Label>Description *</Label>
                           <Input
                             value={item.description}
@@ -1317,93 +1469,68 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                           />
                         </div>
 
-                        {(formData.type === "HOURLY" || (formData.type === "MIXED_MODEL" && (item.billingMethod === "HOURLY" || item.billingMethod === "hourly"))) ? (
+                        <div className="space-y-2">
+                          <Label>Amount ({selectedCurrency.symbol}) *</Label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={item.amount || ""}
+                            onChange={(e) => updateItem(index, "amount", parseFloat(e.target.value) || 0)}
+                            required
+                            placeholder="0.00"
+                          />
+                        </div>
+
+                        {/* Recurring Configuration - Show when billingMethod is RECURRING (only for MIXED_MODEL) */}
+                        {item.billingMethod === "RECURRING" && formData.type === "MIXED_MODEL" && (
                           <>
-                            <div className="space-y-2">
-                              <Label>Hours</Label>
-                              <Input
-                                type="number"
-                                step="0.25"
-                                min="0"
-                                value={item.quantity || 0}
-                                onChange={(e) => updateItem(index, "quantity", parseFloat(e.target.value) || 0)}
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label>Rate ({selectedCurrency.symbol}/hr)</Label>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                value={formData.useBlendedRate ? formData.blendedRate : (item.rate || 0)}
-                                onChange={(e) => updateItem(index, "rate", parseFloat(e.target.value) || 0)}
-                                disabled={formData.useBlendedRate}
-                                placeholder={formData.useBlendedRate ? "Using blended rate" : "Enter rate"}
-                              />
-                              {formData.useBlendedRate && (
-                                <p className="text-xs text-gray-500">Using blended rate: {selectedCurrency.symbol}{formData.blendedRate}/hr</p>
-                              )}
-                            </div>
-                          </>
-                        ) : (
-                          <>
-                            <div className="space-y-2">
-                              <Label>Quantity</Label>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                value={item.quantity || ""}
-                                onChange={(e) => updateItem(index, "quantity", parseFloat(e.target.value) || undefined)}
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label>Unit Price ({selectedCurrency.symbol})</Label>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                value={item.unitPrice || 0}
-                                onChange={(e) => updateItem(index, "unitPrice", parseFloat(e.target.value) || 0)}
-                              />
+                            <div className="space-y-2 md:col-span-2 lg:col-span-3">
+                              <div className="p-4 border rounded-lg bg-blue-50 border-blue-200">
+                                <h4 className="font-semibold text-sm mb-3 text-blue-900">Recurring Payment Configuration</h4>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                  <div className="space-y-2">
+                                    <Label>Frequency</Label>
+                                    <Select
+                                      value={item.recurringFrequency || ""}
+                                      onChange={(e) => updateItem(index, "recurringFrequency", e.target.value || undefined)}
+                                    >
+                                      <option value="">Select frequency</option>
+                                      <option value="MONTHLY_1">1 Month</option>
+                                      <option value="MONTHLY_3">3 Months</option>
+                                      <option value="MONTHLY_6">6 Months</option>
+                                      <option value="YEARLY_12">12 Months</option>
+                                      <option value="CUSTOM">Custom</option>
+                                    </Select>
+                                  </div>
+                                  {item.recurringFrequency === "CUSTOM" && (
+                                    <div className="space-y-2">
+                                      <Label>Custom Months</Label>
+                                      <Input
+                                        type="number"
+                                        min="1"
+                                        value={item.recurringCustomMonths || ""}
+                                        onChange={(e) => updateItem(index, "recurringCustomMonths", parseInt(e.target.value) || undefined)}
+                                        placeholder="e.g., 2"
+                                      />
+                                    </div>
+                                  )}
+                                  <div className="space-y-2">
+                                    <Label>Start Date</Label>
+                                    <Input
+                                      type="date"
+                                      value={item.recurringStartDate || ""}
+                                      onChange={(e) => updateItem(index, "recurringStartDate", e.target.value || undefined)}
+                                    />
+                                  </div>
+                                </div>
+                                <p className="text-xs text-gray-600 mt-2">
+                                  This item will generate recurring invoices based on the selected frequency.
+                                </p>
+                              </div>
                             </div>
                           </>
                         )}
-
-                        <div className="space-y-2">
-                          <Label>Discount %</Label>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            max="100"
-                            value={item.discountPercent || ""}
-                            onChange={(e) => updateItem(index, "discountPercent", parseFloat(e.target.value) || undefined)}
-                            placeholder="0"
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label>Discount Amount ({selectedCurrency.symbol})</Label>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            value={item.discountAmount || ""}
-                            onChange={(e) => updateItem(index, "discountAmount", parseFloat(e.target.value) || undefined)}
-                            placeholder="0"
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label>Line Total ({selectedCurrency.symbol})</Label>
-                          <Input
-                            type="number"
-                            value={calculateLineItemAmount(item).toFixed(2)}
-                            disabled
-                            className="font-semibold bg-gray-50"
-                          />
-                        </div>
 
                         {/* Milestone Assignment - Only show when milestones are enabled */}
                         {formData.useMilestones && milestones.length > 0 && (
@@ -1509,6 +1636,86 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
           {loading ? "Saving..." : initialData ? "Update Proposal" : "Create Proposal"}
         </Button>
       </div>
+
+      {/* Create Lead Dialog */}
+      {showCreateLeadDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <Card className="w-full max-w-md m-4">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>Create New Lead</CardTitle>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setShowCreateLeadDialog(false)
+                    setNewLeadData({ name: "", email: "", company: "", phone: "" })
+                  }}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleCreateLead} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="newLeadName">Name *</Label>
+                  <Input
+                    id="newLeadName"
+                    value={newLeadData.name}
+                    onChange={(e) => setNewLeadData({ ...newLeadData, name: e.target.value })}
+                    required
+                    autoFocus
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="newLeadEmail">Email</Label>
+                  <Input
+                    id="newLeadEmail"
+                    type="email"
+                    value={newLeadData.email}
+                    onChange={(e) => setNewLeadData({ ...newLeadData, email: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="newLeadCompany">Company</Label>
+                  <Input
+                    id="newLeadCompany"
+                    value={newLeadData.company}
+                    onChange={(e) => setNewLeadData({ ...newLeadData, company: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="newLeadPhone">Phone</Label>
+                  <Input
+                    id="newLeadPhone"
+                    type="tel"
+                    value={newLeadData.phone}
+                    onChange={(e) => setNewLeadData({ ...newLeadData, phone: e.target.value })}
+                  />
+                </div>
+                <div className="flex justify-end space-x-2 pt-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setShowCreateLeadDialog(false)
+                      setNewLeadData({ name: "", email: "", company: "", phone: "" })
+                    }}
+                    disabled={creatingLead}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={creatingLead}>
+                    {creatingLead ? "Creating..." : "Create Lead"}
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </form>
   )
 }

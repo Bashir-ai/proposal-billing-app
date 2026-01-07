@@ -13,11 +13,14 @@ const billSchema = z.object({
   amount: z.number().min(0).optional(),
   subtotal: z.number().min(0).optional(),
   description: z.string().optional(),
+  paymentDetailsId: z.string().optional(),
   taxInclusive: z.boolean().optional(),
   taxRate: z.number().min(0).max(100).optional().nullable(),
   discountPercent: z.number().min(0).max(100).optional().nullable(),
   discountAmount: z.number().min(0).optional().nullable(),
   dueDate: z.string().optional(),
+  timesheetEntryIds: z.array(z.string()).optional(),
+  chargeIds: z.array(z.string()).optional(),
 })
 
 export async function GET(request: Request) {
@@ -123,8 +126,84 @@ export async function POST(request: Request) {
     const body = await request.json()
     const validatedData = billSchema.parse(body)
 
-    // Calculate subtotal and amount if not provided
-    let subtotal = validatedData.subtotal || validatedData.amount || 0
+    // Fetch selected timesheet entries and charges if provided
+    let itemsSubtotal = 0
+    const billItemsToCreate: Array<{
+      type: string
+      description: string
+      quantity: number | null
+      rate: number | null
+      unitPrice: number | null
+      amount: number
+      personId: string | null
+      timesheetEntryId: string | null
+      chargeId: string | null
+      date: Date | null
+      isCredit: boolean
+    }> = []
+
+    if (validatedData.timesheetEntryIds && validatedData.timesheetEntryIds.length > 0) {
+      const timesheetEntries = await prisma.timesheetEntry.findMany({
+        where: {
+          id: { in: validatedData.timesheetEntryIds },
+          billed: false, // Safety check: only get unbilled items
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+            },
+          },
+        },
+      })
+
+      for (const entry of timesheetEntries) {
+        const amount = (entry.rate || 0) * entry.hours
+        itemsSubtotal += amount
+        billItemsToCreate.push({
+          type: "TIMESHEET",
+          description: entry.description || `Timesheet entry - ${entry.hours} hours`,
+          quantity: entry.hours,
+          rate: entry.rate,
+          unitPrice: entry.rate,
+          amount: amount,
+          personId: entry.userId,
+          timesheetEntryId: entry.id,
+          chargeId: null,
+          date: entry.date,
+          isCredit: false,
+        })
+      }
+    }
+
+    if (validatedData.chargeIds && validatedData.chargeIds.length > 0) {
+      const charges = await prisma.projectCharge.findMany({
+        where: {
+          id: { in: validatedData.chargeIds },
+          billed: false, // Safety check: only get unbilled items
+        },
+      })
+
+      for (const charge of charges) {
+        itemsSubtotal += charge.amount
+        billItemsToCreate.push({
+          type: "CHARGE",
+          description: charge.description,
+          quantity: charge.quantity || 1,
+          rate: null,
+          unitPrice: charge.unitPrice || charge.amount,
+          amount: charge.amount,
+          personId: null,
+          timesheetEntryId: null,
+          chargeId: charge.id,
+          date: null,
+          isCredit: false,
+        })
+      }
+    }
+
+    // Calculate subtotal: use items subtotal if items are selected, otherwise use provided subtotal
+    let subtotal = itemsSubtotal > 0 ? itemsSubtotal : (validatedData.subtotal || validatedData.amount || 0)
     const taxInclusive = validatedData.taxInclusive || false
     const taxRate = validatedData.taxRate || null
     const discountPercent = validatedData.discountPercent || null
@@ -178,27 +257,62 @@ export async function POST(request: Request) {
       }
     }
 
-    const bill = await prisma.bill.create({
-      data: {
-        proposalId: validatedData.proposalId || null,
-        projectId: validatedData.projectId || null,
-        clientId: validatedData.clientId,
-        createdBy: session.user.id,
-        amount: finalAmount,
-        subtotal: subtotal,
-        description: validatedData.description || null,
-        invoiceNumber: invoiceNumber,
-        taxInclusive: taxInclusive,
-        taxRate: taxRate,
-        discountPercent: discountPercent,
-        discountAmount: discountAmount,
-        dueDate: validatedData.dueDate ? new Date(validatedData.dueDate) : null,
-        status: BillStatus.DRAFT,
-      },
-      include: {
-        client: true,
-        proposal: true,
-      },
+    // Create bill with items in a transaction
+    const bill = await prisma.$transaction(async (tx) => {
+      // Create the bill
+      const createdBill = await tx.bill.create({
+        data: {
+          proposalId: validatedData.proposalId || null,
+          projectId: validatedData.projectId || null,
+          clientId: validatedData.clientId,
+          createdBy: session.user.id,
+          amount: finalAmount,
+          subtotal: subtotal,
+          description: validatedData.description || null,
+          paymentDetailsId: validatedData.paymentDetailsId || null,
+          invoiceNumber: invoiceNumber,
+          taxInclusive: taxInclusive,
+          taxRate: taxRate,
+          discountPercent: discountPercent,
+          discountAmount: discountAmount,
+          dueDate: validatedData.dueDate ? new Date(validatedData.dueDate) : null,
+          status: BillStatus.DRAFT,
+          items: {
+            create: billItemsToCreate,
+          },
+        },
+        include: {
+          client: true,
+          proposal: true,
+          items: true,
+        },
+      })
+
+      // Mark timesheet entries as billed
+      if (validatedData.timesheetEntryIds && validatedData.timesheetEntryIds.length > 0) {
+        await tx.timesheetEntry.updateMany({
+          where: {
+            id: { in: validatedData.timesheetEntryIds },
+          },
+          data: {
+            billed: true,
+          },
+        })
+      }
+
+      // Mark charges as billed
+      if (validatedData.chargeIds && validatedData.chargeIds.length > 0) {
+        await tx.projectCharge.updateMany({
+          where: {
+            id: { in: validatedData.chargeIds },
+          },
+          data: {
+            billed: true,
+          },
+        })
+      }
+
+      return createdBill
     })
 
     return NextResponse.json(bill, { status: 201 })

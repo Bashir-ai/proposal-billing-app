@@ -7,6 +7,7 @@ import { formatDate, formatCurrency } from "@/lib/utils"
 import { getLogoPath } from "@/lib/settings"
 import Image from "next/image"
 import Link from "next/link"
+import { SendProjectReportEmailButton } from "@/components/projects/SendProjectReportEmailButton"
 
 export default async function ProjectReportsPage({
   params,
@@ -123,9 +124,14 @@ export default async function ProjectReportsPage({
         </div>
       )}
 
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold">Project Report: {project.name}</h1>
-        <p className="text-gray-600 mt-2">Comprehensive project overview and financial summary</p>
+      <div className="mb-8 flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Project Report: {project.name}</h1>
+          <p className="text-gray-600 mt-2">Comprehensive project overview and financial summary</p>
+        </div>
+        {project.client.email && (
+          <SendProjectReportEmailButton projectId={project.id} />
+        )}
       </div>
 
       {/* Project Summary */}
@@ -393,4 +399,5 @@ export default async function ProjectReportsPage({
     </div>
   )
 }
+
 

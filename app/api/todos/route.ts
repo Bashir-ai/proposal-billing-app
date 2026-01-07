@@ -254,8 +254,7 @@ export async function GET(request: Request) {
     }
 
     // Debug logging
-    console.log("Fetching todos for user:", session.user.id, "Role:", session.user.role)
-    console.log("Where clause:", JSON.stringify(where, null, 2))
+    // Debug logging removed for production
     
     const todos = await prisma.todo.findMany({
       where,
@@ -328,7 +327,7 @@ export async function GET(request: Request) {
       },
     })
 
-    console.log("Found todos:", todos.length)
+    // Debug logging removed for production
     return NextResponse.json(todos)
   } catch (error) {
     console.error("Error fetching todos:", error)

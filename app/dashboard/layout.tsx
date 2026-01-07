@@ -17,8 +17,11 @@ export default async function DashboardLayout({
 
     return (
       <div className="min-h-screen bg-gray-50">
+        <a href="#main-content" className="skip-link">
+          Skip to main content
+        </a>
         <DashboardNav user={session.user} />
-        <main className="container mx-auto py-8 px-4">
+        <main id="main-content" className="container mx-auto py-8 px-4" role="main" aria-label="Main content">
           {children}
         </main>
       </div>

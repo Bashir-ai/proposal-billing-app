@@ -38,13 +38,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Only admins can create areas of law
-    if (session.user.role !== "ADMIN") {
-      return NextResponse.json(
-        { error: "Forbidden - Admin only" },
-        { status: 403 }
-      )
-    }
+    // All authenticated users can create areas of law
 
     const body = await request.json()
     const validatedData = areaOfLawSchema.parse(body)

@@ -82,10 +82,10 @@ export function DeleteButton({ itemId, itemType, itemName }: DeleteButtonProps) 
 
   if (showConfirm) {
     return (
-      <Card className="border-red-200 bg-red-50">
+      <Card className="border-red-200 bg-red-50" role="alertdialog" aria-labelledby="delete-confirm-title" aria-describedby="delete-confirm-desc">
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle className="text-lg text-red-900">Confirm Deletion</CardTitle>
+            <CardTitle id="delete-confirm-title" className="text-lg text-red-900">Confirm Deletion</CardTitle>
             <Button
               variant="ghost"
               size="sm"
@@ -94,11 +94,12 @@ export function DeleteButton({ itemId, itemType, itemName }: DeleteButtonProps) 
                 setError("")
               }}
               className="h-8 w-8 p-0"
+              aria-label="Close deletion dialog"
             >
-              <X className="h-4 w-4" />
+              <X className="h-4 w-4" aria-hidden="true" />
             </Button>
           </div>
-          <CardDescription className="text-red-700">
+          <CardDescription id="delete-confirm-desc" className="text-red-700">
             Are you sure you want to move this {getItemLabel()} to the junk box?
             {itemName && (
               <span className="block mt-1 font-semibold">{itemName}</span>
@@ -110,7 +111,7 @@ export function DeleteButton({ itemId, itemType, itemName }: DeleteButtonProps) 
         </CardHeader>
         <CardContent>
           {error && (
-            <div className="mb-4 p-3 bg-red-100 border border-red-300 rounded text-sm text-red-800">
+            <div className="mb-4 p-3 bg-red-100 border border-red-300 rounded text-sm text-red-800" role="alert">
               {error}
             </div>
           )}
@@ -119,6 +120,7 @@ export function DeleteButton({ itemId, itemType, itemName }: DeleteButtonProps) 
               onClick={handleDelete}
               disabled={loading}
               variant="destructive"
+              aria-label={`Confirm deletion of ${itemName || getItemLabel()}`}
             >
               {loading ? "Deleting..." : "Yes, Move to Junk Box"}
             </Button>
@@ -129,6 +131,7 @@ export function DeleteButton({ itemId, itemType, itemName }: DeleteButtonProps) 
               }}
               variant="outline"
               disabled={loading}
+              aria-label="Cancel deletion"
             >
               Cancel
             </Button>
@@ -143,8 +146,9 @@ export function DeleteButton({ itemId, itemType, itemName }: DeleteButtonProps) 
       onClick={() => setShowConfirm(true)}
       variant="destructive"
       size="sm"
+      aria-label={`Delete ${itemName || getItemLabel()}`}
     >
-      <Trash2 className="h-4 w-4 mr-2" />
+      <Trash2 className="h-4 w-4 mr-2" aria-hidden="true" />
       Delete
     </Button>
   )

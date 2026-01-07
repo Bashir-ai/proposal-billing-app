@@ -109,13 +109,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Only admins can delete areas of law
-    if (session.user.role !== "ADMIN") {
-      return NextResponse.json(
-        { error: "Forbidden - Admin only" },
-        { status: 403 }
-      )
-    }
+    // All authenticated users can delete areas of law
 
     // Check if area is being used by any leads
     const leadsCount = await prisma.lead.count({

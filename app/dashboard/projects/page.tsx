@@ -2,9 +2,12 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Plus } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select } from "@/components/ui/select"
+import { Plus, X } from "lucide-react"
 import { formatDate, formatCurrency } from "@/lib/utils"
 import { ProjectStatus } from "@prisma/client"
 
@@ -32,17 +35,52 @@ interface Project {
   }>
 }
 
+interface Client {
+  id: string
+  name: string
+  company?: string | null
+}
+
 export default function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([])
+  const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
+  const [filters, setFilters] = useState({
+    clientId: "",
+    name: "",
+    status: "",
+  })
 
   useEffect(() => {
+    fetchClients()
     fetchProjects()
   }, [])
 
-  const fetchProjects = async () => {
+  useEffect(() => {
+    fetchProjects()
+  }, [filters])
+
+  const fetchClients = async () => {
     try {
-      const response = await fetch("/api/projects")
+      const response = await fetch("/api/clients")
+      if (response.ok) {
+        const data = await response.json()
+        setClients(data)
+      }
+    } catch (error) {
+      console.error("Failed to fetch clients:", error)
+    }
+  }
+
+  const fetchProjects = async () => {
+    setLoading(true)
+    try {
+      const params = new URLSearchParams()
+      if (filters.clientId) params.set("clientId", filters.clientId)
+      if (filters.name) params.set("name", filters.name)
+      if (filters.status) params.set("status", filters.status)
+
+      const response = await fetch(`/api/projects?${params.toString()}`)
       if (response.ok) {
         const data = await response.json()
         setProjects(data)
@@ -53,6 +91,16 @@ export default function ProjectsPage() {
       setLoading(false)
     }
   }
+
+  const clearFilters = () => {
+    setFilters({
+      clientId: "",
+      name: "",
+      status: "",
+    })
+  }
+
+  const hasActiveFilters = filters.clientId || filters.name || filters.status
 
   const getStatusColor = (status: ProjectStatus) => {
     switch (status) {
@@ -91,6 +139,71 @@ export default function ProjectsPage() {
           </Button>
         </Link>
       </div>
+
+      {/* Filters */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>Filters</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="clientFilter">Client</Label>
+              <Select
+                id="clientFilter"
+                value={filters.clientId}
+                onChange={(e) => setFilters({ ...filters, clientId: e.target.value })}
+              >
+                <option value="">All Clients</option>
+                {clients.map((client) => (
+                  <option key={client.id} value={client.id}>
+                    {client.name} {client.company ? `(${client.company})` : ""}
+                  </option>
+                ))}
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="nameFilter">Project Name</Label>
+              <Input
+                id="nameFilter"
+                type="text"
+                placeholder="Search by name..."
+                value={filters.name}
+                onChange={(e) => setFilters({ ...filters, name: e.target.value })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="statusFilter">Status</Label>
+              <Select
+                id="statusFilter"
+                value={filters.status}
+                onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+              >
+                <option value="">All Statuses</option>
+                <option value="ACTIVE">Active</option>
+                <option value="COMPLETED">Completed</option>
+                <option value="ON_HOLD">On Hold</option>
+                <option value="CANCELLED">Cancelled</option>
+              </Select>
+            </div>
+
+            <div className="space-y-2 flex items-end">
+              {hasActiveFilters && (
+                <Button
+                  variant="outline"
+                  onClick={clearFilters}
+                  className="w-full"
+                >
+                  <X className="h-4 w-4 mr-2" />
+                  Clear Filters
+                </Button>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="space-y-4">
         {projects.map((project) => {
@@ -162,13 +275,21 @@ export default function ProjectsPage() {
         })}
       </div>
 
-      {projects.length === 0 && (
+      {projects.length === 0 && !loading && (
         <Card>
           <CardContent className="py-12 text-center">
-            <p className="text-gray-500 mb-4">No projects yet</p>
-            <Link href="/dashboard/projects/new">
-              <Button>Create Your First Project</Button>
-            </Link>
+            <p className="text-gray-500 mb-4">
+              {hasActiveFilters ? "No projects match your filters" : "No projects yet"}
+            </p>
+            {hasActiveFilters ? (
+              <Button onClick={clearFilters} variant="outline">
+                Clear Filters
+              </Button>
+            ) : (
+              <Link href="/dashboard/projects/new">
+                <Button>Create Your First Project</Button>
+              </Link>
+            )}
           </CardContent>
         </Card>
       )}

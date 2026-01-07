@@ -52,13 +52,14 @@ export function ApprovalButton({ proposalId, billId, currentUserRole }: Approval
 
   if (!showForm) {
     return (
-      <div className="flex space-x-2">
+      <div className="flex space-x-2" role="group" aria-label="Approval actions">
         <Button
           onClick={() => {
             setShowForm(true)
             setAction("approve")
           }}
           className="bg-green-600 hover:bg-green-700"
+          aria-label={`Approve this ${proposalId ? 'proposal' : 'invoice'}`}
         >
           Approve
         </Button>
@@ -68,6 +69,7 @@ export function ApprovalButton({ proposalId, billId, currentUserRole }: Approval
             setAction("reject")
           }}
           variant="destructive"
+          aria-label={`Reject this ${proposalId ? 'proposal' : 'invoice'}`}
         >
           Reject
         </Button>
@@ -76,7 +78,7 @@ export function ApprovalButton({ proposalId, billId, currentUserRole }: Approval
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" role="form" aria-label={`${action === "approve" ? "Approval" : "Rejection"} form`}>
       <div className="space-y-2">
         <Label htmlFor="comments">Comments</Label>
         <Textarea
@@ -85,7 +87,9 @@ export function ApprovalButton({ proposalId, billId, currentUserRole }: Approval
           onChange={(e) => setComments(e.target.value)}
           rows={3}
           placeholder="Add your comments..."
+          aria-describedby="comments-help"
         />
+        <span id="comments-help" className="sr-only">Optional comments for your {action === "approve" ? "approval" : "rejection"}</span>
       </div>
       <div className="flex space-x-2">
         <Button
@@ -93,6 +97,7 @@ export function ApprovalButton({ proposalId, billId, currentUserRole }: Approval
           disabled={loading}
           className={action === "approve" ? "bg-green-600 hover:bg-green-700" : ""}
           variant={action === "reject" ? "destructive" : "default"}
+          aria-label={loading ? "Submitting..." : action === "approve" ? "Confirm approval" : "Confirm rejection"}
         >
           {loading ? "Submitting..." : action === "approve" ? "Confirm Approval" : "Confirm Rejection"}
         </Button>
@@ -104,6 +109,7 @@ export function ApprovalButton({ proposalId, billId, currentUserRole }: Approval
           }}
           variant="outline"
           disabled={loading}
+          aria-label="Cancel and go back"
         >
           Cancel
         </Button>

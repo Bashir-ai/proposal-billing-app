@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -113,7 +113,7 @@ export default function ProjectsPage() {
 
   useEffect(() => {
     fetchProjects()
-  }, [filters])
+  }, [fetchProjects])
 
   const fetchClients = async () => {
     try {
@@ -151,7 +151,7 @@ export default function ProjectsPage() {
     }
   }
 
-  const fetchProjects = async () => {
+  const fetchProjects = useCallback(async () => {
     try {
       setLoading(true)
       const params = new URLSearchParams()
@@ -185,7 +185,7 @@ export default function ProjectsPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [filters])
 
   const handleFilterChange = (key: keyof typeof filters, value: string) => {
     setFilters((prev) => ({

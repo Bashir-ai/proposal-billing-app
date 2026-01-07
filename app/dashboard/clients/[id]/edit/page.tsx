@@ -147,9 +147,13 @@ export default function EditClientPage() {
 
       if (!response.ok) {
         const data = await response.json()
-        setError(data.error || "Failed to update client")
+        const errorMessage = data.error || "Failed to update client"
+        const errorDetails = data.details ? `: ${JSON.stringify(data.details)}` : ""
+        setError(`${errorMessage}${errorDetails}`)
+        console.error("Client update error:", data)
       } else {
         router.push(`/dashboard/clients/${clientId}`)
+        router.refresh()
       }
     } catch (err) {
       setError("An error occurred. Please try again.")

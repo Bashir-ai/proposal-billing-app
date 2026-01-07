@@ -72,18 +72,26 @@ export async function calculateTotalUnbilledWork(
     }
   }
 
-  const unbilledTimesheets = await prisma.timesheetEntry.findMany({
+  // Optimized: Use aggregation instead of loading all records
+  const timesheetAggregate = await prisma.timesheetEntry.aggregate({
     where: whereClause,
-    include: {
-      project: {
-        select: {
-          clientId: true,
-        },
-      },
+    _sum: {
+      hours: true,
     },
   })
 
-  const timesheetHours = unbilledTimesheets.reduce((sum, entry) => sum + entry.hours, 0)
+  // For amount calculation, we need to sum hours * rate, which requires loading records
+  // But we can limit the query
+  const unbilledTimesheets = await prisma.timesheetEntry.findMany({
+    where: whereClause,
+    select: {
+      hours: true,
+      rate: true,
+    },
+    take: 10000, // Limit to prevent loading too many records
+  })
+
+  const timesheetHours = timesheetAggregate._sum.hours || 0
   const timesheetAmount = unbilledTimesheets.reduce(
     (sum, entry) => sum + (entry.hours * (entry.rate || 0)),
     0
@@ -106,11 +114,15 @@ export async function calculateTotalUnbilledWork(
     }
   }
 
-  const unbilledCharges = await prisma.projectCharge.findMany({
+  // Optimized: Use aggregation for charges
+  const chargesAggregate = await prisma.projectCharge.aggregate({
     where: chargesWhere,
+    _sum: {
+      amount: true,
+    },
   })
 
-  const chargesAmount = unbilledCharges.reduce((sum, charge) => sum + charge.amount, 0)
+  const chargesAmount = chargesAggregate._sum.amount || 0
 
   return {
     timesheetHours,
@@ -146,17 +158,16 @@ export async function calculateClosedProposalsNotCharged(
     }
   }
 
-  // Get all approved proposals
+  // Optimized: Use aggregation queries instead of loading all data
+  // Get approved proposals with their amounts and projects
   const approvedProposals = await prisma.proposal.findMany({
     where: proposalWhere,
-    include: {
+    select: {
+      id: true,
+      amount: true,
       projects: {
-        include: {
-          bills: {
-            where: {
-              status: { in: ["SUBMITTED", "APPROVED", "PAID"] },
-            },
-          },
+        select: {
+          id: true,
         },
       },
     },
@@ -164,6 +175,36 @@ export async function calculateClosedProposalsNotCharged(
 
   let totalNotCharged = 0
 
+  if (approvedProposals.length === 0) {
+    return 0
+  }
+
+  // Get all project IDs from all proposals
+  const projectIds = approvedProposals.flatMap(p => p.projects.map(proj => proj.id))
+  
+  // Get total invoiced amounts per project using aggregation (much faster)
+  let projectTotalMap = new Map<string, number>()
+  
+  if (projectIds.length > 0) {
+    const projectTotals = await prisma.bill.groupBy({
+      by: ['projectId'],
+      where: {
+        projectId: { in: projectIds },
+        status: { in: ["SUBMITTED", "APPROVED", "PAID"] },
+        deletedAt: null,
+      },
+      _sum: {
+        amount: true,
+      },
+    })
+
+    // Create a map of projectId -> total invoiced
+    projectTotalMap = new Map(
+      projectTotals.map(pt => [pt.projectId || '', pt._sum.amount || 0])
+    )
+  }
+
+  // Calculate not charged amounts
   for (const proposal of approvedProposals) {
     const proposalAmount = proposal.amount || 0
 
@@ -174,8 +215,7 @@ export async function calculateClosedProposalsNotCharged(
       // Calculate total invoiced across all projects
       let totalInvoiced = 0
       for (const project of proposal.projects) {
-        const projectInvoiced = project.bills.reduce((sum, bill) => sum + bill.amount, 0)
-        totalInvoiced += projectInvoiced
+        totalInvoiced += projectTotalMap.get(project.id) || 0
       }
 
       // If invoiced amount is less than proposal amount, add the difference
@@ -187,6 +227,8 @@ export async function calculateClosedProposalsNotCharged(
 
   return totalNotCharged
 }
+
+
 
 
 

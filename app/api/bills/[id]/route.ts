@@ -10,6 +10,7 @@ const billUpdateSchema = z.object({
   amount: z.number().min(0).optional(),
   subtotal: z.number().min(0).optional(),
   description: z.string().optional(),
+  paymentDetailsId: z.string().optional().nullable(),
   taxInclusive: z.boolean().optional(),
   taxRate: z.number().min(0).max(100).optional().nullable(),
   discountPercent: z.number().min(0).max(100).optional().nullable(),
@@ -217,6 +218,8 @@ export async function PUT(
     const updateData: any = {
       subtotal: subtotal,
       amount: finalAmount,
+      description: validatedData.description !== undefined ? validatedData.description : bill.description,
+      paymentDetailsId: validatedData.paymentDetailsId !== undefined ? validatedData.paymentDetailsId : bill.paymentDetailsId,
       taxInclusive: taxInclusive,
       taxRate: taxRate,
       discountPercent: discountPercent,

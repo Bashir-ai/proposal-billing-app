@@ -134,6 +134,18 @@ export default function SettingsPage() {
         <>
           <LogoUpload />
           
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle>Payment Details</CardTitle>
+              <CardDescription>Manage payment details templates for invoices</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button onClick={() => router.push("/dashboard/settings/payment-details")}>
+                Manage Payment Details
+              </Button>
+            </CardContent>
+          </Card>
+          
           <UserManagement />
           
           <Card className="mt-6">

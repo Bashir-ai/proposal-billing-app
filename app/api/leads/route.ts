@@ -7,19 +7,19 @@ import { LeadStatus } from "@prisma/client"
 
 const leadSchema = z.object({
   name: z.string().min(1, "Name is required"),
-  email: z.string().email().optional().or(z.literal("")),
-  company: z.string().optional(),
-  phone: z.string().optional(),
-  contactInfo: z.string().optional(),
-  addressLine: z.string().optional(),
-  city: z.string().optional(),
-  state: z.string().optional(),
-  zipCode: z.string().optional(),
-  country: z.string().optional(),
+  email: z.union([z.string().email(), z.literal("")]).optional().nullable(),
+  company: z.string().optional().nullable(),
+  phone: z.string().optional().nullable(),
+  contactInfo: z.string().optional().nullable(),
+  addressLine: z.string().optional().nullable(),
+  city: z.string().optional().nullable(),
+  state: z.string().optional().nullable(),
+  zipCode: z.string().optional().nullable(),
+  country: z.string().optional().nullable(),
   status: z.nativeEnum(LeadStatus).optional(),
-  areaOfLawId: z.string().optional().or(z.literal("")),
-  sectorOfActivityId: z.string().optional().or(z.literal("")),
-  leadManagerId: z.string().optional().or(z.literal("")),
+  areaOfLawId: z.union([z.string(), z.literal("")]).optional().nullable(),
+  sectorOfActivityId: z.union([z.string(), z.literal("")]).optional().nullable(),
+  leadManagerId: z.union([z.string(), z.literal("")]).optional().nullable(),
 })
 
 export async function GET(request: Request) {

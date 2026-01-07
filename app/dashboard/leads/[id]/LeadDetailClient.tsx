@@ -319,3 +319,5 @@ export function LeadDetailClient({ lead, session }: LeadDetailClientProps) {
   )
 }
 
+
+

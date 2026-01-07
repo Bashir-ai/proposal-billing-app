@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { ProposalForm } from "./ProposalForm"
 
@@ -12,10 +12,42 @@ interface ProposalFormWrapperProps {
   proposalId?: string
 }
 
-export function ProposalFormWrapper({ clients, leads = [], users = [], initialData, proposalId }: ProposalFormWrapperProps) {
+export function ProposalFormWrapper({ clients, leads: initialLeads = [], users = [], initialData, proposalId }: ProposalFormWrapperProps) {
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [leads, setLeads] = useState<Array<{ id: string; name: string; company?: string | null }>>(initialLeads)
+
+  // Refresh leads list (exclude converted, deleted, and archived leads)
+  const refreshLeads = async () => {
+    try {
+      const response = await fetch("/api/leads")
+      if (response.ok) {
+        const data = await response.json()
+        // Filter out converted, deleted, and archived leads (matching server-side filter)
+        const filteredLeads = data.filter((lead: any) => 
+          lead.status !== "CONVERTED" && 
+          !lead.deletedAt && 
+          !lead.archivedAt
+        )
+        setLeads(filteredLeads)
+      }
+    } catch (err) {
+      console.error("Error refreshing leads:", err)
+    }
+  }
+
+  // Refresh leads when component mounts or when a new lead is created
+  useEffect(() => {
+    refreshLeads()
+  }, [])
+
+  const handleLeadCreated = (newLead: { id: string; name: string; company?: string | null }) => {
+    // Add the new lead to the list
+    setLeads(prev => [...prev, newLead])
+    // Also refresh from server to ensure we have the latest data
+    refreshLeads()
+  }
 
   const handleSubmit = async (data: any) => {
     setError(null)
@@ -105,7 +137,15 @@ export function ProposalFormWrapper({ clients, leads = [], users = [], initialDa
           <p>{error}</p>
         </div>
       )}
-      <ProposalForm clients={clients} leads={leads} users={users} onSubmit={handleSubmit} initialData={initialData} loading={loading} />
+      <ProposalForm 
+        clients={clients} 
+        leads={leads} 
+        users={users} 
+        onSubmit={handleSubmit} 
+        initialData={initialData} 
+        loading={loading}
+        onLeadCreated={handleLeadCreated}
+      />
     </div>
   )
 }

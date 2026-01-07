@@ -19,21 +19,21 @@ const clientFinderSchema = z.object({
 })
 
 const clientSchema = z.object({
-  name: z.string().min(1).optional(),
-  email: z.string().email().optional().or(z.literal("")),
-  company: z.string().optional(),
-  contactInfo: z.string().optional(),
-  portugueseTaxNumber: z.string().optional(),
-  foreignTaxNumber: z.string().optional(),
+  name: z.string().min(1, "Name is required").optional(),
+  email: z.union([z.string().email(), z.literal("")]).optional().nullable(),
+  company: z.string().optional().nullable(),
+  contactInfo: z.string().optional().nullable(),
+  portugueseTaxNumber: z.string().optional().nullable(),
+  foreignTaxNumber: z.string().optional().nullable(),
   kycCompleted: z.boolean().optional(),
   isIndividual: z.boolean().optional(),
-  fullLegalName: z.string().optional(),
-  billingAddressLine: z.string().optional(),
-  billingCity: z.string().optional(),
-  billingState: z.string().optional(),
-  billingZipCode: z.string().optional(),
-  billingCountry: z.string().optional(),
-  clientManagerId: z.string().optional().or(z.literal("")),
+  fullLegalName: z.string().optional().nullable(),
+  billingAddressLine: z.string().optional().nullable(),
+  billingCity: z.string().optional().nullable(),
+  billingState: z.string().optional().nullable(),
+  billingZipCode: z.string().optional().nullable(),
+  billingCountry: z.string().optional().nullable(),
+  clientManagerId: z.union([z.string().min(1), z.literal("")]).optional().nullable(),
   finders: z.array(clientFinderSchema).optional(),
   contacts: z.array(contactPersonSchema).optional(),
 })
@@ -131,20 +131,76 @@ export async function PUT(
     const body = await request.json()
     const validatedData = clientSchema.parse(body)
 
-    // Handle contacts and finders: delete all existing and create new ones
-    // This is simpler than trying to match IDs
+    // Handle contacts: delete all existing and create new ones
     await prisma.clientContact.deleteMany({
       where: { clientId: id },
     })
-    await prisma.clientFinder.deleteMany({
-      where: { clientId: id },
-    })
+
+    // Handle finders: We can't delete finders that are referenced by FinderFee records
+    // So we need to be smarter about updates
+    if (validatedData.finders !== undefined) {
+      // Get existing finders and check which ones are referenced by FinderFee
+      const existingFinders = await prisma.clientFinder.findMany({
+        where: { clientId: id },
+      })
+
+      // Check which finders are referenced by FinderFee records
+      const finderIds = existingFinders.map(f => f.id)
+      const referencedFinderIds = await prisma.finderFee.findMany({
+        where: {
+          clientFinderId: { in: finderIds },
+        },
+        select: {
+          clientFinderId: true,
+        },
+        distinct: ['clientFinderId'],
+      }).then(fees => fees.map(f => f.clientFinderId))
+
+      // Delete only finders that are NOT referenced by any FinderFee records
+      const findersToDelete = existingFinders.filter(f => !referencedFinderIds.includes(f.id))
+      if (findersToDelete.length > 0) {
+        await prisma.clientFinder.deleteMany({
+          where: {
+            id: { in: findersToDelete.map(f => f.id) },
+          },
+        })
+      }
+
+      // For finders that are referenced, update them if they match the new data
+      const referencedFinders = existingFinders.filter(f => referencedFinderIds.includes(f.id))
+      const newFinders = [...(validatedData.finders || [])]
+      
+      // Match existing referenced finders with new finders by userId
+      for (const existingFinder of referencedFinders) {
+        const matchingNewFinder = newFinders.find(nf => nf.userId === existingFinder.userId)
+        if (matchingNewFinder) {
+          // Update the existing finder if the percentage changed
+          if (matchingNewFinder.finderFeePercent !== existingFinder.finderFeePercent) {
+            await prisma.clientFinder.update({
+              where: { id: existingFinder.id },
+              data: { finderFeePercent: matchingNewFinder.finderFeePercent },
+            })
+          }
+          // Remove from newFinders so we don't create a duplicate
+          const index = newFinders.findIndex(nf => nf.userId === existingFinder.userId)
+          if (index > -1) {
+            newFinders.splice(index, 1)
+          }
+        }
+      }
+
+      // Update validatedData.finders to only include new finders to create
+      validatedData.finders = newFinders
+    }
 
     // Build update data object, only including fields that are provided
     const updateData: any = {}
     
-    if (validatedData.name !== undefined) {
+    if (validatedData.name !== undefined && validatedData.name !== "") {
       updateData.name = validatedData.name
+    } else if (validatedData.name === "") {
+      // If name is sent as empty string, don't update it (keep existing value)
+      // This prevents accidentally clearing the name field
     }
     if (validatedData.email !== undefined) {
       updateData.email = validatedData.email || null

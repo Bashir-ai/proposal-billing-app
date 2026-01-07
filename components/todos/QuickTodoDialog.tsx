@@ -112,7 +112,8 @@ export function QuickTodoDialog({ open, onOpenChange }: QuickTodoDialogProps) {
         setFormData((prev) => ({ ...prev, clientId: selectedProject.clientId }))
       }
     }
-  }, [formData.projectId, projects, formData.clientId])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.projectId, projects])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

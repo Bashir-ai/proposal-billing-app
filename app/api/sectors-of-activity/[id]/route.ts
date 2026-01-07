@@ -109,13 +109,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Only admins can delete sectors of activity
-    if (session.user.role !== "ADMIN") {
-      return NextResponse.json(
-        { error: "Forbidden - Admin only" },
-        { status: 403 }
-      )
-    }
+    // All authenticated users can delete sectors of activity
 
     // Check if sector is being used by any leads
     const leadsCount = await prisma.lead.count({
