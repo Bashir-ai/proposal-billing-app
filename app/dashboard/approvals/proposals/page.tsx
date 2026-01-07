@@ -100,8 +100,8 @@ export default async function ApproveProposalsPage() {
                         )}
                       </div>
                       <p className="text-sm text-gray-600 mb-2">
-                        Client: {proposal.client.name}
-                        {proposal.client.company && ` (${proposal.client.company})`}
+                        Client: {proposal.client?.name || "No client assigned"}
+                        {proposal.client?.company && ` (${proposal.client.company})`}
                       </p>
                       <p className="text-sm text-gray-600 mb-2">
                         Created by: {proposal.creator.name} ({proposal.creator.email})
