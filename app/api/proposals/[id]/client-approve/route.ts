@@ -112,7 +112,7 @@ export async function POST(
     // Send confirmation emails
     try {
       // Email to client
-      if (proposal.client.email) {
+      if (proposal.client && proposal.client.email) {
         await sendApprovalConfirmation(
           proposal.client.email,
           proposal.client.name,
