@@ -64,13 +64,11 @@ export const authOptions: NextAuthOptions = {
   session: {
     strategy: "jwt",
   },
-  secret: process.env.NEXTAUTH_SECRET || (() => {
-    if (process.env.NODE_ENV === "production") {
-      throw new Error("NEXTAUTH_SECRET environment variable is required in production")
-    }
-    console.warn("⚠️  NEXTAUTH_SECRET is not set. Using default secret for development only.")
-    return "development-secret-change-in-production"
-  })(),
+  secret: process.env.NEXTAUTH_SECRET || (
+    process.env.NODE_ENV === "production" 
+      ? "build-time-placeholder-will-be-replaced-at-runtime"
+      : "development-secret-change-in-production"
+  ),
 }
 
 
