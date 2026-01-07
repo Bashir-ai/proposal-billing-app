@@ -44,6 +44,14 @@ interface Project {
     amount: number
     status: string
   }>
+  projectManagers?: Array<{
+    id: string
+    user: {
+      id: string
+      name: string
+      email: string
+    }
+  }>
 }
 
 interface Client {
