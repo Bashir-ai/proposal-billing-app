@@ -338,7 +338,6 @@ export async function POST(
       where: { id },
       data: {
         clientApprovalEmailSent: true,
-        clientApprovalEmailSentAt: new Date(),
       },
     })
 
