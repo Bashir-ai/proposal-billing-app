@@ -192,7 +192,7 @@ export function TimesheetEntryForm({
     }
   }
 
-  const amount = formData.hours * formData.rate
+  const amount = formData.hours * (formData.rate ?? 0)
 
   if (!isOpen) return null
 
@@ -242,7 +242,7 @@ export function TimesheetEntryForm({
                 <Input
                   id="date"
                   type="date"
-                  value={formData.date}
+                  value={formData.date instanceof Date ? formData.date.toISOString().split('T')[0] : formData.date}
                   onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                   required
                 />
@@ -268,7 +268,7 @@ export function TimesheetEntryForm({
                   type="number"
                   step="0.01"
                   min="0"
-                  value={formData.rate}
+                  value={formData.rate ?? 0}
                   onChange={(e) => setFormData({ ...formData, rate: parseFloat(e.target.value) || 0 })}
                   required
                 />

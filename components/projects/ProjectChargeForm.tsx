@@ -324,7 +324,7 @@ export function ProjectChargeForm({
                     <Input
                       id="startDate"
                       type="date"
-                      value={formData.startDate || ""}
+                      value={formData.startDate instanceof Date ? formData.startDate.toISOString().split('T')[0] : (formData.startDate || "")}
                       onChange={(e) => setFormData({ ...formData, startDate: e.target.value || null })}
                       required
                     />
@@ -334,9 +334,9 @@ export function ProjectChargeForm({
                     <Input
                       id="endDate"
                       type="date"
-                      value={formData.endDate || ""}
+                      value={formData.endDate instanceof Date ? formData.endDate.toISOString().split('T')[0] : (formData.endDate || "")}
                       onChange={(e) => setFormData({ ...formData, endDate: e.target.value || null })}
-                      min={formData.startDate || undefined}
+                      min={typeof formData.startDate === 'string' ? formData.startDate : undefined}
                     />
                   </div>
                 </div>

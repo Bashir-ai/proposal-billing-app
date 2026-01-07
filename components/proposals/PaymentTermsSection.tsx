@@ -153,7 +153,7 @@ export function PaymentTermsSection({
                         // Set default upfront payment values
                         const updated = {
                           ...proposalTerm,
-                          upfrontType: "PERCENT",
+                          upfrontType: "PERCENT" as const,
                           upfrontValue: 0,
                         }
                         setProposalTerm(updated)
@@ -275,9 +275,9 @@ export function PaymentTermsSection({
                         // Set default installment values
                         const updated = {
                           ...proposalTerm,
-                          installmentType: "TIME_BASED",
+                          installmentType: "TIME_BASED" as const,
                           installmentCount: 1,
-                          installmentFrequency: "MONTHLY",
+                          installmentFrequency: "MONTHLY" as const,
                         }
                         setProposalTerm(updated)
                         onProposalLevelChange(updated)

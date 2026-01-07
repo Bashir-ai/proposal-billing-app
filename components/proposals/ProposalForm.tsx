@@ -226,6 +226,13 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
     }
   }
 
+  const calculateLineItemAmount = (item: LineItem): number => {
+    if (item.quantity && item.rate) {
+      return item.quantity * item.rate
+    }
+    return item.amount || 0
+  }
+
   const calculateSubtotal = (): number => {
     return items.reduce((sum, item) => sum + (item.amount || 0), 0)
   }
@@ -1090,7 +1097,7 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                     onChange={(e) => {
                       const methods = e.target.checked
                         ? [...formData.mixedModelMethods, "FIXED_FEE"]
-                        : formData.mixedModelMethods.filter(m => m !== "FIXED_FEE")
+                        : formData.mixedModelMethods.filter((m: string) => m !== "FIXED_FEE")
                       setFormData({ ...formData, mixedModelMethods: methods })
                     }}
                     className="rounded"
@@ -1104,7 +1111,7 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                     onChange={(e) => {
                       const methods = e.target.checked
                         ? [...formData.mixedModelMethods, "HOURLY"]
-                        : formData.mixedModelMethods.filter(m => m !== "HOURLY")
+                        : formData.mixedModelMethods.filter((m: string) => m !== "HOURLY")
                       setFormData({ ...formData, mixedModelMethods: methods })
                     }}
                     className="rounded"
@@ -1118,7 +1125,7 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                     onChange={(e) => {
                       const methods = e.target.checked
                         ? [...formData.mixedModelMethods, "RETAINER"]
-                        : formData.mixedModelMethods.filter(m => m !== "RETAINER")
+                        : formData.mixedModelMethods.filter((m: string) => m !== "RETAINER")
                       setFormData({ ...formData, mixedModelMethods: methods })
                     }}
                     className="rounded"
@@ -1132,7 +1139,7 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                     onChange={(e) => {
                       const methods = e.target.checked
                         ? [...formData.mixedModelMethods, "SUCCESS_FEE"]
-                        : formData.mixedModelMethods.filter(m => m !== "SUCCESS_FEE")
+                        : formData.mixedModelMethods.filter((m: string) => m !== "SUCCESS_FEE")
                       setFormData({ ...formData, mixedModelMethods: methods })
                     }}
                     className="rounded"
