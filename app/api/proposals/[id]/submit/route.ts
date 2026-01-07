@@ -98,8 +98,8 @@ export async function POST(
             title: proposal.title,
             proposalNumber: proposal.proposalNumber,
             client: {
-              name: proposal.client.name,
-              company: proposal.client.company,
+              name: proposal.client?.name ?? "Unknown Client",
+              company: proposal.client?.company ?? null,
             },
             creator: {
               name: proposal.creator.name || proposal.creator.email,
@@ -140,7 +140,7 @@ export async function POST(
       updateData.clientApprovalTokenExpiry = tokenExpiry
 
       // Send client approval email
-      if (proposal.client.email) {
+      if (proposal.client && proposal.client.email) {
         const { sendClientApprovalRequest } = await import("@/lib/email")
         try {
           await sendClientApprovalRequest(

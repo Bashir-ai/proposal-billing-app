@@ -44,14 +44,14 @@ export async function POST(
     }
 
     // Check if client email exists
-    if (!proposal.client.email) {
+    if (!proposal.client || !proposal.client.email) {
       return NextResponse.json(
         { error: "Client email is not set. Please update the client information first." },
         { status: 400 }
       )
     }
 
-    // Generate or reuse approval token
+    // Generate or reuse approval token (TypeScript now knows proposal.client is not null)
     let approvalToken = proposal.clientApprovalToken
     if (!approvalToken || (proposal.clientApprovalTokenExpiry && new Date() > proposal.clientApprovalTokenExpiry)) {
       const cryptoModule = await import("crypto")

@@ -1,0 +1,358 @@
+import { NextResponse } from "next/server"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
+import { prisma } from "@/lib/prisma"
+import { sendProposalEmail } from "@/lib/email"
+import { generatePdfFromHTML, getLogoBase64 } from "@/lib/pdf-generator"
+import puppeteer from "puppeteer"
+
+// Reuse the HTML generation from the PDF route
+function generateProposalHTML(proposal: any, logoBase64: string | null): string {
+  const currencySymbol = proposal.currency === 'EUR' ? '€' : 
+                        proposal.currency === 'USD' ? '$' : 
+                        proposal.currency === 'GBP' ? '£' : proposal.currency
+
+  return `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Proposal ${proposal.proposalNumber || proposal.id}</title>
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+          }
+          .logo-container {
+            margin-bottom: 20px;
+            text-align: left;
+          }
+          .logo-container img {
+            max-height: 80px;
+            max-width: 200px;
+            object-fit: contain;
+          }
+          .header {
+            border-bottom: 2px solid #2563eb;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+          }
+          .header h1 {
+            color: #2563eb;
+            margin: 0;
+          }
+          .section {
+            margin-bottom: 30px;
+          }
+          .section h2 {
+            color: #111827;
+            border-bottom: 1px solid #e5e7eb;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+          }
+          .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+          }
+          .info-item {
+            margin-bottom: 10px;
+          }
+          .info-label {
+            font-weight: bold;
+            color: #6b7280;
+            font-size: 0.9em;
+          }
+          .info-value {
+            color: #111827;
+            margin-top: 5px;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+          }
+          table th,
+          table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e5e7eb;
+          }
+          table th {
+            background-color: #f9fafb;
+            font-weight: bold;
+            color: #111827;
+          }
+          .text-right {
+            text-align: right;
+          }
+          .total {
+            font-size: 1.2em;
+            font-weight: bold;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 2px solid #e5e7eb;
+          }
+          .milestone {
+            background-color: #f9fafb;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+          }
+          .milestone h3 {
+            margin: 0 0 10px 0;
+            color: #111827;
+          }
+        </style>
+      </head>
+      <body>
+        ${logoBase64 ? `
+        <div class="logo-container">
+          <img src="${logoBase64}" alt="Company Logo" />
+        </div>
+        ` : ''}
+        <div class="header">
+          <h1>${proposal.title}</h1>
+          ${proposal.proposalNumber ? `<p><strong>Proposal Number:</strong> ${proposal.proposalNumber}</p>` : ''}
+        </div>
+
+        <div class="section">
+          <h2>Client Information</h2>
+          <div class="info-grid">
+            <div class="info-item">
+              <div class="info-label">Client Name</div>
+              <div class="info-value">${proposal.client.name}</div>
+            </div>
+            ${proposal.client.company ? `
+            <div class="info-item">
+              <div class="info-label">Company</div>
+              <div class="info-value">${proposal.client.company}</div>
+            </div>
+            ` : ''}
+            ${proposal.client.email ? `
+            <div class="info-item">
+              <div class="info-label">Email</div>
+              <div class="info-value">${proposal.client.email}</div>
+            </div>
+            ` : ''}
+            <div class="info-item">
+              <div class="info-label">Created By</div>
+              <div class="info-value">${proposal.creator.name}</div>
+            </div>
+            ${proposal.issueDate ? `
+            <div class="info-item">
+              <div class="info-label">Issue Date</div>
+              <div class="info-value">${new Date(proposal.issueDate).toLocaleDateString()}</div>
+            </div>
+            ` : ''}
+            ${proposal.expiryDate ? `
+            <div class="info-item">
+              <div class="info-label">Expiry Date</div>
+              <div class="info-value">${new Date(proposal.expiryDate).toLocaleDateString()}</div>
+            </div>
+            ` : ''}
+          </div>
+        </div>
+
+        ${proposal.description ? `
+        <div class="section">
+          <h2>Description</h2>
+          <p>${proposal.description}</p>
+        </div>
+        ` : ''}
+
+        ${proposal.items && proposal.items.length > 0 ? `
+        <div class="section">
+          <h2>Line Items</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Description</th>
+                <th>Person</th>
+                <th>Quantity</th>
+                <th>Rate/Price</th>
+                <th class="text-right">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${proposal.items.map((item: any) => `
+                <tr>
+                  <td>${item.description}</td>
+                  <td>${item.person ? item.person.name : '-'}</td>
+                  <td>${item.quantity || '-'}</td>
+                  <td>${item.rate || item.unitPrice ? `${currencySymbol}${(item.rate || item.unitPrice || 0).toFixed(2)}` : '-'}</td>
+                  <td class="text-right">${currencySymbol}${item.amount.toFixed(2)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+        ` : ''}
+
+        ${proposal.milestones && proposal.milestones.length > 0 ? `
+        <div class="section">
+          <h2>Milestones</h2>
+          ${proposal.milestones.map((milestone: any) => `
+            <div class="milestone">
+              <h3>${milestone.name}</h3>
+              ${milestone.description ? `<p>${milestone.description}</p>` : ''}
+              ${milestone.amount ? `<p><strong>Amount:</strong> ${currencySymbol}${milestone.amount.toFixed(2)}</p>` : ''}
+              ${milestone.percent ? `<p><strong>Percentage:</strong> ${milestone.percent}%</p>` : ''}
+              ${milestone.dueDate ? `<p><strong>Due Date:</strong> ${new Date(milestone.dueDate).toLocaleDateString()}</p>` : ''}
+            </div>
+          `).join('')}
+        </div>
+        ` : ''}
+
+        ${proposal.amount ? `
+        <div class="section">
+          <div class="total">
+            <div class="text-right">
+              <div>Total Amount: ${currencySymbol}${proposal.amount.toFixed(2)}</div>
+              ${proposal.taxRate ? `
+                <div>Tax (${proposal.taxRate}%): ${currencySymbol}${(proposal.amount * proposal.taxRate / 100).toFixed(2)}</div>
+                <div>Total with Tax: ${currencySymbol}${(proposal.amount * (1 + proposal.taxRate / 100)).toFixed(2)}</div>
+              ` : ''}
+            </div>
+          </div>
+        </div>
+        ` : ''}
+
+        ${proposal.paymentTerms && proposal.paymentTerms.length > 0 ? `
+        <div class="section">
+          <h2>Payment Terms</h2>
+          ${proposal.paymentTerms.map((term: any, index: number) => `
+            <div style="margin-bottom: 20px;">
+              <h3>Payment Term ${index + 1}</h3>
+              ${term.upfrontType && term.upfrontValue ? `
+                <p><strong>Upfront Payment:</strong> ${term.upfrontType === 'PERCENT' ? `${term.upfrontValue}%` : `${currencySymbol}${term.upfrontValue.toFixed(2)}`}</p>
+              ` : ''}
+              ${term.installmentType ? `
+                <p><strong>Installment Type:</strong> ${term.installmentType}</p>
+              ` : ''}
+              ${term.installmentCount && term.installmentFrequency ? `
+                <p><strong>Installments:</strong> ${term.installmentCount} payments, ${term.installmentFrequency}</p>
+              ` : ''}
+            </div>
+          `).join('')}
+        </div>
+        ` : ''}
+      </body>
+    </html>
+  `
+}
+
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params
+    const session = await getServerSession(authOptions)
+    
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    if (session.user.role === "CLIENT") {
+      return NextResponse.json(
+        { error: "Forbidden" },
+        { status: 403 }
+      )
+    }
+
+    const proposal = await prisma.proposal.findUnique({
+      where: { id },
+      include: {
+        client: true,
+        creator: {
+          select: {
+            name: true,
+            email: true,
+          },
+        },
+        items: {
+          include: {
+            person: {
+              select: {
+                name: true,
+                email: true,
+              },
+            },
+            milestones: true,
+          },
+          orderBy: { createdAt: "asc" },
+        },
+        milestones: {
+          orderBy: { createdAt: "asc" },
+        },
+        paymentTerms: true,
+      },
+    })
+
+    if (!proposal) {
+      return NextResponse.json({ error: "Proposal not found" }, { status: 404 })
+    }
+
+    if (!proposal.client || !proposal.client.email) {
+      return NextResponse.json(
+        { error: "Client email is not set. Please update the client information first." },
+        { status: 400 }
+      )
+    }
+
+    // Generate PDF
+    const logoBase64 = await getLogoBase64()
+    const html = generateProposalHTML(proposal, logoBase64)
+    const pdfBuffer = await generatePdfFromHTML(html)
+
+    // Send email (TypeScript now knows proposal.client is not null)
+    const result = await sendProposalEmail(
+      proposal.client.email,
+      proposal.client.name,
+      {
+        id: proposal.id,
+        title: proposal.title,
+        proposalNumber: proposal.proposalNumber,
+        description: proposal.description,
+        amount: proposal.amount,
+        currency: proposal.currency,
+      },
+      pdfBuffer
+    )
+
+    if (!result.success) {
+      return NextResponse.json(
+        { error: result.error || "Failed to send email" },
+        { status: 500 }
+      )
+    }
+
+    // Update proposal to mark email as sent
+    await prisma.proposal.update({
+      where: { id },
+      data: {
+        clientApprovalEmailSent: true,
+        clientApprovalEmailSentAt: new Date(),
+      },
+    })
+
+    return NextResponse.json({
+      success: true,
+      message: "Proposal email sent successfully",
+    })
+  } catch (error: any) {
+    console.error("Error sending proposal email:", error)
+    return NextResponse.json(
+      { error: "Internal server error", message: error.message },
+      { status: 500 }
+    )
+  }
+}
+
+
