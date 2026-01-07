@@ -13,8 +13,10 @@ import { ApproveOnBehalfButton } from "@/components/proposals/ApproveOnBehalfBut
 import { SendToClientButton } from "@/components/proposals/SendToClientButton"
 import { CreateProjectButton } from "@/components/proposals/CreateProjectButton"
 import { DownloadPdfButton } from "@/components/proposals/DownloadPdfButton"
+import { SendProposalEmailButton } from "@/components/proposals/SendProposalEmailButton"
 import { ViewProjectButton } from "@/components/proposals/ViewProjectButton"
 import { GenerateUpfrontInvoiceButton } from "@/components/proposals/GenerateUpfrontInvoiceButton"
+import { GenerateFirstRecurringInvoiceButton } from "@/components/proposals/GenerateFirstRecurringInvoiceButton"
 import { canEditProposal, canApproveProposals, canDeleteItems } from "@/lib/permissions"
 import { DeleteButton } from "@/components/shared/DeleteButton"
 import { getLogoPath } from "@/lib/settings"
@@ -95,18 +97,6 @@ export default async function ProposalDetailPage({
           approver: {
             select: {
               id: true,
-              name: true,
-              email: true,
-              role: true,
-            },
-          },
-        },
-        orderBy: { createdAt: "asc" },
-      },
-      approvals: {
-        include: {
-          approver: {
-            select: {
               name: true,
               email: true,
               role: true,
@@ -438,12 +428,18 @@ export default async function ProposalDetailPage({
             <CardTitle>Client Information</CardTitle>
           </CardHeader>
           <CardContent>
+            {proposal.client ? (
+              <>
             <p className="font-semibold">{proposal.client.name}</p>
             {proposal.client.company && (
               <p className="text-sm text-gray-600">{proposal.client.company}</p>
             )}
             {proposal.client.email && (
               <p className="text-sm text-gray-600">{proposal.client.email}</p>
+                )}
+              </>
+            ) : (
+              <p className="text-sm text-gray-500">No client assigned</p>
             )}
           </CardContent>
         </Card>
@@ -737,7 +733,7 @@ export default async function ProposalDetailPage({
                     
                     return (
                       <>
-                        <tr key={item.id} className="border-b">
+                    <tr key={item.id} className="border-b">
                           {proposal.type === "MIXED_MODEL" && (
                             <td className="p-2">
                               <span className="px-2 py-1 rounded text-xs bg-gray-100">
@@ -747,8 +743,8 @@ export default async function ProposalDetailPage({
                           )}
                           {(proposal.type === "HOURLY" || proposal.type === "MIXED_MODEL") && item.person && (
                             <td className="p-2">{item.person.name}</td>
-                          )}
-                          <td className="p-2">{item.description}</td>
+                      )}
+                      <td className="p-2">{item.description}</td>
                           <td className="p-2 text-right">{item.quantity || "-"}</td>
                           <td className="p-2 text-right">
                             {item.rate ? `${currencySymbol}${item.rate.toFixed(2)}/hr` : item.unitPrice ? `${currencySymbol}${item.unitPrice.toFixed(2)}` : "-"}
@@ -757,11 +753,11 @@ export default async function ProposalDetailPage({
                             {item.discountPercent ? `${item.discountPercent}%` : item.discountAmount ? `${currencySymbol}${item.discountAmount.toFixed(2)}` : "-"}
                           </td>
                           <td className="p-2 text-right font-semibold">{currencySymbol}{item.amount.toFixed(2)}</td>
-                        </tr>
+                    </tr>
                         {/* Display milestones for this line item */}
                         {item.milestones && item.milestones.length > 0 && (
                           <tr key={`${item.id}-milestones`} className="bg-gray-50">
-                            <td colSpan={proposal.type === "MIXED_MODEL" ? 6 : (proposal.type === "HOURLY" || (proposal.type === "MIXED_MODEL" && item.person)) ? 5 : 4} className="p-2 pl-8">
+                            <td colSpan={proposal.type === "MIXED_MODEL" ? 6 : (proposal.type === "HOURLY" || item.person) ? 5 : 4} className="p-2 pl-8">
                               <div className="flex flex-wrap gap-2 items-center">
                                 <span className="text-xs font-semibold text-gray-600">Milestones:</span>
                                 {item.milestones.map((milestone) => (
@@ -901,61 +897,6 @@ export default async function ProposalDetailPage({
         </Card>
       )}
 
-      {/* Temporary: Always show approval button for debugging if proposal is submitted */}
-      {proposal.status === ProposalStatus.SUBMITTED && 
-       session?.user.role !== "CLIENT" && 
-       canStillApprove && 
-       (isAdminOrManager || hasGeneralApprovalPermission) && (
-        <Card className="mb-8 border-blue-300 bg-blue-50">
-          <CardHeader>
-            <CardTitle>Approval Available (Debug Mode)</CardTitle>
-            <CardDescription>
-              This button is always visible for ADMIN/MANAGER or users with approval permission when proposal is submitted.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ApprovalButton
-              proposalId={proposal.id}
-              currentUserRole={session?.user.role || "CLIENT"}
-            />
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Debug info - remove after testing */}
-      {proposal.status === ProposalStatus.SUBMITTED && session?.user.role !== "CLIENT" && (
-        <Card className="mb-8 border-yellow-300 bg-yellow-50">
-          <CardHeader>
-            <CardTitle className="text-sm">Debug Info</CardTitle>
-          </CardHeader>
-          <CardContent className="text-xs space-y-1">
-            <p>Status: {proposal.status}</p>
-            <p>User Role: {session?.user.role}</p>
-            <p>Can Approve: {canApprove ? "Yes" : "No"}</p>
-            <p>User Approval: {userApproval ? `Yes (${userApproval.status})` : "No"}</p>
-            <p>Is Creator: {proposal.createdBy === session?.user.id ? "Yes" : "No"}</p>
-            <p>Internal Approval Required: {proposal.internalApprovalRequired ? "Yes" : "No"}</p>
-            <p>Required Approvers: {proposal.requiredApproverIds?.join(", ") || "None"}</p>
-            <p>In Required List: {proposal.requiredApproverIds?.includes(session?.user.id || "") ? "Yes" : "No"}</p>
-            <p>Has General Approval Permission: {currentUser ? (canApproveProposals(currentUser) ? "Yes" : "No") : "Unknown"}</p>
-            <p>Is Admin/Manager: {currentUser ? ((currentUser.role === "ADMIN" || currentUser.role === "MANAGER") ? "Yes" : "No") : "Unknown"}</p>
-            <p>Can Approve Own: {currentUser && proposal.createdBy === session?.user.id ? ((currentUser.role === "ADMIN" || currentUser.role === "MANAGER") ? "Yes (Admin/Manager)" : "No (Not creator)") : "N/A"}</p>
-            {currentUser && (
-              <>
-                <p>Internal Approvals Complete: {proposal.internalApprovalsComplete ? "Yes" : "No"}</p>
-                <p>Can Approve Internal: {
-                  proposal.internalApprovalRequired 
-                    ? (proposal.requiredApproverIds && proposal.requiredApproverIds.length > 0
-                        ? (proposal.requiredApproverIds.includes(session.user.id) || canApproveProposals(currentUser) ? "Yes" : "No")
-                        : (canApproveProposals(currentUser) ? "Yes" : "No"))
-                    : (canApproveProposals(currentUser) ? "Yes" : "No")
-                }</p>
-              </>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
       {/* Client Approval Status */}
       {proposal.internalApprovalsComplete && proposal.clientApprovalStatus === ClientApprovalStatus.PENDING && (
         <Card className="mb-8">
@@ -992,6 +933,11 @@ export default async function ProposalDetailPage({
               {/* Download PDF Button */}
               <DownloadPdfButton proposalId={proposal.id} />
 
+              {/* Send Proposal Email Button */}
+              {proposal.client?.email && (
+                <SendProposalEmailButton proposalId={proposal.id} />
+              )}
+
               {/* Send to Client Button */}
               {!proposal.clientApprovalEmailSent && (
                 <SendToClientButton proposalId={proposal.id} />
@@ -1002,6 +948,13 @@ export default async function ProposalDetailPage({
                proposal.paymentTerms.some(pt => pt.upfrontType && pt.upfrontValue) &&
                proposal.bills.length === 0 && (
                 <GenerateUpfrontInvoiceButton proposalId={proposal.id} />
+              )}
+
+              {/* Generate First Recurring Invoice Button */}
+              {proposal.status === ProposalStatus.APPROVED && 
+               !proposal.lastRecurringInvoiceDate && 
+               (proposal.recurringEnabled || proposal.items.some(item => item.billingMethod === "RECURRING" && item.recurringEnabled)) && (
+                <GenerateFirstRecurringInvoiceButton proposalId={proposal.id} />
               )}
 
               {/* Create Project Button */}
