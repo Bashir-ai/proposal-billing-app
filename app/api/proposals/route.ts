@@ -171,7 +171,15 @@ export async function GET(request: Request) {
             color: true,
           },
         },
-        items: true,
+        items: {
+          select: {
+            id: true,
+            description: true,
+            amount: true,
+            billingMethod: true,
+            recurringEnabled: true,
+          },
+        },
         _count: {
           select: {
             approvals: true,
