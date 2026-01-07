@@ -21,7 +21,22 @@ export default function EditLeadPage() {
   const [areasOfLaw, setAreasOfLaw] = useState<Array<{ id: string; name: string }>>([])
   const [sectorsOfActivity, setSectorsOfActivity] = useState<Array<{ id: string; name: string }>>([])
   const [users, setUsers] = useState<Array<{ id: string; name: string; email: string }>>([])
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    name: string
+    email: string
+    company: string
+    phone: string
+    contactInfo: string
+    addressLine: string
+    city: string
+    state: string
+    zipCode: string
+    country: string
+    status: LeadStatus
+    areaOfLawId: string
+    sectorOfActivityId: string
+    leadManagerId: string
+  }>({
     name: "",
     email: "",
     company: "",
@@ -374,4 +389,6 @@ export default function EditLeadPage() {
     </div>
   )
 }
+
+
 
