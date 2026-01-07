@@ -196,11 +196,20 @@ export async function POST(
       }
     }
 
+    // Ensure clientId exists (Bill requires non-null clientId)
+    const clientId = proposal.clientId
+    if (!clientId) {
+      return NextResponse.json(
+        { error: "Cannot create invoice: proposal has no client assigned" },
+        { status: 400 }
+      )
+    }
+
     // Create upfront payment invoice
     const invoice = await prisma.bill.create({
       data: {
         proposalId: proposal.id,
-        clientId: proposal.clientId,
+        clientId: clientId,
         createdBy: session.user.id,
         subtotal: upfrontAmount,
         amount: finalAmount,
