@@ -2,6 +2,8 @@ import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { NotificationType } from "@prisma/client"
 
+export const dynamic = 'force-dynamic'
+
 /**
  * Cron endpoint to check for installment due dates
  * Should be called daily (e.g., via Vercel Cron or external cron service)

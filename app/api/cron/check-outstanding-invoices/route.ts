@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma"
 import { getOutstandingInvoices, isInvoiceOutstanding } from "@/lib/invoice-helpers"
 import { notifyOutstandingInvoice } from "@/lib/invoice-notifications"
 
+export const dynamic = 'force-dynamic'
+
 /**
  * Cron job endpoint to check for outstanding invoices and send reminders
  * Should be called daily (e.g., via Vercel Cron or external service)

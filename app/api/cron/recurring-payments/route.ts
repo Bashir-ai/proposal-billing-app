@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma"
 import { NotificationType, RecurringPaymentFrequency, BillStatus } from "@prisma/client"
 import { generateInvoiceNumber } from "@/lib/invoice-number"
 
+export const dynamic = 'force-dynamic'
+
 /**
  * Cron endpoint to check for recurring payment anniversaries
  * Should be called daily (e.g., via Vercel Cron or external cron service)
