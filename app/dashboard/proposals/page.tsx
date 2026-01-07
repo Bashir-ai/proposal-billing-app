@@ -20,6 +20,7 @@ interface Proposal {
   amount?: number | null
   proposalNumber?: string | null
   createdAt: Date
+  deletedAt?: Date | null
   client: {
     id: string
     name: string
