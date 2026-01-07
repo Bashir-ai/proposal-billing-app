@@ -14,6 +14,8 @@ import { DeleteButton } from "@/components/shared/DeleteButton"
 import { ProjectManagersSection } from "@/components/projects/ProjectManagersSection"
 import { ProjectTodosSection } from "@/components/projects/ProjectTodosSection"
 
+export const dynamic = 'force-dynamic'
+
 export default async function ProjectDetailPage({
   params,
 }: {

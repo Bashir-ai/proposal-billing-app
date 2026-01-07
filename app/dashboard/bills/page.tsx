@@ -12,6 +12,8 @@ import { InvoiceStatusFilter } from "@/components/invoices/InvoiceStatusFilter"
 import { InvoiceClientFilter } from "@/components/invoices/InvoiceClientFilter"
 import { InvoiceProjectFilter } from "@/components/invoices/InvoiceProjectFilter"
 
+export const dynamic = 'force-dynamic'
+
 export default async function BillsPage({
   searchParams,
 }: {

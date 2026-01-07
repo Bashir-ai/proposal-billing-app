@@ -3,6 +3,8 @@ import { authOptions } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { SectorsOfActivityClient } from "./SectorsOfActivityClient"
 
+export const dynamic = 'force-dynamic'
+
 export default async function SectorsOfActivityPage() {
   const session = await getServerSession(authOptions)
   

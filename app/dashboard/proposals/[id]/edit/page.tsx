@@ -5,6 +5,8 @@ import { ProposalFormWrapper } from "@/components/proposals/ProposalFormWrapper"
 import { redirect, notFound } from "next/navigation"
 import { canEditProposal } from "@/lib/permissions"
 
+export const dynamic = 'force-dynamic'
+
 export default async function EditProposalPage({
   params,
 }: {

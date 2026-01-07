@@ -12,6 +12,8 @@ import { ConvertLeadDialog } from "@/components/leads/ConvertLeadDialog"
 import { InteractionType } from "@prisma/client"
 import { LeadDetailClient } from "./LeadDetailClient"
 
+export const dynamic = 'force-dynamic'
+
 export default async function LeadDetailPage({
   params,
 }: {

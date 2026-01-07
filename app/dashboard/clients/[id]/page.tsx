@@ -11,6 +11,8 @@ import { DeleteButton } from "@/components/shared/DeleteButton"
 import { ArchiveButton } from "@/components/clients/ArchiveButton"
 import { UserRole } from "@prisma/client"
 
+export const dynamic = 'force-dynamic'
+
 export default async function ClientDetailPage({
   params,
 }: {

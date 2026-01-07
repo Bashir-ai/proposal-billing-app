@@ -3,6 +3,8 @@ import { authOptions } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { PaymentDetailsClient } from "./PaymentDetailsClient"
 
+export const dynamic = 'force-dynamic'
+
 export default async function PaymentDetailsPage() {
   const session = await getServerSession(authOptions)
   

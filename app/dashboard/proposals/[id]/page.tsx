@@ -22,6 +22,8 @@ import { DeleteButton } from "@/components/shared/DeleteButton"
 import { getLogoPath } from "@/lib/settings"
 import Image from "next/image"
 
+export const dynamic = 'force-dynamic'
+
 async function submitProposal(formData: FormData) {
   "use server"
   const proposalId = formData.get("proposalId") as string

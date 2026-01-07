@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma"
 import { ProposalFormWrapper } from "@/components/proposals/ProposalFormWrapper"
 import { redirect } from "next/navigation"
 
+export const dynamic = 'force-dynamic'
+
 export default async function NewProposalPage() {
   const session = await getServerSession(authOptions)
   if (!session) {

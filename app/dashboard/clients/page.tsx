@@ -8,6 +8,8 @@ import { Plus, Upload } from "lucide-react"
 import { isClientActive } from "@/lib/client-activity"
 import { ClientSearch } from "@/components/clients/ClientSearch"
 
+export const dynamic = 'force-dynamic'
+
 export default async function ClientsPage({
   searchParams,
 }: {

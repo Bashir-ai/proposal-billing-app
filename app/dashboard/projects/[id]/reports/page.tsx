@@ -9,6 +9,8 @@ import Image from "next/image"
 import Link from "next/link"
 import { SendProjectReportEmailButton } from "@/components/projects/SendProjectReportEmailButton"
 
+export const dynamic = 'force-dynamic'
+
 export default async function ProjectReportsPage({
   params,
 }: {

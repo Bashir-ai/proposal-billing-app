@@ -18,6 +18,8 @@ import { SendPaymentReminderButton } from "@/components/invoices/SendPaymentRemi
 import { getLogoPath } from "@/lib/settings"
 import Image from "next/image"
 
+export const dynamic = 'force-dynamic'
+
 async function markBillAsPaid(formData: FormData) {
   "use server"
   const billId = formData.get("billId") as string

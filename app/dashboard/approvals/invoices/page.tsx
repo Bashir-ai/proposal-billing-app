@@ -8,6 +8,8 @@ import { formatCurrency, formatDate } from "@/lib/utils"
 import { BillStatus } from "@prisma/client"
 import { redirect } from "next/navigation"
 
+export const dynamic = 'force-dynamic'
+
 export default async function ApproveInvoicesPage() {
   const session = await getServerSession(authOptions)
 

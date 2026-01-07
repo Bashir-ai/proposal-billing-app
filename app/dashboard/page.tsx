@@ -12,6 +12,8 @@ import { FinancialSummary } from "@/components/dashboard/FinancialSummary"
 import { calculateTotalUnbilledWork, calculateClosedProposalsNotCharged } from "@/lib/financial-calculations"
 import { QuickTodoButton } from "@/components/dashboard/QuickTodoButton"
 
+export const dynamic = 'force-dynamic'
+
 export default async function DashboardPage() {
   try {
     const session = await getServerSession(authOptions)
