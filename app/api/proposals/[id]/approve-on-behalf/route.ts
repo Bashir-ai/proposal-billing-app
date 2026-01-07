@@ -88,26 +88,31 @@ export async function POST(
 
     // Auto-create project if approved and no project exists
     if (validatedData.action === "approve" && updatedProposal.projects.length === 0) {
-      try {
-        await prisma.project.create({
-          data: {
-            name: updatedProposal.title,
-            clientId: updatedProposal.clientId,
-            proposalId: updatedProposal.id,
-            description: updatedProposal.description || null,
-            status: ProjectStatus.ACTIVE,
-            currency: updatedProposal.currency || "EUR",
-            startDate: new Date(),
-          },
-        })
-      } catch (projectError) {
-        console.error("Failed to auto-create project:", projectError)
-        // Don't fail the approval if project creation fails
+      // Ensure clientId exists before creating project (Project requires non-null clientId)
+      const clientId = updatedProposal.clientId
+      if (clientId) {
+        try {
+          await prisma.project.create({
+            data: {
+              name: updatedProposal.title,
+              clientId: clientId, // TypeScript now knows this is string, not null
+              proposalId: updatedProposal.id,
+              description: updatedProposal.description || null,
+              status: ProjectStatus.ACTIVE,
+              currency: updatedProposal.currency || "EUR",
+              startDate: new Date(),
+            },
+          })
+        } catch (projectError) {
+          console.error("Failed to auto-create project:", projectError)
+          // Don't fail the approval if project creation fails
+        }
       }
+      // If clientId is null, skip project creation (proposal might be linked to a lead instead)
     }
 
     // Send notification email to client
-    if (proposal.client.email) {
+    if (proposal.client && proposal.client.email) {
       try {
         await sendApprovalConfirmation(
           proposal.client.email,
