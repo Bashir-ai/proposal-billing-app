@@ -51,10 +51,9 @@ export async function POST(
     let url: string | undefined
     if (notification.proposalId) {
       url = `/dashboard/proposals/${notification.proposalId}`
-    } else if (notification.billId) {
-      url = `/dashboard/bills/${notification.billId}`
-    } else if (notification.projectId) {
-      url = `/dashboard/projects/${notification.projectId}`
+    } else if (notification.proposalItemId) {
+      // Navigate to proposal item's parent proposal if available
+      url = `/dashboard`
     } else {
       url = `/dashboard`
     }
