@@ -36,10 +36,34 @@ export async function GET(
         deletedAt: null, // Exclude deleted items
       },
       include: {
-        client: true,
+        client: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            company: true,
+            portugueseTaxNumber: true,
+            foreignTaxNumber: true,
+            billingAddressLine: true,
+            billingCity: true,
+            billingState: true,
+            billingZipCode: true,
+            billingCountry: true,
+          },
+        },
         proposal: {
-          include: {
-            items: true,
+          select: {
+            id: true,
+            title: true,
+            proposalNumber: true,
+            items: {
+              select: {
+                id: true,
+                description: true,
+                amount: true,
+                billingMethod: true,
+              },
+            },
           },
         },
         project: {
