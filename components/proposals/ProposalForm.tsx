@@ -197,6 +197,7 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
 
   const handleCreateLead = async (e: React.FormEvent) => {
     e.preventDefault()
+    e.stopPropagation() // Prevent bubbling to parent form
     if (!newLeadData.name.trim()) return
 
     setCreatingLead(true)
@@ -213,8 +214,8 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
       })
 
       if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || "Failed to create lead")
+        const data = await response.json().catch(() => ({ error: "Failed to create lead" }))
+        throw new Error(data.error || `Failed to create lead: ${response.status} ${response.statusText}`)
       }
 
       const newLead = await response.json()
@@ -229,7 +230,8 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
       // Select the newly created lead
       setFormData(prev => ({ ...prev, leadId: newLead.id, clientId: "" }))
     } catch (err: any) {
-      alert(err.message || "Failed to create lead")
+      console.error("Error creating lead:", err)
+      alert(err.message || "Failed to create lead. Please check the console for details.")
     } finally {
       setCreatingLead(false)
     }
@@ -237,6 +239,7 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
 
   const handleCreateClient = async (e: React.FormEvent) => {
     e.preventDefault()
+    e.stopPropagation() // Prevent bubbling to parent form
     if (!newClientData.name.trim()) return
 
     setCreatingClient(true)
@@ -253,8 +256,8 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
       })
 
       if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || "Failed to create client")
+        const data = await response.json().catch(() => ({ error: "Failed to create client" }))
+        throw new Error(data.error || `Failed to create client: ${response.status} ${response.statusText}`)
       }
 
       const newClient = await response.json()
@@ -269,7 +272,8 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
       // Select the newly created client
       setFormData(prev => ({ ...prev, clientId: newClient.id, leadId: "" }))
     } catch (err: any) {
-      alert(err.message || "Failed to create client")
+      console.error("Error creating client:", err)
+      alert(err.message || "Failed to create client. Please check the console for details.")
     } finally {
       setCreatingClient(false)
     }
@@ -489,6 +493,7 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
   const selectedCurrency = CURRENCIES.find(c => c.code === formData.currency) || CURRENCIES[0]
 
   return (
+    <>
     <form onSubmit={handleSubmit} className="space-y-6">
       {errors.submit && (
         <div className="p-4 bg-red-50 border border-red-200 rounded text-red-700">
@@ -1704,6 +1709,7 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
           {loading ? "Saving..." : initialData ? "Update Proposal" : "Create Proposal"}
         </Button>
       </div>
+    </form>
 
       {/* Create Lead Dialog */}
       {showCreateLeadDialog && (
@@ -1864,6 +1870,6 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
           </Card>
         </div>
       )}
-    </form>
+  </>
   )
 }
