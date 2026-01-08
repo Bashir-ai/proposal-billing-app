@@ -857,10 +857,12 @@ model SectorOfActivity {
 }
 
 model Settings {
-  id        String   @id @default("app-settings") // Single record
-  logoPath  String?  // Path to the logo file (e.g., "/uploads/logos/logo.png")
-  updatedAt DateTime @updatedAt
-  updatedBy String?   // User ID who last updated (no relation needed)
+  id           String   @id @default("app-settings") // Single record
+  logoPath     String?  // Legacy: Path to the logo file
+  logoData     String?  // Base64 encoded logo image data (for Vercel compatibility)
+  logoMimeType String?  // MIME type of the logo (e.g., "image/png")
+  updatedAt    DateTime @updatedAt
+  updatedBy    String?  // User ID who last updated (no relation needed)
 }
 
 model PaymentDetails {

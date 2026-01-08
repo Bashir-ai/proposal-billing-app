@@ -4,20 +4,9 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { UserRole } from "@prisma/client"
-import { writeFile, unlink } from "fs/promises"
-import { join } from "path"
-import { existsSync } from "fs"
 
 const ALLOWED_MIME_TYPES = ["image/png", "image/jpeg", "image/jpg", "image/svg+xml"]
-const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
-const UPLOAD_DIR = join(process.cwd(), "public", "uploads", "logos")
-
-// WARNING: File system writes will NOT work on Vercel (read-only filesystem)
-// For production deployment on Vercel, you need to use cloud storage:
-// - Vercel Blob Storage: https://vercel.com/docs/storage/vercel-blob
-// - AWS S3
-// - Cloudinary
-// - Or any other cloud storage solution
+const MAX_FILE_SIZE = 2 * 1024 * 1024 // 2MB (smaller for base64 storage)
 
 export async function GET() {
   try {
@@ -30,7 +19,15 @@ export async function GET() {
       where: { id: "app-settings" },
     })
 
-    return NextResponse.json({ logoPath: settings?.logoPath || null })
+    // Return data URL if logo exists in database
+    if (settings?.logoData && settings?.logoMimeType) {
+      return NextResponse.json({ 
+        logoPath: `/api/settings/logo/image`,
+        hasLogo: true 
+      })
+    }
+
+    return NextResponse.json({ logoPath: null, hasLogo: false })
   } catch (error) {
     console.error("Error fetching logo:", error)
     return NextResponse.json(
@@ -75,52 +72,30 @@ export async function POST(request: Request) {
     // Validate file size
     if (file.size > MAX_FILE_SIZE) {
       return NextResponse.json(
-        { error: "File size exceeds 5MB limit" },
+        { error: "File size exceeds 2MB limit" },
         { status: 400 }
       )
     }
 
-    // Get file extension
-    const extension = file.name.split(".").pop()?.toLowerCase() || "png"
-    const fileName = `logo.${extension}`
-    const filePath = join(UPLOAD_DIR, fileName)
-
-    // Read file buffer
+    // Convert file to base64
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
+    const base64Data = buffer.toString("base64")
 
-    // Get existing settings to check for old logo
-    const existingSettings = await prisma.settings.findUnique({
-      where: { id: "app-settings" },
-    })
-
-    // Delete old logo if it exists and is different
-    if (existingSettings?.logoPath) {
-      const oldFilePath = join(process.cwd(), "public", existingSettings.logoPath)
-      if (existsSync(oldFilePath) && oldFilePath !== filePath) {
-        try {
-          await unlink(oldFilePath)
-        } catch (error) {
-          console.error("Error deleting old logo:", error)
-          // Continue even if deletion fails
-        }
-      }
-    }
-
-    // Write new file
-    await writeFile(filePath, buffer)
-
-    // Update or create settings record
-    const logoPath = `/uploads/logos/${fileName}`
+    // Store in database
     const settings = await prisma.settings.upsert({
       where: { id: "app-settings" },
       update: {
-        logoPath,
+        logoData: base64Data,
+        logoMimeType: file.type,
+        logoPath: `/api/settings/logo/image`, // Virtual path for serving
         updatedBy: session.user.id,
       },
       create: {
         id: "app-settings",
-        logoPath,
+        logoData: base64Data,
+        logoMimeType: file.type,
+        logoPath: `/api/settings/logo/image`,
         updatedBy: session.user.id,
       },
     })
@@ -152,28 +127,15 @@ export async function DELETE() {
       )
     }
 
-    const settings = await prisma.settings.findUnique({
+    await prisma.settings.update({
       where: { id: "app-settings" },
+      data: {
+        logoData: null,
+        logoMimeType: null,
+        logoPath: null,
+        updatedBy: session.user.id,
+      },
     })
-
-    if (settings?.logoPath) {
-      const filePath = join(process.cwd(), "public", settings.logoPath)
-      if (existsSync(filePath)) {
-        try {
-          await unlink(filePath)
-        } catch (error) {
-          console.error("Error deleting logo file:", error)
-        }
-      }
-
-      await prisma.settings.update({
-        where: { id: "app-settings" },
-        data: {
-          logoPath: null,
-          updatedBy: session.user.id,
-        },
-      })
-    }
 
     return NextResponse.json({ success: true, message: "Logo deleted" })
   } catch (error) {
@@ -184,4 +146,3 @@ export async function DELETE() {
     )
   }
 }
-
