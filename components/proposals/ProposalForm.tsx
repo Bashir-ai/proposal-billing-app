@@ -20,6 +20,7 @@ interface ProposalFormProps {
   users?: Array<{ id: string; name: string; email: string; defaultHourlyRate?: number | null }>
   loading?: boolean
   onLeadCreated?: (lead: { id: string; name: string; company?: string | null }) => void
+  onClientCreated?: (client: { id: string; name: string; company?: string | null }) => void
 }
 
 interface ClientWithDiscounts {
@@ -66,7 +67,7 @@ const CURRENCIES = [
   { code: "AUD", symbol: "A$", name: "Australian Dollar" },
 ]
 
-export function ProposalForm({ onSubmit, initialData, clients, leads = [], users = [], loading, onLeadCreated }: ProposalFormProps) {
+export function ProposalForm({ onSubmit, initialData, clients, leads = [], users = [], loading, onLeadCreated, onClientCreated }: ProposalFormProps) {
   const today = new Date().toISOString().split("T")[0]
   const selectedClient = clients.find(c => c.id === (initialData?.clientId || "")) as ClientWithDiscounts | undefined
   
@@ -158,6 +159,14 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
     company: "",
     phone: "",
   })
+  const [showCreateClientDialog, setShowCreateClientDialog] = useState(false)
+  const [creatingClient, setCreatingClient] = useState(false)
+  const [newClientData, setNewClientData] = useState({
+    name: "",
+    email: "",
+    company: "",
+    contactInfo: "",
+  })
 
   // Fetch available tags
   useEffect(() => {
@@ -223,6 +232,46 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
       alert(err.message || "Failed to create lead")
     } finally {
       setCreatingLead(false)
+    }
+  }
+
+  const handleCreateClient = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newClientData.name.trim()) return
+
+    setCreatingClient(true)
+    try {
+      const response = await fetch("/api/clients", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newClientData.name.trim(),
+          email: newClientData.email.trim() || null,
+          company: newClientData.company.trim() || null,
+          contactInfo: newClientData.contactInfo.trim() || null,
+        }),
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || "Failed to create client")
+      }
+
+      const newClient = await response.json()
+      setShowCreateClientDialog(false)
+      setNewClientData({ name: "", email: "", company: "", contactInfo: "" })
+      
+      // Notify parent to refresh clients list
+      if (onClientCreated) {
+        onClientCreated(newClient)
+      }
+      
+      // Select the newly created client
+      setFormData(prev => ({ ...prev, clientId: newClient.id, leadId: "" }))
+    } catch (err: any) {
+      alert(err.message || "Failed to create client")
+    } finally {
+      setCreatingClient(false)
     }
   }
 
@@ -456,7 +505,19 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="clientId">Client</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="clientId">Client</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowCreateClientDialog(true)}
+                  className="text-xs"
+                >
+                  <Plus className="h-3 w-3 mr-1" />
+                  Create Client
+                </Button>
+              </div>
               <Select
                 id="clientId"
                 value={formData.clientId}
@@ -1716,6 +1777,86 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                   </Button>
                   <Button type="submit" disabled={creatingLead}>
                     {creatingLead ? "Creating..." : "Create Lead"}
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Create Client Dialog */}
+      {showCreateClientDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <Card className="w-full max-w-md m-4">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>Create New Client</CardTitle>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setShowCreateClientDialog(false)
+                    setNewClientData({ name: "", email: "", company: "", contactInfo: "" })
+                  }}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleCreateClient} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="newClientName">Name *</Label>
+                  <Input
+                    id="newClientName"
+                    value={newClientData.name}
+                    onChange={(e) => setNewClientData({ ...newClientData, name: e.target.value })}
+                    required
+                    autoFocus
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="newClientEmail">Email</Label>
+                  <Input
+                    id="newClientEmail"
+                    type="email"
+                    value={newClientData.email}
+                    onChange={(e) => setNewClientData({ ...newClientData, email: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="newClientCompany">Company</Label>
+                  <Input
+                    id="newClientCompany"
+                    value={newClientData.company}
+                    onChange={(e) => setNewClientData({ ...newClientData, company: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="newClientContactInfo">Contact Info</Label>
+                  <Input
+                    id="newClientContactInfo"
+                    value={newClientData.contactInfo}
+                    onChange={(e) => setNewClientData({ ...newClientData, contactInfo: e.target.value })}
+                    placeholder="Phone, address, etc."
+                  />
+                </div>
+                <div className="flex justify-end space-x-2 pt-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setShowCreateClientDialog(false)
+                      setNewClientData({ name: "", email: "", company: "", contactInfo: "" })
+                    }}
+                    disabled={creatingClient}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={creatingClient}>
+                    {creatingClient ? "Creating..." : "Create Client"}
                   </Button>
                 </div>
               </form>

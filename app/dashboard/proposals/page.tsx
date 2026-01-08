@@ -198,12 +198,26 @@ export default function ProposalsPage() {
           <h1 className="text-3xl font-bold">Proposals</h1>
           <p className="text-gray-600 mt-2">Manage your proposals</p>
         </div>
-        <Link href="/dashboard/proposals/new">
-          <Button>
-            <Plus className="h-4 w-4 mr-2" />
-            New Proposal
-          </Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link href="/dashboard/leads/new">
+            <Button variant="outline">
+              <Plus className="h-4 w-4 mr-2" />
+              New Lead
+            </Button>
+          </Link>
+          <Link href="/dashboard/clients/new">
+            <Button variant="outline">
+              <Plus className="h-4 w-4 mr-2" />
+              New Client
+            </Button>
+          </Link>
+          <Link href="/dashboard/proposals/new">
+            <Button>
+              <Plus className="h-4 w-4 mr-2" />
+              New Proposal
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Filters */}

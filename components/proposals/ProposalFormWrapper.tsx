@@ -12,11 +12,12 @@ interface ProposalFormWrapperProps {
   proposalId?: string
 }
 
-export function ProposalFormWrapper({ clients, leads: initialLeads = [], users = [], initialData, proposalId }: ProposalFormWrapperProps) {
+export function ProposalFormWrapper({ clients: initialClients, leads: initialLeads = [], users = [], initialData, proposalId }: ProposalFormWrapperProps) {
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [leads, setLeads] = useState<Array<{ id: string; name: string; company?: string | null }>>(initialLeads)
+  const [clients, setClients] = useState<Array<{ id: string; name: string; company?: string | null; defaultDiscountPercent?: number | null; defaultDiscountAmount?: number | null }>>(initialClients)
 
   // Refresh leads list (exclude converted, deleted, and archived leads)
   const refreshLeads = async () => {
@@ -42,11 +43,35 @@ export function ProposalFormWrapper({ clients, leads: initialLeads = [], users =
     refreshLeads()
   }, [])
 
+  // Refresh clients list
+  const refreshClients = async () => {
+    try {
+      const response = await fetch("/api/clients")
+      if (response.ok) {
+        const data = await response.json()
+        // Filter out deleted and archived clients
+        const filteredClients = data.filter((client: any) => 
+          !client.deletedAt && !client.archivedAt
+        )
+        setClients(filteredClients)
+      }
+    } catch (err) {
+      console.error("Error refreshing clients:", err)
+    }
+  }
+
   const handleLeadCreated = (newLead: { id: string; name: string; company?: string | null }) => {
     // Add the new lead to the list
     setLeads(prev => [...prev, newLead])
     // Also refresh from server to ensure we have the latest data
     refreshLeads()
+  }
+
+  const handleClientCreated = (newClient: { id: string; name: string; company?: string | null }) => {
+    // Add the new client to the list
+    setClients(prev => [...prev, newClient])
+    // Also refresh from server to ensure we have the latest data
+    refreshClients()
   }
 
   const handleSubmit = async (data: any) => {
@@ -145,6 +170,7 @@ export function ProposalFormWrapper({ clients, leads: initialLeads = [], users =
         initialData={initialData} 
         loading={loading}
         onLeadCreated={handleLeadCreated}
+        onClientCreated={handleClientCreated}
       />
     </div>
   )
