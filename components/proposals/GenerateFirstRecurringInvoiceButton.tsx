@@ -62,3 +62,4 @@ export function GenerateFirstRecurringInvoiceButton({ proposalId }: GenerateFirs
 }
 
 
+

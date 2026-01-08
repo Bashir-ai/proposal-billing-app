@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatCurrency } from "@/lib/utils"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { FileText, Receipt, Users, TrendingUp, FolderKanban } from "lucide-react"
+import { FileText, Receipt, Users, FolderKanban, Plus, ArrowRight, TrendingUp, Clock, CheckCircle2 } from "lucide-react"
 import { NotificationsBox } from "@/components/dashboard/NotificationsBox"
 import { getNotifications, Notification } from "@/lib/notifications"
 import { FinancialSummary } from "@/components/dashboard/FinancialSummary"
@@ -81,7 +81,6 @@ export default async function DashboardPage() {
     ])
 
     // Calculate additional financial metrics (with timeout protection)
-    // These can be slow, so we'll catch errors and show 0 if they fail
     let unbilledWork = { timesheetHours: 0, totalAmount: 0, timesheetAmount: 0, chargesAmount: 0 }
     let closedProposalsNotCharged = 0
     
@@ -92,7 +91,7 @@ export default async function DashboardPage() {
       ])
       
       const timeoutPromise = new Promise<[typeof unbilledWork, number]>((_, reject) => 
-        setTimeout(() => reject(new Error('Calculation timeout')), 10000) // 10 second timeout
+        setTimeout(() => reject(new Error('Calculation timeout')), 10000)
       )
       
       const result = await Promise.race([
@@ -104,7 +103,6 @@ export default async function DashboardPage() {
       closedProposalsNotCharged = result[1]
     } catch (error) {
       console.warn("Financial calculations timed out or failed:", error)
-      // Use default values (already set above)
     }
 
   const stats = [
@@ -114,63 +112,84 @@ export default async function DashboardPage() {
       icon: FileText,
       href: "/dashboard/proposals",
       color: "text-blue-600",
-      // Clicking will show all proposals, user can filter for accepted/rejected
+      bgColor: "bg-blue-50",
+      description: "Total proposals"
     },
     {
       name: "Projects",
       value: projectsCount,
       icon: FolderKanban,
       href: "/projects",
-      color: "text-indigo-600",
-      // Clicking will show all projects, user can filter for ongoing/closed
+      color: "text-violet-600",
+      bgColor: "bg-violet-50",
+      description: "Active projects"
     },
     {
       name: "Invoices",
       value: billsCount,
       icon: Receipt,
       href: "/dashboard/bills",
-      color: "text-green-600",
-      // Clicking will show all invoices, user can filter for paid/unpaid
+      color: "text-emerald-600",
+      bgColor: "bg-emerald-50",
+      description: "Total invoices"
     },
     {
       name: "Clients",
       value: clientsCount,
       icon: Users,
       href: "/dashboard/clients",
-      color: "text-purple-600",
-      // Clicking will show all clients, user can filter for active/non-active
+      color: "text-amber-600",
+      bgColor: "bg-amber-50",
+      description: "Registered clients"
     },
   ]
 
+  const quickActions = [
+    { name: "New Proposal", href: "/dashboard/proposals/new", icon: FileText },
+    { name: "New Invoice", href: "/dashboard/bills/new", icon: Receipt },
+    { name: "New Client", href: "/dashboard/clients/new", icon: Users },
+  ]
+
   return (
-    <div>
-      <div className="mb-8 flex items-center justify-between">
+    <div className="space-y-8">
+      {/* Header */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Dashboard</h1>
-          <p className="text-gray-600 mt-2">Welcome back, {session?.user.name}</p>
+          <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
+          <p className="text-muted-foreground mt-1">
+            Welcome back, {session?.user.name}
+          </p>
         </div>
-        {session && (
-          <NotificationsBox
-            initialCount={notificationsData.count}
-            initialNotifications={notificationsData.notifications}
-          />
-        )}
+        <div className="flex items-center gap-3">
+          {session && (
+            <NotificationsBox
+              initialCount={notificationsData.count}
+              initialNotifications={notificationsData.notifications}
+            />
+          )}
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map((stat) => {
           const Icon = stat.icon
           return (
             <Link key={stat.name} href={stat.href}>
-              <Card className="hover:shadow-lg transition-shadow">
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium text-gray-600">
-                    {stat.name}
-                  </CardTitle>
-                  <Icon className={`h-4 w-4 ${stat.color}`} />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{stat.value}</div>
+              <Card className="group hover:shadow-md transition-all duration-200 hover:border-border/80">
+                <CardContent className="p-5">
+                  <div className="flex items-start justify-between">
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium text-muted-foreground">
+                        {stat.name}
+                      </p>
+                      <p className="text-3xl font-semibold tracking-tight">{stat.value}</p>
+                      <p className="text-xs text-muted-foreground">{stat.description}</p>
+                    </div>
+                    <div className={`p-2.5 rounded-lg ${stat.bgColor} transition-transform duration-200 group-hover:scale-110`}>
+                      <Icon className={`h-5 w-5 ${stat.color}`} />
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
             </Link>
@@ -178,54 +197,60 @@ export default async function DashboardPage() {
         })}
       </div>
 
-      <div className="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
+      {/* Main Content Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Quick Actions */}
+        <Card className="lg:col-span-2">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-medium">Quick Actions</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             {session?.user.role !== "CLIENT" && (
-              <Link href="/dashboard/proposals/new">
-                <Button className="w-full" variant="outline">
-                  Create New Proposal
-                </Button>
-              </Link>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {quickActions.map((action) => {
+                  const Icon = action.icon
+                  return (
+                    <Link key={action.name} href={action.href}>
+                      <Button
+                        variant="outline"
+                        className="w-full h-auto py-4 flex flex-col items-center gap-2 hover:bg-accent hover:border-accent transition-colors"
+                      >
+                        <Icon className="h-5 w-5 text-muted-foreground" />
+                        <span className="text-sm font-medium">{action.name}</span>
+                      </Button>
+                    </Link>
+                  )
+                })}
+              </div>
             )}
+            
             {session?.user.role !== "CLIENT" && (
-              <Link href="/dashboard/bills/new">
-                <Button className="w-full" variant="outline">
-                  Create New Invoice
-                </Button>
-              </Link>
-            )}
-            {session?.user.role !== "CLIENT" && (
-              <Link href="/dashboard/clients/new">
-                <Button className="w-full" variant="outline">
-                  Add New Client
-                </Button>
-              </Link>
-            )}
-            {session?.user.role !== "CLIENT" && (
-              <Link href="/dashboard/approvals/proposals">
-                <Button className="w-full" variant="outline">
-                  Approve Proposals
-                </Button>
-              </Link>
-            )}
-            {session?.user.role !== "CLIENT" && (
-              <Link href="/dashboard/approvals/invoices">
-                <Button className="w-full" variant="outline">
-                  Approve Invoices
-                </Button>
-              </Link>
-            )}
-            {session?.user.role !== "CLIENT" && (
-              <QuickTodoButton />
+              <div className="pt-3 space-y-2">
+                <Link href="/dashboard/approvals/proposals">
+                  <Button variant="ghost" className="w-full justify-between group">
+                    <span className="flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+                      Approve Proposals
+                    </span>
+                    <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all" />
+                  </Button>
+                </Link>
+                <Link href="/dashboard/approvals/invoices">
+                  <Button variant="ghost" className="w-full justify-between group">
+                    <span className="flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+                      Approve Invoices
+                    </span>
+                    <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all" />
+                  </Button>
+                </Link>
+                <QuickTodoButton />
+              </div>
             )}
           </CardContent>
         </Card>
-        </div>
+
+        {/* Financial Summary */}
         <div className="lg:col-span-1">
           <FinancialSummary
             totalRevenue={totalRevenue._sum.amount || 0}
@@ -241,17 +266,16 @@ export default async function DashboardPage() {
     </div>
     )
   } catch (error) {
-    // If there's an error (e.g., database connection), show a fallback UI
     console.error("Error loading dashboard:", error)
     return (
-      <div>
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold">Dashboard</h1>
-          <p className="text-gray-600 mt-2">Unable to load dashboard data. Please try again later.</p>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
+          <p className="text-muted-foreground mt-1">Unable to load dashboard data. Please try again later.</p>
         </div>
         <Card>
           <CardContent className="p-6">
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-muted-foreground">
               There was an error connecting to the database. Please check your connection and try again.
             </p>
           </CardContent>

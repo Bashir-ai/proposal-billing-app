@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { DashboardNav } from "@/components/shared/DashboardNav"
+import { DashboardShell } from "@/components/shared/DashboardShell"
 
 export const dynamic = 'force-dynamic'
 
@@ -18,15 +18,14 @@ export default async function DashboardLayout({
     }
 
     return (
-      <div className="min-h-screen bg-gray-50">
+      <DashboardShell user={session.user}>
         <a href="#main-content" className="skip-link">
           Skip to main content
         </a>
-        <DashboardNav user={session.user} />
-        <main id="main-content" className="container mx-auto py-8 px-4" role="main" aria-label="Main content">
+        <div id="main-content" role="main" aria-label="Main content">
           {children}
-        </main>
-      </div>
+        </div>
+      </DashboardShell>
     )
   } catch (error) {
     // If there's an error (e.g., database connection, missing env vars),
