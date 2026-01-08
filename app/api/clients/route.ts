@@ -21,7 +21,7 @@ const clientFinderSchema = z.object({
 
 const clientSchema = z.object({
   name: z.string().min(1),
-  email: z.string().email().optional().or(z.literal("")),
+  email: z.union([z.string().email(), z.literal("")]).optional(),
   company: z.string().optional(),
   contactInfo: z.string().optional(),
   portugueseTaxNumber: z.string().optional(),
