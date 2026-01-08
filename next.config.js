@@ -4,7 +4,7 @@ const nextConfig = {
   // Optimize compilation
   experimental: {
     // Reduce compilation time
-    optimizePackageImports: ['lucide-react', '@prisma/client'],
+    optimizePackageImports: ['lucide-react'],
   },
   // Reduce webpack compilation time
   webpack: (config, { isServer }) => {
