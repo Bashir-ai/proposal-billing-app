@@ -244,15 +244,28 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
 
     setCreatingClient(true)
     try {
+      // Build request body matching API schema
+      // Schema expects: email can be valid email string, undefined, or empty string ""
+      const requestBody: any = {
+        name: newClientData.name.trim(),
+      }
+      
+      // Email: send empty string if empty (schema allows "" or valid email)
+      const emailValue = newClientData.email.trim()
+      requestBody.email = emailValue || ""
+      
+      // Optional fields: only include if they have values
+      if (newClientData.company.trim()) {
+        requestBody.company = newClientData.company.trim()
+      }
+      if (newClientData.contactInfo.trim()) {
+        requestBody.contactInfo = newClientData.contactInfo.trim()
+      }
+
       const response = await fetch("/api/clients", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: newClientData.name.trim(),
-          email: newClientData.email.trim() || null,
-          company: newClientData.company.trim() || null,
-          contactInfo: newClientData.contactInfo.trim() || null,
-        }),
+        body: JSON.stringify(requestBody),
       })
 
       if (!response.ok) {
