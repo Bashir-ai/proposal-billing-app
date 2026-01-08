@@ -15,7 +15,7 @@ export async function GET() {
       status: "connected",
       databaseUrl: process.env.DATABASE_URL?.slice(0, 50) + "...",
       userCount,
-      users: users.map(u => u.email),
+      users: users.map(u => ({ email: u.email, role: u.role })),
       nextAuthSecret: process.env.NEXTAUTH_SECRET ? "SET" : "NOT SET"
     })
   } catch (error: any) {
