@@ -15,9 +15,10 @@ export default async function ProposalReviewPublicPage({
   const { token: rawToken } = await searchParams
   
   // If token is provided as query parameter, redirect to path-based route
+  // Hex tokens are URL-safe, so no encoding needed
   if (rawToken) {
-    const encodedToken = encodeURIComponent(rawToken.trim())
-    redirect(`/proposals/${id}/review/${encodedToken}`)
+    const trimmedToken = rawToken.trim()
+    redirect(`/proposals/${id}/review/${trimmedToken}`)
   }
 
   // No token provided - show error

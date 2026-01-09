@@ -314,20 +314,21 @@ export async function POST(
         return 'http://localhost:3000'
       }
       const baseUrl = getBaseUrl()
-      // Trim token and URL encode it to ensure it's properly formatted in the URL
+      // Trim token - hex strings are URL-safe, so no encoding needed for path parameters
       // Put token in the path instead of query parameter to avoid Resend click tracking stripping it
       const trimmedToken = approvalToken.trim()
-      const encodedToken = encodeURIComponent(trimmedToken)
-      const reviewUrl = `${baseUrl}/proposals/${proposal.id}/review/${encodedToken}`
+      // Hex strings (0-9, a-f) are URL-safe, so we can use them directly in the path
+      // Next.js will handle the path parameter correctly
+      const reviewUrl = `${baseUrl}/proposals/${proposal.id}/review/${trimmedToken}`
       
       console.log("Generated review URL:", {
         baseUrl,
         proposalId: proposal.id,
         originalToken: approvalToken,
         trimmedToken: trimmedToken,
-        encodedToken: encodeURIComponent(trimmedToken),
         reviewUrl,
         tokenLength: trimmedToken.length,
+        tokenType: typeof trimmedToken,
       })
 
       const variables = {

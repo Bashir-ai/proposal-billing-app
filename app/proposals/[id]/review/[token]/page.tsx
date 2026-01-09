@@ -23,8 +23,9 @@ export default async function ProposalReviewPublicPage({
   params: Promise<{ id: string; token: string }>
 }) {
   const { id, token: rawToken } = await params
-  // Decode the token in case it was URL encoded, and trim any whitespace
-  const token = rawToken ? decodeURIComponent(rawToken).trim() : null
+  // Next.js path parameters are already decoded, just trim whitespace
+  // Hex tokens don't need decoding since they're URL-safe
+  const token = rawToken ? rawToken.trim() : null
 
   if (!token) {
     return (
@@ -121,12 +122,17 @@ export default async function ProposalReviewPublicPage({
     const receivedToken = token?.trim() || ""
     
     console.log("Token validation:", {
-      proposalToken: storedToken,
+      proposalId: id,
+      storedToken: storedToken,
       receivedToken: receivedToken,
       tokensMatch: storedToken === receivedToken,
       tokenLength: receivedToken.length,
       proposalTokenLength: storedToken.length,
       rawTokenFromUrl: rawToken,
+      storedTokenType: typeof storedToken,
+      receivedTokenType: typeof receivedToken,
+      storedTokenFirstChars: storedToken.substring(0, 10),
+      receivedTokenFirstChars: receivedToken.substring(0, 10),
     })
     
     if (!storedToken || storedToken !== receivedToken) {
