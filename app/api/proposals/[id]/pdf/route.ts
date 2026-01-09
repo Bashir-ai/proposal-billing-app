@@ -231,10 +231,14 @@ export async function GET(
 
     // Generate PDF using puppeteer
     try {
-      const puppeteer = await import("puppeteer")
-      
       // Configure Puppeteer for Vercel/serverless
       const isVercel = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME
+      
+      // Use puppeteer-core in serverless, puppeteer locally
+      const puppeteer = isVercel 
+        ? await import("puppeteer-core")
+        : await import("puppeteer")
+      
       const launchOptions: any = {
         headless: true,
         args: [
@@ -254,9 +258,13 @@ export async function GET(
         try {
           const chromium = require("@sparticuz/chromium")
           launchOptions.executablePath = await chromium.executablePath()
-          launchOptions.args = [...(launchOptions.args || []), ...chromium.args]
+          launchOptions.args = chromium.args
+          launchOptions.defaultViewport = chromium.defaultViewport
+          launchOptions.headless = chromium.headless
         } catch (chromiumError) {
-          console.warn("Could not load @sparticuz/chromium, using default:", chromiumError)
+          console.error("Could not load @sparticuz/chromium:", chromiumError)
+          // In serverless, if chromium fails, we can't generate PDF
+          throw new Error("PDF generation not available in serverless environment without chromium")
         }
       }
 
