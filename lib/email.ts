@@ -293,7 +293,7 @@ export async function sendProposalEmail(
     amount: number | null
     currency: string
   },
-  pdfBuffer: Buffer
+  pdfBuffer?: Buffer
 ) {
   const proposalUrl = `${BASE_URL}/dashboard/proposals/${proposal.id}`
   const currencySymbol = getCurrencySymbol(proposal.currency)
@@ -327,7 +327,7 @@ export async function sendProposalEmail(
         </div>
 
         <p style="color: #6b7280; font-size: 14px; margin-top: 30px;">
-          The proposal PDF is attached to this email. If you have any questions, please contact us.
+          ${pdfBuffer ? "The proposal PDF is attached to this email." : "You can download the PDF from the review page if needed."} If you have any questions, please contact us.
         </p>
       </body>
     </html>
@@ -341,10 +341,10 @@ export async function sendProposalEmail(
     to: clientEmail,
     subject: `Proposal: ${proposal.title}`,
     html,
-    attachments: [{
+    attachments: pdfBuffer ? [{
       filename,
       content: pdfBuffer,
-    }],
+    }] : undefined,
   })
 }
 

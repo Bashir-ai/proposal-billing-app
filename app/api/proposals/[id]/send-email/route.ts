@@ -5,7 +5,6 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { sendProposalEmail } from "@/lib/email"
 import { generatePdfFromHTML, getLogoBase64 } from "@/lib/pdf-generator"
-import puppeteer from "puppeteer"
 
 // Reuse the HTML generation from the PDF route
 function generateProposalHTML(proposal: any, logoBase64: string | null): string {
@@ -307,10 +306,19 @@ export async function POST(
       )
     }
 
-    // Generate PDF
-    const logoBase64 = await getLogoBase64()
-    const html = generateProposalHTML(proposal, logoBase64)
-    const pdfBuffer = await generatePdfFromHTML(html)
+    // Generate PDF (optional - email can be sent without PDF)
+    let pdfBuffer: Buffer | undefined = undefined
+    let pdfGenerationFailed = false
+    
+    try {
+      const logoBase64 = await getLogoBase64()
+      const html = generateProposalHTML(proposal, logoBase64)
+      pdfBuffer = await generatePdfFromHTML(html)
+    } catch (pdfError: any) {
+      console.error("Failed to generate PDF for attachment:", pdfError)
+      pdfGenerationFailed = true
+      // Continue without PDF - email can still be sent
+    }
 
     // Send email (TypeScript now knows proposal.client is not null)
     const result = await sendProposalEmail(
@@ -324,12 +332,15 @@ export async function POST(
         amount: proposal.amount,
         currency: proposal.currency,
       },
-      pdfBuffer
+      pdfBuffer // Will be undefined if PDF generation failed
     )
 
     if (!result.success) {
       return NextResponse.json(
-        { error: result.error || "Failed to send email" },
+        { 
+          error: result.error || "Failed to send email",
+          pdfGenerationFailed: pdfGenerationFailed,
+        },
         { status: 500 }
       )
     }
