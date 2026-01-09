@@ -84,6 +84,12 @@ export async function POST(
       try {
         const lead = proposal.lead
         
+        // Ensure lead exists before processing
+        if (!lead) {
+          console.error("Lead not found for proposal", proposal.id)
+          throw new Error("Lead not found")
+        }
+        
         // Check if lead has already been converted
         if (lead.convertedToClientId) {
           // Lead already converted, use existing client
@@ -93,7 +99,7 @@ export async function POST(
           // Convert lead to client
           const newClient = await prisma.client.create({
             data: {
-              name: lead.name,
+              name: lead.name || "Unknown Client",
               email: lead.email,
               company: lead.company,
               contactInfo: lead.contactInfo,
