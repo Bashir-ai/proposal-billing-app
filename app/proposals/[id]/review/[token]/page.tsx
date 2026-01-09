@@ -1,34 +1,41 @@
 import { redirect } from "next/navigation"
+import { prisma } from "@/lib/prisma"
+import { ProposalReviewPage } from "@/components/proposals/ProposalReviewPage"
+import { formatCurrency, formatDate } from "@/lib/utils"
+import { ProposalStatus, ClientApprovalStatus } from "@prisma/client"
 
 export const dynamic = 'force-dynamic'
 
-// This page redirects old query-parameter-based links to the new path-based route
-// This ensures backward compatibility with old email links
+async function getCurrencySymbol(currency: string) {
+  const symbols: Record<string, string> = {
+    USD: "$",
+    EUR: "€",
+    GBP: "£",
+    CAD: "C$",
+    AUD: "A$",
+  }
+  return symbols[currency] || currency
+}
+
 export default async function ProposalReviewPublicPage({
   params,
-  searchParams,
 }: {
-  params: Promise<{ id: string }>
-  searchParams: Promise<{ token?: string }>
+  params: Promise<{ id: string; token: string }>
 }) {
-  const { id } = await params
-  const { token: rawToken } = await searchParams
-  
-  // If token is provided as query parameter, redirect to path-based route
-  if (rawToken) {
-    const encodedToken = encodeURIComponent(rawToken.trim())
-    redirect(`/proposals/${id}/review/${encodedToken}`)
-  }
+  const { id, token: rawToken } = await params
+  // Decode the token in case it was URL encoded, and trim any whitespace
+  const token = rawToken ? decodeURIComponent(rawToken).trim() : null
 
-  // No token provided - show error
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="max-w-md w-full bg-white rounded-lg shadow-md p-8 text-center">
-        <h1 className="text-2xl font-bold text-red-600 mb-4">Invalid Link</h1>
-        <p className="text-gray-600">This proposal review link is invalid. Please use the link provided in your email.</p>
+  if (!token) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="max-w-md w-full bg-white rounded-lg shadow-md p-8 text-center">
+          <h1 className="text-2xl font-bold text-red-600 mb-4">Invalid Link</h1>
+          <p className="text-gray-600">This proposal review link is invalid. Please use the link provided in your email.</p>
+        </div>
       </div>
-    </div>
-  )
+    )
+  }
 
   try {
     const proposal = await prisma.proposal.findUnique({

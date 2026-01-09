@@ -315,8 +315,10 @@ export async function POST(
       }
       const baseUrl = getBaseUrl()
       // Trim token and URL encode it to ensure it's properly formatted in the URL
+      // Put token in the path instead of query parameter to avoid Resend click tracking stripping it
       const trimmedToken = approvalToken.trim()
-      const reviewUrl = `${baseUrl}/proposals/${proposal.id}/review?token=${encodeURIComponent(trimmedToken)}`
+      const encodedToken = encodeURIComponent(trimmedToken)
+      const reviewUrl = `${baseUrl}/proposals/${proposal.id}/review/${encodedToken}`
       
       console.log("Generated review URL:", {
         baseUrl,
@@ -383,16 +385,19 @@ export async function POST(
           /<a\s+href=["']([^"']*review[^"']*)["'][^>]*>([^<]*)<\/a>/gi,
           (match, url, text) => {
             if (url.includes('review')) {
-              // Always use the full reviewUrl with token, not the matched URL
-              const linkUrl = url.includes('token=') ? url : reviewUrl
+              // Always use the full reviewUrl with token in path, not the matched URL
+              // Check if URL already has token in path (new format) or query (old format)
+              const hasTokenInPath = url.match(/\/review\/[^"'\s?&]+/)
+              const hasTokenInQuery = url.includes('token=')
+              const linkUrl = (hasTokenInPath || hasTokenInQuery) ? url : reviewUrl
               const hasStyle = match.includes('style=')
               const buttonStyle = "background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold; margin: 20px 0;"
               
               if (hasStyle) {
-                // Replace the href but keep existing styles
-                return match.replace(/href=["'][^"']*["']/, `href="${linkUrl}"`)
+                // Replace the href but keep existing styles - always use new path-based format
+                return match.replace(/href=["'][^"']*["']/, `href="${reviewUrl}"`)
               } else {
-                return `<a href="${linkUrl}" style="${buttonStyle}">${text}</a>`
+                return `<a href="${reviewUrl}" style="${buttonStyle}">${text}</a>`
               }
             }
             return match
@@ -400,21 +405,24 @@ export async function POST(
         )
       }
       
-      // Final check - ensure all review links have the token parameter
-      // Check if any review link is missing the token parameter
+      // Final check - ensure all review links have the token in the path
+      // Check if any review link is missing the token (either in path or query)
       const reviewLinkPattern = /<a\s+href=["']([^"']*\/review[^"']*)["'][^>]*>/gi
       const reviewLinks = emailBody.match(reviewLinkPattern)
       
       if (reviewLinks) {
         reviewLinks.forEach(link => {
-          // Check if this link has the token parameter
-          if (!link.includes('token=')) {
+          // Check if this link has the token in path (new format) or query (old format)
+          const hasTokenInPath = link.match(/\/review\/[^"'\s?&]+/)
+          const hasTokenInQuery = link.includes('token=')
+          if (!hasTokenInPath && !hasTokenInQuery) {
             console.warn("Found review link without token, replacing with full URL")
-            // Replace the href with the full reviewUrl
+            // Replace the href with the full reviewUrl (new path-based format)
             emailBody = emailBody.replace(
               /(<a\s+href=["'])([^"']*\/review)([^"']*)(["'][^>]*>)/gi,
               (match, prefix, reviewPath, rest, suffix) => {
-                if (!match.includes('token=')) {
+                const hasToken = match.match(/\/review\/[^"'\s?&]+/) || match.includes('token=')
+                if (!hasToken) {
                   return `${prefix}${reviewUrl}${suffix}`
                 }
                 return match
@@ -436,11 +444,27 @@ export async function POST(
         `
       }
       
+      // Add plain text link as fallback for email clients that modify links
+      // This ensures users can always copy the link if clicking doesn't work
+      if (!emailBody.includes('If the button above does not work')) {
+        emailBody += `
+          <div style="margin-top: 30px; padding: 15px; background-color: #f3f4f6; border-radius: 6px; border-left: 4px solid #2563eb;">
+            <p style="margin: 0; font-size: 12px; color: #6b7280;">
+              <strong>Having trouble with the button?</strong><br/>
+              Copy and paste this link into your browser:<br/>
+              <span style="word-break: break-all; color: #2563eb; font-family: monospace;">${reviewUrl}</span>
+            </p>
+          </div>
+        `
+      }
+      
       console.log("Final email body check:", {
         hasReviewUrl: emailBody.includes(reviewUrl),
         reviewUrlPosition: emailBody.indexOf(reviewUrl),
-        reviewUrlWithToken: emailBody.includes('token='),
+        reviewUrlWithTokenInPath: emailBody.includes('/review/'),
+        reviewUrlWithTokenInQuery: emailBody.includes('token='),
         sampleLink: emailBody.match(/<a\s+href=["'][^"']*review[^"']*["']/)?.[0],
+        plainTextLinkIncluded: emailBody.includes('Copy and paste this link'),
       })
       
       // Add note about PDF download if PDF generation failed
