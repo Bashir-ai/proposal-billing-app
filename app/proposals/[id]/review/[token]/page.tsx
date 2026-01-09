@@ -157,6 +157,17 @@ export default async function ProposalReviewPublicPage({
     })
     
     if (!storedToken || storedToken !== receivedToken) {
+      // Log detailed error for debugging
+      console.error("Token validation failed:", {
+        proposalId: id,
+        hasStoredToken: !!storedToken,
+        storedTokenLength: storedToken.length,
+        receivedTokenLength: receivedToken.length,
+        tokensMatch: storedToken === receivedToken,
+        storedTokenPreview: storedToken.substring(0, 20),
+        receivedTokenPreview: receivedToken.substring(0, 20),
+      })
+      
       return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50">
           <div className="max-w-md w-full bg-white rounded-lg shadow-md p-8 text-center">
@@ -165,6 +176,14 @@ export default async function ProposalReviewPublicPage({
             <p className="text-xs text-gray-500 mt-2">
               Token mismatch. If this persists, please request a new approval link.
             </p>
+            {process.env.NODE_ENV === 'development' && (
+              <div className="mt-4 p-3 bg-gray-100 rounded text-left text-xs font-mono">
+                <p><strong>Debug Info:</strong></p>
+                <p>Stored token exists: {storedToken ? 'Yes' : 'No'}</p>
+                <p>Received token length: {receivedToken.length}</p>
+                <p>Stored token length: {storedToken.length}</p>
+              </div>
+            )}
           </div>
         </div>
       )
