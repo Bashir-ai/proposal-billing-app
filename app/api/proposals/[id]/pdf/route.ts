@@ -252,7 +252,7 @@ export async function GET(
       // Use @sparticuz/chromium on Vercel
       if (isVercel) {
         try {
-          const chromium = await import("@sparticuz/chromium")
+          const chromium = require("@sparticuz/chromium")
           launchOptions.executablePath = await chromium.executablePath()
           launchOptions.args = [...(launchOptions.args || []), ...chromium.args]
         } catch (chromiumError) {

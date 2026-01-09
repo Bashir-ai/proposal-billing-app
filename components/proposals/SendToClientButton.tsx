@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { useRouter } from "next/navigation"
 import { EmailEditDialog } from "./EmailEditDialog"
@@ -18,15 +18,7 @@ export function SendToClientButton({ proposalId }: SendToClientButtonProps) {
   const [preparingEmail, setPreparingEmail] = useState(false)
   const router = useRouter()
 
-  // Prepare email template when dialog opens
-  useEffect(() => {
-    if (showEditDialog) {
-      setPreparingEmail(true)
-      prepareEmailTemplate()
-    }
-  }, [showEditDialog, proposalId])
-
-  const prepareEmailTemplate = async () => {
+  const prepareEmailTemplate = useCallback(async () => {
     try {
       const response = await fetch(`/api/proposals/${proposalId}/prepare-email`)
       if (!response.ok) {
@@ -43,7 +35,15 @@ export function SendToClientButton({ proposalId }: SendToClientButtonProps) {
       setEmailBody(`<p>Please review and approve the proposal.</p>`)
       setPreparingEmail(false)
     }
-  }
+  }, [proposalId])
+
+  // Prepare email template when dialog opens
+  useEffect(() => {
+    if (showEditDialog) {
+      setPreparingEmail(true)
+      prepareEmailTemplate()
+    }
+  }, [showEditDialog, prepareEmailTemplate])
 
   const handleSend = async (subject: string, body: string) => {
     setLoading(true)
