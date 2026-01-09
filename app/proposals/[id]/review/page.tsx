@@ -43,7 +43,20 @@ export default async function ProposalReviewPublicPage({
   try {
     const proposal = await prisma.proposal.findUnique({
       where: { id },
-      include: {
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        proposalNumber: true,
+        status: true,
+        clientApprovalStatus: true,
+        clientApprovalToken: true, // Include token for validation
+        clientApprovalTokenExpiry: true, // Include expiry for validation
+        amount: true,
+        currency: true,
+        issueDate: true,
+        expiryDate: true,
+        createdAt: true,
         client: {
           select: {
             id: true,
@@ -91,12 +104,23 @@ export default async function ProposalReviewPublicPage({
     }
 
     // Verify token
-    if (proposal.clientApprovalToken !== token) {
+    console.log("Token validation:", {
+      proposalToken: proposal.clientApprovalToken,
+      receivedToken: token,
+      tokensMatch: proposal.clientApprovalToken === token,
+      tokenLength: token?.length,
+      proposalTokenLength: proposal.clientApprovalToken?.length,
+    })
+    
+    if (!proposal.clientApprovalToken || proposal.clientApprovalToken !== token) {
       return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50">
           <div className="max-w-md w-full bg-white rounded-lg shadow-md p-8 text-center">
             <h1 className="text-2xl font-bold text-red-600 mb-4">Invalid Token</h1>
             <p className="text-gray-600">This approval token is invalid. Please use the link provided in your email.</p>
+            <p className="text-xs text-gray-500 mt-2">
+              Token mismatch. If this persists, please request a new approval link.
+            </p>
           </div>
         </div>
       )

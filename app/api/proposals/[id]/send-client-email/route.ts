@@ -92,6 +92,13 @@ export async function POST(
     tokenExpiry.setDate(tokenExpiry.getDate() + 30) // 30 days expiry
 
     // Save token to database BEFORE sending email to ensure it's available
+    console.log("Saving approval token:", {
+      proposalId: id,
+      token: approvalToken,
+      tokenLength: approvalToken.length,
+      expiry: tokenExpiry,
+    })
+    
     await prisma.proposal.update({
       where: { id },
       data: {
@@ -100,6 +107,8 @@ export async function POST(
         clientApprovalStatus: "PENDING",
       },
     })
+    
+    console.log("Token saved successfully to database")
 
     // Generate PDF for attachment
     let pdfBuffer: Buffer | null = null
@@ -222,8 +231,17 @@ export async function POST(
       })
       pdfBuffer = Buffer.from(pdfData)
       await browser.close()
+      console.log("PDF generated successfully:", {
+        bufferSize: pdfBuffer.length,
+        filename: `proposal-${proposal.proposalNumber || proposal.id}.pdf`,
+      })
     } catch (pdfError: any) {
       console.error("Failed to generate PDF for attachment:", pdfError)
+      console.error("PDF Error details:", {
+        message: pdfError.message,
+        stack: pdfError.stack,
+        name: pdfError.name,
+      })
       // Continue without PDF - email will still be sent
       pdfGenerationFailed = true
     }
@@ -280,6 +298,14 @@ export async function POST(
       const baseUrl = getBaseUrl()
       // URL encode the token to ensure it's properly formatted in the URL
       const reviewUrl = `${baseUrl}/proposals/${proposal.id}/review?token=${encodeURIComponent(approvalToken)}`
+      
+      console.log("Generated review URL:", {
+        baseUrl,
+        proposalId: proposal.id,
+        token: approvalToken,
+        encodedToken: encodeURIComponent(approvalToken),
+        reviewUrl,
+      })
 
       const variables = {
         proposal: {
