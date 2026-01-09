@@ -188,6 +188,13 @@ export default async function ProposalDetailPage({
             installmentFrequency: true,
             milestoneIds: true,
             proposalItemId: true,
+            balancePaymentType: true,
+            balanceDueDate: true,
+            installmentMaturityDates: true,
+            recurringEnabled: true,
+            recurringFrequency: true,
+            recurringCustomMonths: true,
+            recurringStartDate: true,
           },
         },
         approvals: {
