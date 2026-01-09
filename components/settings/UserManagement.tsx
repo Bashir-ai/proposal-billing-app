@@ -36,16 +36,24 @@ export function UserManagement() {
   const fetchUsers = async () => {
     try {
       setLoading(true)
-      const response = await fetch("/api/users")
+      setError(null)
+      const response = await fetch("/api/users", {
+        cache: "no-store", // Ensure fresh data
+      })
       if (!response.ok) {
-        throw new Error("Failed to fetch users")
+        const errorData = await response.json().catch(() => ({ error: "Failed to fetch users" }))
+        throw new Error(errorData.error || "Failed to fetch users")
       }
       const data = await response.json()
-      // Filter out CLIENT role users - they have their own folder
-      const filteredUsers = data.filter((user: User) => user.role !== "CLIENT")
+      // Ensure data is an array and filter out CLIENT role users
+      const usersArray = Array.isArray(data) ? data : []
+      const filteredUsers = usersArray.filter((user: User) => user.role !== "CLIENT")
       setUsers(filteredUsers)
     } catch (err: any) {
-      setError(err.message || "Failed to load users")
+      console.error("Error fetching users:", err)
+      setError(err.message || "Failed to load users. Please try again.")
+      // Set empty array on error to prevent crashes
+      setUsers([])
     } finally {
       setLoading(false)
     }

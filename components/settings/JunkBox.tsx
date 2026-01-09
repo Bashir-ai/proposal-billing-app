@@ -70,16 +70,28 @@ export function JunkBox() {
     try {
       setLoading(true)
       setError("")
-      const response = await fetch("/api/junkbox")
+      const response = await fetch("/api/junkbox", {
+        cache: "no-store", // Ensure fresh data
+      })
       if (response.ok) {
         const junkBoxData = await response.json()
-        setData(junkBoxData)
+        // Ensure data structure is valid
+        setData({
+          proposals: Array.isArray(junkBoxData.proposals) ? junkBoxData.proposals : [],
+          projects: Array.isArray(junkBoxData.projects) ? junkBoxData.projects : [],
+          bills: Array.isArray(junkBoxData.bills) ? junkBoxData.bills : [],
+        })
       } else {
         const errorData = await response.json().catch(() => ({ error: "Failed to load junk box" }))
         setError(errorData.error || errorData.details || "Failed to load junk box")
+        // Set empty data on error to prevent crashes
+        setData({ proposals: [], projects: [], bills: [] })
       }
     } catch (err: any) {
-      setError(err.message || "Failed to load junk box")
+      console.error("Error fetching junk box:", err)
+      setError(err.message || "Failed to load junk box. Please try again.")
+      // Set empty data on error to prevent crashes
+      setData({ proposals: [], projects: [], bills: [] })
     } finally {
       setLoading(false)
     }
@@ -191,11 +203,11 @@ export function JunkBox() {
                           <p className="text-sm text-gray-600">#{proposal.proposalNumber}</p>
                         )}
                         <p className="text-sm text-gray-600">
-                          Client: {proposal.client.name}
-                          {proposal.client.company && ` (${proposal.client.company})`}
+                          Client: {proposal.client?.name || "Unknown Client"}
+                          {proposal.client?.company && ` (${proposal.client.company})`}
                         </p>
                         <p className="text-sm text-gray-600">
-                          Created by: {proposal.creator.name}
+                          Created by: {proposal.creator?.name || "Unknown User"}
                         </p>
                         <p className="text-xs text-gray-500 mt-1">
                           Deleted: {formatDate(proposal.deletedAt)}
@@ -251,8 +263,8 @@ export function JunkBox() {
                           </p>
                         )}
                         <p className="text-sm text-gray-600">
-                          Client: {project.client.name}
-                          {project.client.company && ` (${project.client.company})`}
+                          Client: {project.client?.name || "Unknown Client"}
+                          {project.client?.company && ` (${project.client.company})`}
                         </p>
                         <p className="text-xs text-gray-500 mt-1">
                           Deleted: {formatDate(project.deletedAt)}
@@ -313,11 +325,11 @@ export function JunkBox() {
                           </p>
                         )}
                         <p className="text-sm text-gray-600">
-                          Client: {bill.client.name}
-                          {bill.client.company && ` (${bill.client.company})`}
+                          Client: {bill.client?.name || "Unknown Client"}
+                          {bill.client?.company && ` (${bill.client.company})`}
                         </p>
                         <p className="text-sm text-gray-600">
-                          Created by: {bill.creator.name}
+                          Created by: {bill.creator?.name || "Unknown User"}
                         </p>
                         <p className="text-xs text-gray-500 mt-1">
                           Deleted: {formatDate(bill.deletedAt)}

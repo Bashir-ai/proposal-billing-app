@@ -26,16 +26,25 @@ export function LogoUpload() {
     setLoading(true)
     setError(null)
     try {
-      const response = await fetch("/api/settings/logo")
+      const response = await fetch("/api/settings/logo", {
+        cache: "no-store", // Ensure fresh data
+      })
       if (response.ok) {
         const data = await response.json()
-        setLogoPath(data.logoPath)
-        if (data.logoPath) {
+        setLogoPath(data?.logoPath || null)
+        if (data?.logoPath) {
           setPreview(data.logoPath)
+        }
+      } else {
+        // Don't show error for 404 (no logo set yet)
+        if (response.status !== 404) {
+          const errorData = await response.json().catch(() => ({ error: "Failed to load logo" }))
+          console.error("Error fetching logo:", errorData)
         }
       }
     } catch (err) {
       console.error("Error fetching logo:", err)
+      // Don't set error state here as it's not critical for page load
     } finally {
       setLoading(false)
     }

@@ -20,13 +20,19 @@ export async function GET(request: Request) {
       )
     }
 
-    // Fetch all deleted items
+    // Fetch all deleted items with optimized queries and null safety
     const [deletedProposals, deletedProjects, deletedBills] = await Promise.all([
       prisma.proposal.findMany({
         where: {
           deletedAt: { not: null },
         },
-        include: {
+        select: {
+          id: true,
+          title: true,
+          proposalNumber: true,
+          deletedAt: true,
+          clientId: true,
+          createdBy: true,
           client: {
             select: {
               id: true,
@@ -43,12 +49,18 @@ export async function GET(request: Request) {
           },
         },
         orderBy: { deletedAt: "desc" },
+        take: 100, // Limit to prevent performance issues
       }),
       prisma.project.findMany({
         where: {
           deletedAt: { not: null },
         },
-        include: {
+        select: {
+          id: true,
+          name: true,
+          deletedAt: true,
+          clientId: true,
+          proposalId: true,
           client: {
             select: {
               id: true,
@@ -65,12 +77,20 @@ export async function GET(request: Request) {
           },
         },
         orderBy: { deletedAt: "desc" },
+        take: 100, // Limit to prevent performance issues
       }),
       prisma.bill.findMany({
         where: {
           deletedAt: { not: null },
         },
-        include: {
+        select: {
+          id: true,
+          invoiceNumber: true,
+          amount: true,
+          deletedAt: true,
+          clientId: true,
+          createdBy: true,
+          proposalId: true,
           client: {
             select: {
               id: true,
@@ -94,13 +114,67 @@ export async function GET(request: Request) {
           },
         },
         orderBy: { deletedAt: "desc" },
+        take: 100, // Limit to prevent performance issues
       }),
     ])
 
+    // Filter out items with missing required relations and format dates
+    const formatProposals = deletedProposals
+      .filter(p => p.client && p.creator) // Only include proposals with valid relations
+      .map(p => ({
+        id: p.id,
+        title: p.title || "Untitled Proposal",
+        proposalNumber: p.proposalNumber,
+        deletedAt: p.deletedAt?.toISOString() || new Date().toISOString(),
+        client: p.client ? {
+          name: p.client.name || "Unknown Client",
+          company: p.client.company,
+        } : { name: "Unknown Client", company: null },
+        creator: p.creator ? {
+          name: p.creator.name || "Unknown User",
+        } : { name: "Unknown User" },
+      }))
+
+    const formatProjects = deletedProjects
+      .filter(p => p.client) // Only include projects with valid client
+      .map(p => ({
+        id: p.id,
+        name: p.name || "Unnamed Project",
+        deletedAt: p.deletedAt?.toISOString() || new Date().toISOString(),
+        client: p.client ? {
+          name: p.client.name || "Unknown Client",
+          company: p.client.company,
+        } : { name: "Unknown Client", company: null },
+        proposal: p.proposal ? {
+          title: p.proposal.title || "Unknown Proposal",
+          proposalNumber: p.proposal.proposalNumber,
+        } : null,
+      }))
+
+    const formatBills = deletedBills
+      .filter(b => b.client && b.creator) // Only include bills with valid relations
+      .map(b => ({
+        id: b.id,
+        invoiceNumber: b.invoiceNumber,
+        amount: b.amount || 0,
+        deletedAt: b.deletedAt?.toISOString() || new Date().toISOString(),
+        client: b.client ? {
+          name: b.client.name || "Unknown Client",
+          company: b.client.company,
+        } : { name: "Unknown Client", company: null },
+        creator: b.creator ? {
+          name: b.creator.name || "Unknown User",
+        } : { name: "Unknown User" },
+        proposal: b.proposal ? {
+          title: b.proposal.title || "Unknown Proposal",
+          proposalNumber: b.proposal.proposalNumber,
+        } : null,
+      }))
+
     return NextResponse.json({
-      proposals: deletedProposals,
-      projects: deletedProjects,
-      bills: deletedBills,
+      proposals: formatProposals,
+      projects: formatProjects,
+      bills: formatBills,
     })
   } catch (error: any) {
     console.error("Error fetching junk box:", error)

@@ -24,13 +24,21 @@ export default function SettingsPage() {
   useEffect(() => {
     if (session?.user?.id) {
       fetch(`/api/users/${session.user.id}`)
-        .then((res) => res.json())
+        .then((res) => {
+          if (!res.ok) {
+            throw new Error("Failed to fetch user data")
+          }
+          return res.json()
+        })
         .then((data) => {
-          if (data.defaultHourlyRate) {
+          if (data && data.defaultHourlyRate !== null && data.defaultHourlyRate !== undefined) {
             setHourlyRate(data.defaultHourlyRate.toString())
           }
         })
-        .catch(console.error)
+        .catch((err) => {
+          console.error("Error fetching user data:", err)
+          // Don't set error state here as it's not critical for page load
+        })
     }
   }, [session])
 

@@ -45,13 +45,22 @@ export default function EmailTemplatesPage() {
   const fetchTemplates = async () => {
     try {
       setLoading(true)
-      const response = await fetch("/api/email-templates")
+      const response = await fetch("/api/email-templates", {
+        cache: "no-store", // Ensure fresh data
+      })
       if (response.ok) {
         const data = await response.json()
-        setTemplates(data)
+        setTemplates(Array.isArray(data) ? data : [])
+      } else {
+        const errorData = await response.json().catch(() => ({ error: "Failed to load templates" }))
+        console.error("Failed to fetch templates:", errorData)
+        // Set empty array on error to prevent crashes
+        setTemplates([])
       }
     } catch (error) {
       console.error("Failed to fetch templates:", error)
+      // Set empty array on error to prevent crashes
+      setTemplates([])
     } finally {
       setLoading(false)
     }
