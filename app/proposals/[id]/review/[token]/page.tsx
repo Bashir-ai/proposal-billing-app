@@ -23,9 +23,30 @@ export default async function ProposalReviewPublicPage({
   params: Promise<{ id: string; token: string }>
 }) {
   const { id, token: rawToken } = await params
-  // Next.js path parameters are already decoded, just trim whitespace
-  // Hex tokens don't need decoding since they're URL-safe
-  const token = rawToken ? rawToken.trim() : null
+  // Next.js path parameters are already decoded, but handle both cases
+  // Try raw token first, then try decoding in case it was double-encoded
+  let token: string | null = null
+  if (rawToken) {
+    const trimmed = rawToken.trim()
+    // Hex tokens are URL-safe, so they shouldn't need decoding
+    // But try both in case email client or Resend encoded it
+    if (/^[0-9a-f]+$/i.test(trimmed)) {
+      // Valid hex string, use as-is
+      token = trimmed
+    } else {
+      // Might be encoded, try decoding
+      try {
+        const decoded = decodeURIComponent(trimmed)
+        if (/^[0-9a-f]+$/i.test(decoded)) {
+          token = decoded
+        } else {
+          token = trimmed // Use as-is if decoding doesn't help
+        }
+      } catch {
+        token = trimmed // Use as-is if decoding fails
+      }
+    }
+  }
 
   if (!token) {
     return (
