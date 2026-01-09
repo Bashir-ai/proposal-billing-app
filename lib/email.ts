@@ -14,7 +14,19 @@ console.log("Email Config Debug:", {
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
 
 const FROM_EMAIL = process.env.FROM_EMAIL || "noreply@example.com"
-const BASE_URL = process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
+
+// Get base URL from environment or Vercel
+const getBaseUrl = () => {
+  // Try environment variables first
+  if (process.env.NEXTAUTH_URL) return process.env.NEXTAUTH_URL
+  if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL
+  // Try to get from Vercel environment
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`
+  // Fallback to localhost for development
+  return "http://localhost:3000"
+}
+
+const BASE_URL = getBaseUrl()
 
 interface SendEmailOptions {
   to: string | string[]

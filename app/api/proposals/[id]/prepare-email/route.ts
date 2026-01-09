@@ -52,7 +52,14 @@ export async function GET(
       approvalToken = cryptoModule.randomBytes(32).toString("hex")
     }
 
-    const BASE_URL = process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    // Get base URL from environment or Vercel
+    const getBaseUrl = () => {
+      if (process.env.NEXTAUTH_URL) return process.env.NEXTAUTH_URL
+      if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL
+      if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`
+      return 'http://localhost:3000'
+    }
+    const BASE_URL = getBaseUrl()
     const reviewUrl = `${BASE_URL}/proposals/${proposal.id}/review?token=${approvalToken}`
 
     // Load template from database or use default

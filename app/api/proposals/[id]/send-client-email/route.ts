@@ -93,6 +93,7 @@ export async function POST(
 
     // Generate PDF for attachment
     let pdfBuffer: Buffer | null = null
+    let pdfGenerationFailed = false
     try {
       // Configure Puppeteer for Vercel/serverless
       const isVercel = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME
@@ -120,6 +121,10 @@ export async function POST(
       if (isVercel) {
         try {
           const chromium = require("@sparticuz/chromium")
+          // Set font path to /tmp (available in Vercel serverless)
+          if (typeof chromium.setFontPath === 'function') {
+            chromium.setFontPath('/tmp')
+          }
           // Get executable path - this may extract chromium binary
           const executablePath = await chromium.executablePath()
           if (executablePath) {
@@ -134,6 +139,7 @@ export async function POST(
           console.error("Could not load @sparticuz/chromium:", chromiumError)
           // If chromium fails, we can't generate PDF in serverless
           // The outer try-catch will handle this and continue without PDF
+          // Note: PDF can still be downloaded from the review page
           throw new Error("PDF generation not available in serverless environment without chromium")
         }
       }
@@ -209,6 +215,7 @@ export async function POST(
     } catch (pdfError: any) {
       console.error("Failed to generate PDF for attachment:", pdfError)
       // Continue without PDF - email will still be sent
+      pdfGenerationFailed = true
     }
 
     // Load email template or use default
@@ -250,7 +257,18 @@ export async function POST(
         }
       }
 
-      const reviewUrl = `${process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/proposals/${proposal.id}/review?token=${approvalToken}`
+      // Get base URL from environment or request headers
+      const getBaseUrl = () => {
+        // Try environment variables first
+        if (process.env.NEXTAUTH_URL) return process.env.NEXTAUTH_URL
+        if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL
+        // Try to get from Vercel environment
+        if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`
+        // Fallback to localhost for development
+        return 'http://localhost:3000'
+      }
+      const baseUrl = getBaseUrl()
+      const reviewUrl = `${baseUrl}/proposals/${proposal.id}/review?token=${approvalToken}`
 
       const variables = {
         proposal: {
@@ -276,7 +294,43 @@ export async function POST(
       }
 
       emailSubject = renderTemplate(finalTemplate.subject || `Proposal Approval Request: ${proposal.title}`, variables)
-      emailBody = renderTemplate(finalTemplate.body || "", variables)
+      let emailBody = renderTemplate(finalTemplate.body || "", variables)
+      
+      // Ensure email always includes a styled approval button, even if template doesn't have it
+      if (!emailBody.includes(reviewUrl) && !emailBody.includes('{{reviewLink}}')) {
+        // Add approval button if not present in template
+        const approvalButton = `
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${reviewUrl}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
+              Review & Approve Proposal
+            </a>
+          </div>
+        `
+        emailBody += approvalButton
+      } else {
+        // Replace {{reviewLink}} if it exists but wasn't replaced
+        emailBody = emailBody.replace(/\{\{reviewLink\}\}/g, reviewUrl)
+        // Ensure any review link is styled as a button
+        emailBody = emailBody.replace(
+          /<a\s+href=["']([^"']*review[^"']*)["'][^>]*>([^<]*)<\/a>/gi,
+          (match, url, text) => {
+            if (url.includes('review') && !match.includes('style=')) {
+              return `<a href="${url}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold; margin: 20px 0;">${text}</a>`
+            }
+            return match
+          }
+        )
+      }
+      
+      // Add note about PDF download if PDF generation failed
+      if (pdfGenerationFailed && !emailBody.includes('download the PDF') && !emailBody.includes('Download PDF')) {
+        const pdfNote = `
+          <p style="color: #6b7280; font-size: 14px; margin-top: 20px;">
+            <strong>Note:</strong> You can download a PDF copy of this proposal from the review page using the download button.
+          </p>
+        `
+        emailBody += pdfNote
+      }
     }
 
     // Send email with PDF attachment

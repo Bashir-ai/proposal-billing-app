@@ -257,6 +257,10 @@ export async function GET(
       if (isVercel) {
         try {
           const chromium = require("@sparticuz/chromium")
+          // Set font path to /tmp (available in Vercel serverless)
+          if (typeof chromium.setFontPath === 'function') {
+            chromium.setFontPath('/tmp')
+          }
           // Get executable path - this may extract chromium binary
           const executablePath = await chromium.executablePath()
           if (executablePath) {
