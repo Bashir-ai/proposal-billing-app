@@ -25,7 +25,9 @@ export default async function ProposalReviewPublicPage({
   searchParams: Promise<{ token?: string }>
 }) {
   const { id } = await params
-  const { token } = await searchParams
+  const { token: rawToken } = await searchParams
+  // Decode the token in case it was URL encoded
+  const token = rawToken ? decodeURIComponent(rawToken) : null
 
   if (!token) {
     return (

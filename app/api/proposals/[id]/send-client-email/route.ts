@@ -91,6 +91,16 @@ export async function POST(
     const tokenExpiry = new Date()
     tokenExpiry.setDate(tokenExpiry.getDate() + 30) // 30 days expiry
 
+    // Save token to database BEFORE sending email to ensure it's available
+    await prisma.proposal.update({
+      where: { id },
+      data: {
+        clientApprovalToken: approvalToken,
+        clientApprovalTokenExpiry: tokenExpiry,
+        clientApprovalStatus: "PENDING",
+      },
+    })
+
     // Generate PDF for attachment
     let pdfBuffer: Buffer | null = null
     let pdfGenerationFailed = false
@@ -268,7 +278,8 @@ export async function POST(
         return 'http://localhost:3000'
       }
       const baseUrl = getBaseUrl()
-      const reviewUrl = `${baseUrl}/proposals/${proposal.id}/review?token=${approvalToken}`
+      // URL encode the token to ensure it's properly formatted in the URL
+      const reviewUrl = `${baseUrl}/proposals/${proposal.id}/review?token=${encodeURIComponent(approvalToken)}`
 
       const variables = {
         proposal: {
@@ -335,14 +346,23 @@ export async function POST(
 
     // Send email with PDF attachment
     try {
+      const attachments = pdfBuffer ? [{
+        filename: `proposal-${proposal.proposalNumber || proposal.id}.pdf`,
+        content: pdfBuffer,
+      }] : undefined
+      
+      console.log("Sending email with attachments:", {
+        hasPdfBuffer: !!pdfBuffer,
+        pdfBufferSize: pdfBuffer?.length || 0,
+        attachmentsCount: attachments?.length || 0,
+        recipientEmail,
+      })
+      
       const emailResult = await sendEmail({
         to: recipientEmail,
         subject: emailSubject,
         html: emailBody,
-        attachments: pdfBuffer ? [{
-          filename: `proposal-${proposal.proposalNumber || proposal.id}.pdf`,
-          content: pdfBuffer,
-        }] : undefined,
+        attachments,
       })
 
       // Check if email was actually sent
@@ -363,15 +383,13 @@ export async function POST(
       )
     }
 
-    // Update proposal - track who sent the email
+    // Update proposal - track who sent the email (token already saved above before sending email)
     const updatedProposal = await prisma.proposal.update({
       where: { id },
       data: {
         clientApprovalEmailSent: true,
         clientApprovalEmailSentBy: session.user.id, // Track who sent the email
-        clientApprovalToken: approvalToken,
-        clientApprovalTokenExpiry: tokenExpiry,
-        clientApprovalStatus: "PENDING",
+        // Token and expiry already saved above before sending email
       },
     })
 
