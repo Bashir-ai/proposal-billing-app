@@ -241,7 +241,7 @@ export async function POST(
 
     // Send email with PDF attachment
     try {
-      await sendEmail({
+      const emailResult = await sendEmail({
         to: recipientEmail,
         subject: emailSubject,
         html: emailBody,
@@ -250,6 +250,17 @@ export async function POST(
           content: pdfBuffer,
         }] : undefined,
       })
+
+      // Check if email was actually sent
+      if (!emailResult.success) {
+        console.error("Failed to send approval email:", emailResult.error)
+        return NextResponse.json(
+          { error: "Failed to send email", message: emailResult.error || "Unknown error" },
+          { status: 500 }
+        )
+      }
+
+      console.log("Email sent successfully:", emailResult.data)
     } catch (emailError: any) {
       console.error("Failed to send approval email:", emailError)
       return NextResponse.json(

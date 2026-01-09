@@ -190,9 +190,15 @@ export async function GET(request: Request) {
     })
 
     return NextResponse.json(proposals)
-  } catch (error) {
+  } catch (error: any) {
+    console.error("Error fetching proposals:", error)
+    console.error("Error details:", {
+      message: error.message,
+      name: error.name,
+      stack: error.stack,
+    })
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Internal server error", message: error.message },
       { status: 500 }
     )
   }

@@ -73,9 +73,14 @@ export default function ProposalsPage() {
       if (response.ok) {
         const data = await response.json()
         setProposals(data.filter((p: Proposal) => !p.deletedAt))
+      } else {
+        const errorData = await response.json().catch(() => ({ error: "Unknown error" }))
+        console.error("Failed to fetch proposals:", response.status, errorData)
+        setProposals([]) // Set empty array on error to prevent infinite loading
       }
     } catch (error) {
       console.error("Failed to fetch proposals:", error)
+      setProposals([]) // Set empty array on error to prevent infinite loading
     } finally {
       setLoading(false)
     }
@@ -188,7 +193,14 @@ export default function ProposalsPage() {
   const hasActiveFilters = statusFilter || clientApprovalFilter || clientFilter || tagFilter || searchQuery
 
   if (loading) {
-    return <div>Loading proposals...</div>
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading proposals...</p>
+        </div>
+      </div>
+    )
   }
 
   return (

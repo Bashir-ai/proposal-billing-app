@@ -28,9 +28,10 @@ interface SendEmailOptions {
 
 export async function sendEmail({ to, subject, html, from = FROM_EMAIL, attachments }: SendEmailOptions) {
   if (!resend) {
-    console.warn("Resend API key not configured. Email not sent.")
+    const errorMsg = "Resend API key not configured. Email not sent."
+    console.error(errorMsg)
     console.log("Would send email:", { to, subject, from, attachments: attachments?.length || 0 })
-    return { success: false, error: "Email service not configured" }
+    return { success: false, error: errorMsg }
   }
 
   try {
@@ -62,12 +63,27 @@ export async function sendEmail({ to, subject, html, from = FROM_EMAIL, attachme
       })
     }
 
+    console.log("Sending email via Resend:", { 
+      to, 
+      subject, 
+      from, 
+      hasAttachments: !!attachments?.length,
+      resendConfigured: !!resend 
+    })
+    
     const result = await resend.emails.send(emailData)
-
+    
+    console.log("Resend API response:", JSON.stringify(result, null, 2))
     return { success: true, data: result }
   } catch (error: any) {
-    console.error("Error sending email:", error)
-    return { success: false, error: error.message }
+    console.error("Error sending email via Resend:", error)
+    console.error("Error details:", {
+      message: error.message,
+      name: error.name,
+      stack: error.stack,
+      response: error.response?.data || error.response || "No response data",
+    })
+    return { success: false, error: error.message || "Unknown error occurred" }
   }
 }
 
