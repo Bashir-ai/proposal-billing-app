@@ -439,7 +439,7 @@ export function PaymentTermsSection({
                     checked={!!proposalTerm.recurringEnabled}
                     onChange={(e) => {
                       if (!e.target.checked) {
-                        const updated = {
+                        const updated: PaymentTerm = {
                           ...proposalTerm,
                           recurringEnabled: false,
                           recurringFrequency: null,
@@ -449,10 +449,10 @@ export function PaymentTermsSection({
                         setProposalTerm(updated)
                         onProposalLevelChange(updated)
                       } else {
-                        const updated = {
+                        const updated: PaymentTerm = {
                           ...proposalTerm,
                           recurringEnabled: true,
-                          recurringFrequency: "MONTHLY_1",
+                          recurringFrequency: "MONTHLY_1" as const,
                           recurringStartDate: getDefaultStartDate(),
                         }
                         setProposalTerm(updated)
