@@ -1,13 +1,14 @@
 import { Resend } from "resend"
 
-// Debug logging for environment variables (remove after testing)
-if (process.env.NODE_ENV === 'development') {
-  console.log("Email Config Debug:", {
-    hasResendKey: !!process.env.RESEND_API_KEY,
-    resendKeyLength: process.env.RESEND_API_KEY?.length || 0,
-    fromEmail: process.env.FROM_EMAIL || "not set",
-  })
-}
+// Debug logging for environment variables
+console.log("Email Config Debug:", {
+  hasResendKey: !!process.env.RESEND_API_KEY,
+  resendKeyPrefix: process.env.RESEND_API_KEY?.substring(0, 5) || "not set",
+  resendKeyLength: process.env.RESEND_API_KEY?.length || 0,
+  fromEmail: process.env.FROM_EMAIL || "not set",
+  nodeEnv: process.env.NODE_ENV,
+  vercel: !!process.env.VERCEL,
+})
 
 // Initialize Resend client
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null

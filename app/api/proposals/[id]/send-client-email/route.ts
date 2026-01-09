@@ -95,10 +95,35 @@ export async function POST(
     let pdfBuffer: Buffer | null = null
     try {
       const puppeteer = await import("puppeteer")
-      const browser = await puppeteer.launch({
+      
+      // Configure Puppeteer for Vercel/serverless
+      const isVercel = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME
+      const launchOptions: any = {
         headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox'],
-      })
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--no-first-run',
+          '--no-zygote',
+          '--single-process',
+          '--disable-gpu',
+        ],
+      }
+
+      // Use @sparticuz/chromium on Vercel
+      if (isVercel) {
+        try {
+          const chromium = await import("@sparticuz/chromium")
+          chromium.setGraphicsMode(false)
+          launchOptions.executablePath = await chromium.executablePath()
+        } catch (chromiumError) {
+          console.warn("Could not load @sparticuz/chromium, using default:", chromiumError)
+        }
+      }
+
+      const browser = await puppeteer.launch(launchOptions)
       
       const currencySymbols: Record<string, string> = {
         USD: "$",
