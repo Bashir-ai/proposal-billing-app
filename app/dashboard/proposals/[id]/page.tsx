@@ -363,11 +363,12 @@ export default async function ProposalDetailPage({
       // Check if user is in the required approvers list
       const isInRequiredApprovers = proposal.requiredApproverIds && 
         proposal.requiredApproverIds.length > 0 && 
+        session?.user.id &&
         proposal.requiredApproverIds.includes(session.user.id)
       
       // ADMIN and MANAGER can approve even if they're the creator
       isAdminOrManager = currentUser.role === "ADMIN" || currentUser.role === "MANAGER"
-      const isCreator = session.user.id === proposal.createdBy
+      const isCreator = session?.user.id === proposal.createdBy
       const canApproveOwnProposal = isAdminOrManager || !isCreator
       
       // Determine if user can approve based on internal approval requirements
@@ -393,7 +394,7 @@ export default async function ProposalDetailPage({
       // 3. User meets internal approval requirements
       // 4. User can approve own proposal (not creator OR is admin/manager)
       // Simplified: ADMIN/MANAGER can always approve submitted proposals
-      if (proposal.status === ProposalStatus.SUBMITTED && session.user.role !== "CLIENT") {
+      if (proposal.status === ProposalStatus.SUBMITTED && session?.user.role !== "CLIENT") {
         if (isAdminOrManager) {
           // ADMIN/MANAGER can approve any submitted proposal (including their own)
           canApprove = true
@@ -410,7 +411,7 @@ export default async function ProposalDetailPage({
 
       // Check if user already approved
       userApproval = proposal.approvals.find(
-        (a) => a.approverId === session.user.id
+        (a) => a.approverId === session?.user.id
       )
       
       // User can still approve if they have no approval OR if their approval is PENDING
@@ -421,7 +422,6 @@ export default async function ProposalDetailPage({
       // 2. Proposal is submitted AND user can't edit AND user can't approve (needs to resubmit to get approval)
       canResubmit = proposal.status === ProposalStatus.SUBMITTED && 
         (canEdit || (!canEdit && !canApprove))
-    }
   }
 
   const canSubmit = proposal.status === ProposalStatus.DRAFT && session?.user.role !== "CLIENT"
