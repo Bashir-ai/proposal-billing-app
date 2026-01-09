@@ -378,19 +378,52 @@ export async function POST(
         `
         emailBody += approvalButton
       } else {
-        // Ensure any review link is styled as a button
+        // Ensure any review link is styled as a button AND has the correct URL with token
         emailBody = emailBody.replace(
           /<a\s+href=["']([^"']*review[^"']*)["'][^>]*>([^<]*)<\/a>/gi,
           (match, url, text) => {
-            if (url.includes('review') && !match.includes('style=')) {
-              return `<a href="${url}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold; margin: 20px 0;">${text}</a>`
+            if (url.includes('review')) {
+              // Always use the full reviewUrl with token, not the matched URL
+              const linkUrl = url.includes('token=') ? url : reviewUrl
+              const hasStyle = match.includes('style=')
+              const buttonStyle = "background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold; margin: 20px 0;"
+              
+              if (hasStyle) {
+                // Replace the href but keep existing styles
+                return match.replace(/href=["'][^"']*["']/, `href="${linkUrl}"`)
+              } else {
+                return `<a href="${linkUrl}" style="${buttonStyle}">${text}</a>`
+              }
             }
             return match
           }
         )
       }
       
-      // Final check - ensure reviewUrl is definitely in the email
+      // Final check - ensure all review links have the token parameter
+      // Check if any review link is missing the token parameter
+      const reviewLinkPattern = /<a\s+href=["']([^"']*\/review[^"']*)["'][^>]*>/gi
+      const reviewLinks = emailBody.match(reviewLinkPattern)
+      
+      if (reviewLinks) {
+        reviewLinks.forEach(link => {
+          // Check if this link has the token parameter
+          if (!link.includes('token=')) {
+            console.warn("Found review link without token, replacing with full URL")
+            // Replace the href with the full reviewUrl
+            emailBody = emailBody.replace(
+              /(<a\s+href=["'])([^"']*\/review)([^"']*)(["'][^>]*>)/gi,
+              (match, prefix, reviewPath, rest, suffix) => {
+                if (!match.includes('token=')) {
+                  return `${prefix}${reviewUrl}${suffix}`
+                }
+                return match
+              }
+            )
+          }
+        })
+      }
+      
       if (!emailBody.includes(reviewUrl)) {
         console.error("CRITICAL: Review URL not found in email body after all processing!")
         // Force add it at the end
@@ -406,6 +439,8 @@ export async function POST(
       console.log("Final email body check:", {
         hasReviewUrl: emailBody.includes(reviewUrl),
         reviewUrlPosition: emailBody.indexOf(reviewUrl),
+        reviewUrlWithToken: emailBody.includes('token='),
+        sampleLink: emailBody.match(/<a\s+href=["'][^"']*review[^"']*["']/)?.[0],
       })
       
       // Add note about PDF download if PDF generation failed
