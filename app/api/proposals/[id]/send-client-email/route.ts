@@ -354,9 +354,21 @@ export async function POST(
       emailSubject = renderTemplate(finalTemplate.subject || `Proposal Approval Request: ${proposal.title}`, variables)
       emailBody = renderTemplate(finalTemplate.body || "", variables)
       
-      // Ensure email always includes a styled approval button, even if template doesn't have it
-      if (!emailBody.includes(reviewUrl) && !emailBody.includes('{{reviewLink}}')) {
-        // Add approval button if not present in template
+      console.log("Email body after template rendering:", {
+        hasReviewUrl: emailBody.includes(reviewUrl),
+        hasReviewLinkPlaceholder: emailBody.includes('{{reviewLink}}'),
+        reviewUrlInBody: emailBody.includes(reviewUrl),
+        emailBodyLength: emailBody.length,
+        reviewUrl: reviewUrl,
+      })
+      
+      // Always ensure the review link is in the email, even if template replacement failed
+      // Replace {{reviewLink}} if it exists but wasn't replaced
+      emailBody = emailBody.replace(/\{\{reviewLink\}\}/g, reviewUrl)
+      
+      // If reviewUrl is still not in the body, add it as a button
+      if (!emailBody.includes(reviewUrl)) {
+        console.log("Review URL not found in email body, adding approval button")
         const approvalButton = `
           <div style="text-align: center; margin: 30px 0;">
             <a href="${reviewUrl}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
@@ -366,8 +378,6 @@ export async function POST(
         `
         emailBody += approvalButton
       } else {
-        // Replace {{reviewLink}} if it exists but wasn't replaced
-        emailBody = emailBody.replace(/\{\{reviewLink\}\}/g, reviewUrl)
         // Ensure any review link is styled as a button
         emailBody = emailBody.replace(
           /<a\s+href=["']([^"']*review[^"']*)["'][^>]*>([^<]*)<\/a>/gi,
@@ -379,6 +389,24 @@ export async function POST(
           }
         )
       }
+      
+      // Final check - ensure reviewUrl is definitely in the email
+      if (!emailBody.includes(reviewUrl)) {
+        console.error("CRITICAL: Review URL not found in email body after all processing!")
+        // Force add it at the end
+        emailBody += `
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${reviewUrl}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
+              Review & Approve Proposal
+            </a>
+          </div>
+        `
+      }
+      
+      console.log("Final email body check:", {
+        hasReviewUrl: emailBody.includes(reviewUrl),
+        reviewUrlPosition: emailBody.indexOf(reviewUrl),
+      })
       
       // Add note about PDF download if PDF generation failed
       if (pdfGenerationFailed && !emailBody.includes('download the PDF') && !emailBody.includes('Download PDF')) {

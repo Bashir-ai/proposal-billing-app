@@ -119,7 +119,12 @@ export function renderTemplate(
   }
 
   if (variables.reviewLink) {
-    replacements.push({ pattern: /\{\{reviewLink\}\}/g, value: variables.reviewLink })
+    // Ensure reviewLink is always replaced - use a more specific pattern
+    const reviewLinkPattern = /\{\{reviewLink\}\}/g
+    if (rendered.match(reviewLinkPattern)) {
+      replacements.push({ pattern: reviewLinkPattern, value: variables.reviewLink })
+      console.log("Adding reviewLink replacement:", { reviewLink: variables.reviewLink })
+    }
   }
 
   if (variables.pdfLink) {
@@ -152,8 +157,9 @@ export function renderTemplate(
     rendered = rendered.replace(pattern, value)
   })
 
-  // Remove any remaining unmatched variables
-  rendered = rendered.replace(/\{\{[^}]+\}\}/g, "")
+  // Remove any remaining unmatched variables, but preserve reviewLink and approvalLink if they exist
+  // This prevents accidentally removing important links
+  rendered = rendered.replace(/\{\{(?!reviewLink|approvalLink)[^}]+\}\}/g, "")
 
   return rendered
 }
