@@ -26,8 +26,8 @@ export default async function ProposalReviewPublicPage({
 }) {
   const { id } = await params
   const { token: rawToken } = await searchParams
-  // Decode the token in case it was URL encoded
-  const token = rawToken ? decodeURIComponent(rawToken) : null
+  // Decode the token in case it was URL encoded, and trim any whitespace
+  const token = rawToken ? decodeURIComponent(rawToken).trim() : null
 
   if (!token) {
     return (
@@ -103,16 +103,20 @@ export default async function ProposalReviewPublicPage({
       )
     }
 
-    // Verify token
+    // Verify token - trim both tokens to handle any whitespace issues
+    const storedToken = proposal.clientApprovalToken?.trim() || ""
+    const receivedToken = token?.trim() || ""
+    
     console.log("Token validation:", {
-      proposalToken: proposal.clientApprovalToken,
-      receivedToken: token,
-      tokensMatch: proposal.clientApprovalToken === token,
-      tokenLength: token?.length,
-      proposalTokenLength: proposal.clientApprovalToken?.length,
+      proposalToken: storedToken,
+      receivedToken: receivedToken,
+      tokensMatch: storedToken === receivedToken,
+      tokenLength: receivedToken.length,
+      proposalTokenLength: storedToken.length,
+      rawTokenFromUrl: rawToken,
     })
     
-    if (!proposal.clientApprovalToken || proposal.clientApprovalToken !== token) {
+    if (!storedToken || storedToken !== receivedToken) {
       return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50">
           <div className="max-w-md w-full bg-white rounded-lg shadow-md p-8 text-center">

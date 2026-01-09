@@ -82,33 +82,51 @@ export async function POST(
     }
 
     // Generate or reuse approval token
-    let approvalToken = proposal.clientApprovalToken
+    let approvalToken = proposal.clientApprovalToken?.trim() || null
     if (!approvalToken || (proposal.clientApprovalTokenExpiry && new Date() > proposal.clientApprovalTokenExpiry)) {
       const cryptoModule = await import("crypto")
       approvalToken = cryptoModule.randomBytes(32).toString("hex")
+      console.log("Generated new approval token:", {
+        token: approvalToken,
+        length: approvalToken.length,
+      })
+    } else {
+      console.log("Reusing existing approval token:", {
+        token: approvalToken,
+        length: approvalToken.length,
+      })
     }
 
     const tokenExpiry = new Date()
     tokenExpiry.setDate(tokenExpiry.getDate() + 30) // 30 days expiry
 
     // Save token to database BEFORE sending email to ensure it's available
+    // Ensure token is trimmed before saving
+    const tokenToSave = approvalToken.trim()
     console.log("Saving approval token:", {
       proposalId: id,
-      token: approvalToken,
-      tokenLength: approvalToken.length,
+      originalToken: approvalToken,
+      tokenToSave: tokenToSave,
+      tokenLength: tokenToSave.length,
       expiry: tokenExpiry,
     })
     
     await prisma.proposal.update({
       where: { id },
       data: {
-        clientApprovalToken: approvalToken,
+        clientApprovalToken: tokenToSave,
         clientApprovalTokenExpiry: tokenExpiry,
         clientApprovalStatus: "PENDING",
       },
     })
     
-    console.log("Token saved successfully to database")
+    console.log("Token saved successfully to database:", {
+      savedToken: tokenToSave,
+      tokenLength: tokenToSave.length,
+    })
+    
+    // Update approvalToken variable to use trimmed version for consistency
+    approvalToken = tokenToSave
 
     // Generate PDF for attachment
     let pdfBuffer: Buffer | null = null
@@ -296,15 +314,18 @@ export async function POST(
         return 'http://localhost:3000'
       }
       const baseUrl = getBaseUrl()
-      // URL encode the token to ensure it's properly formatted in the URL
-      const reviewUrl = `${baseUrl}/proposals/${proposal.id}/review?token=${encodeURIComponent(approvalToken)}`
+      // Trim token and URL encode it to ensure it's properly formatted in the URL
+      const trimmedToken = approvalToken.trim()
+      const reviewUrl = `${baseUrl}/proposals/${proposal.id}/review?token=${encodeURIComponent(trimmedToken)}`
       
       console.log("Generated review URL:", {
         baseUrl,
         proposalId: proposal.id,
-        token: approvalToken,
-        encodedToken: encodeURIComponent(approvalToken),
+        originalToken: approvalToken,
+        trimmedToken: trimmedToken,
+        encodedToken: encodeURIComponent(trimmedToken),
         reviewUrl,
+        tokenLength: trimmedToken.length,
       })
 
       const variables = {
