@@ -116,8 +116,8 @@ export async function POST(
       if (isVercel) {
         try {
           const chromium = await import("@sparticuz/chromium")
-          chromium.setGraphicsMode(false)
           launchOptions.executablePath = await chromium.executablePath()
+          launchOptions.args = [...(launchOptions.args || []), ...chromium.args]
         } catch (chromiumError) {
           console.warn("Could not load @sparticuz/chromium, using default:", chromiumError)
         }
