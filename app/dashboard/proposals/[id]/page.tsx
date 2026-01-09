@@ -1046,9 +1046,12 @@ export default async function ProposalDetailPage({
                 <SendProposalEmailButton proposalId={proposal.id} />
               )}
 
-              {/* Send to Client Button */}
-              {!proposal.clientApprovalEmailSent && (
-                <SendToClientButton proposalId={proposal.id} />
+              {/* Send/Resend to Client Button */}
+              {(proposal.client?.email || proposal.lead?.email) && (
+                <SendToClientButton 
+                  proposalId={proposal.id} 
+                  isResend={proposal.clientApprovalEmailSent || false}
+                />
               )}
 
               {/* Generate Upfront Payment Invoice Button */}

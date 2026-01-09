@@ -7,9 +7,10 @@ import { EmailEditDialog } from "./EmailEditDialog"
 
 interface SendToClientButtonProps {
   proposalId: string
+  isResend?: boolean
 }
 
-export function SendToClientButton({ proposalId }: SendToClientButtonProps) {
+export function SendToClientButton({ proposalId, isResend = false }: SendToClientButtonProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showEditDialog, setShowEditDialog] = useState(false)
@@ -77,7 +78,7 @@ export function SendToClientButton({ proposalId }: SendToClientButtonProps) {
     <>
       <div>
         <Button onClick={() => setShowEditDialog(true)} disabled={loading} variant="outline">
-          {loading ? "Sending..." : "Send for Approval"}
+          {loading ? "Sending..." : isResend ? "Resend for Approval" : "Send for Approval"}
         </Button>
         {error && (
           <p className="text-sm text-red-600 mt-2">{error}</p>
