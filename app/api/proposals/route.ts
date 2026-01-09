@@ -142,7 +142,17 @@ export async function GET(request: Request) {
     const proposals = await prisma.proposal.findMany({
       where,
       orderBy: { createdAt: "desc" },
-      include: {
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        status: true,
+        type: true,
+        clientApprovalStatus: true,
+        amount: true,
+        proposalNumber: true,
+        createdAt: true,
+        deletedAt: true,
         client: {
           select: {
             id: true,

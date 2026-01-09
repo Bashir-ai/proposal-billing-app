@@ -25,7 +25,14 @@ interface Proposal {
     id: string
     name: string
     company?: string | null
-  }
+  } | null
+  lead?: {
+    id: string
+    name: string
+    email?: string | null
+    company?: string | null
+    status?: string | null
+  } | null
   creator: {
     name: string
   }
@@ -122,7 +129,8 @@ export default function ProposalsPage() {
       return (
         proposal.title.toLowerCase().includes(query) ||
         proposal.description?.toLowerCase().includes(query) ||
-        proposal.client.name.toLowerCase().includes(query) ||
+        proposal.client?.name.toLowerCase().includes(query) ||
+        proposal.lead?.name.toLowerCase().includes(query) ||
         proposal.proposalNumber?.toLowerCase().includes(query) ||
         proposal.tags.some(tag => tag.name.toLowerCase().includes(query)) ||
         proposal.customTags.some(tag => tag.toLowerCase().includes(query))
@@ -342,8 +350,13 @@ export default function ProposalsPage() {
                       ))}
                     </div>
                     <p className="text-sm text-gray-600 mb-2">
-                      Client: {proposal.client.name}
-                      {proposal.client.company && ` (${proposal.client.company})`}
+                      {proposal.client ? (
+                        <>Client: {proposal.client.name}{proposal.client.company && ` (${proposal.client.company})`}</>
+                      ) : proposal.lead ? (
+                        <>Lead: {proposal.lead.name}{proposal.lead.company && ` (${proposal.lead.company})`}</>
+                      ) : (
+                        <>No client or lead assigned</>
+                      )}
                     </p>
                     {proposal.description && (
                       <p className="text-sm text-gray-500 line-clamp-2">{proposal.description}</p>
