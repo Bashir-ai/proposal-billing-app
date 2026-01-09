@@ -294,7 +294,7 @@ export async function POST(
       }
 
       emailSubject = renderTemplate(finalTemplate.subject || `Proposal Approval Request: ${proposal.title}`, variables)
-      let emailBody = renderTemplate(finalTemplate.body || "", variables)
+      emailBody = renderTemplate(finalTemplate.body || "", variables)
       
       // Ensure email always includes a styled approval button, even if template doesn't have it
       if (!emailBody.includes(reviewUrl) && !emailBody.includes('{{reviewLink}}')) {
