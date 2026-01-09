@@ -57,82 +57,203 @@ export default async function ProposalDetailPage({
   const { id } = await params
   const session = await getServerSession(authOptions)
 
-  const proposal = await prisma.proposal.findUnique({
-    where: { id },
-    include: {
-      client: true,
-      creator: {
-        select: {
-          name: true,
-          email: true,
+  // Parallelize all queries for better performance
+  const [proposal, logoSettings, currentUser, clientCheck] = await Promise.all([
+    // Main proposal query with optimized field selection
+    prisma.proposal.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        clientId: true,
+        leadId: true,
+        createdBy: true,
+        type: true,
+        status: true,
+        title: true,
+        description: true,
+        amount: true,
+        proposalNumber: true,
+        issueDate: true,
+        expiryDate: true,
+        currency: true,
+        taxInclusive: true,
+        taxRate: true,
+        clientDiscountPercent: true,
+        clientDiscountAmount: true,
+        estimatedHours: true,
+        hourlyRateRangeMin: true,
+        hourlyRateRangeMax: true,
+        hourlyCapHours: true,
+        cappedAmount: true,
+        retainerMonthlyAmount: true,
+        retainerHourlyCap: true,
+        blendedRate: true,
+        useBlendedRate: true,
+        successFeePercent: true,
+        successFeeAmount: true,
+        successFeeValue: true,
+        fixedAmount: true,
+        outOfScopeHourlyRate: true,
+        customTags: true,
+        clientApprovalStatus: true,
+        clientApprovalEmailSent: true,
+        internalApprovalRequired: true,
+        internalApprovalType: true,
+        requiredApproverIds: true,
+        internalApprovalsComplete: true,
+        deletedAt: true,
+        submittedAt: true,
+        createdAt: true,
+        recurringEnabled: true,
+        lastRecurringInvoiceDate: true,
+        client: {
+          select: {
+            id: true,
+            name: true,
+            company: true,
+            email: true,
+          },
         },
-      },
-      items: {
-        include: {
-          person: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
+        lead: {
+          select: {
+            id: true,
+            name: true,
+            company: true,
+            email: true,
+          },
+        },
+        creator: {
+          select: {
+            name: true,
+            email: true,
+          },
+        },
+        items: {
+          select: {
+            id: true,
+            description: true,
+            quantity: true,
+            rate: true,
+            unitPrice: true,
+            amount: true,
+            discountPercent: true,
+            discountAmount: true,
+            billingMethod: true,
+            recurringEnabled: true,
+            person: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+            milestones: {
+              select: {
+                id: true,
+                name: true,
+                description: true,
+                amount: true,
+                percent: true,
+                dueDate: true,
+              },
             },
           },
-          milestones: {
-            select: {
-              id: true,
-              name: true,
-              description: true,
-              amount: true,
-              percent: true,
-              dueDate: true,
-            },
+          orderBy: { createdAt: "asc" },
+        },
+        milestones: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            amount: true,
+            percent: true,
+            dueDate: true,
+          },
+          orderBy: { createdAt: "asc" },
+        },
+        tags: {
+          select: {
+            id: true,
+            name: true,
+            color: true,
           },
         },
-        orderBy: { createdAt: "asc" },
-      },
-      milestones: {
-        orderBy: { createdAt: "asc" },
-      },
-      tags: true,
-      paymentTerms: true,
-      approvals: {
-        include: {
-          approver: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              role: true,
-            },
+        paymentTerms: {
+          select: {
+            id: true,
+            upfrontType: true,
+            upfrontValue: true,
+            installmentType: true,
+            installmentCount: true,
+            installmentFrequency: true,
+            milestoneIds: true,
+            proposalItemId: true,
           },
         },
-        orderBy: { createdAt: "desc" },
-      },
-      bills: {
-        where: {
-          isUpfrontPayment: true,
+        approvals: {
+          select: {
+            id: true,
+            status: true,
+            comments: true,
+            createdAt: true,
+            approverId: true,
+            approver: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                role: true,
+              },
+            },
+          },
+          orderBy: { createdAt: "desc" },
+        },
+        bills: {
+          where: {
+            isUpfrontPayment: true,
+          },
+          select: {
+            id: true,
+          },
+        },
+        projects: {
+          select: {
+            id: true,
+          },
         },
       },
-      projects: {
-        select: {
-          id: true,
-        },
+    }),
+    // Fetch logo in parallel
+    getLogoPath(),
+    // Fetch current user in parallel (only if session exists)
+    session?.user.id ? prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: {
+        id: true,
+        role: true,
+        canApproveProposals: true,
+        canEditAllProposals: true,
       },
-    },
-  })
+    }) : null,
+    // Check client access in parallel (only if client role)
+    session?.user.role === "CLIENT" && session.user.email ? prisma.client.findFirst({
+      where: { email: session.user.email },
+      select: { id: true },
+    }) : null,
+  ])
 
   if (!proposal) {
     notFound()
   }
 
-  // Check if client can access this proposal
+  // Check if client can access this proposal (if clientCheck was performed)
   if (session?.user.role === "CLIENT") {
-    const client = await prisma.client.findFirst({
-      where: { email: session.user.email },
-    })
-    if (!client || proposal.clientId !== client.id) {
+    if (!clientCheck || proposal.clientId !== clientCheck.id) {
       return <div>Access denied</div>
     }
   }
+
+  const logoPath = logoSettings
 
   const getStatusColor = (status: ProposalStatus) => {
     switch (status) {
@@ -219,11 +340,7 @@ export default async function ProposalDetailPage({
   const tax = calculateTax()
   const grandTotal = calculateGrandTotal()
 
-  // Fetch logo
-  const logoPath = await getLogoPath()
-
-  // Fetch current user with permissions
-  let currentUser = null
+  // Use currentUser from parallel query
   let canEdit = false
   let canApprove = false
   let canResubmit = false
@@ -232,18 +349,7 @@ export default async function ProposalDetailPage({
   let hasGeneralApprovalPermission = false
   let canStillApprove = true
 
-  if (session?.user.id) {
-    currentUser = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: {
-        id: true,
-        role: true,
-        canApproveProposals: true,
-        canEditAllProposals: true,
-      },
-    })
-
-    if (currentUser) {
+  if (currentUser) {
       // Check edit permission using permission function
       canEdit = canEditProposal(currentUser, {
         createdBy: proposal.createdBy,

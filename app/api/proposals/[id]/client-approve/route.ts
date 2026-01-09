@@ -28,7 +28,9 @@ export async function POST(
       },
       include: {
         client: true,
+        lead: true,
         creator: true,
+        emailSentBy: true, // User who sent the email
       },
     })
 
@@ -110,13 +112,49 @@ export async function POST(
       }
     }
 
+    // Create notifications if approved
+    if (validatedData.action === "approve") {
+      try {
+        const recipient = proposal.client || proposal.lead
+        const recipientName = recipient?.name || "the client/lead"
+        
+        // Notify proposal creator
+        await prisma.notification.create({
+          data: {
+            userId: proposal.createdBy,
+            type: "PROPOSAL_APPROVAL",
+            proposalId: proposal.id,
+            title: `Proposal "${proposal.title}" Approved`,
+            message: `The proposal ${proposal.proposalNumber ? `#${proposal.proposalNumber}` : proposal.title} has been approved by ${recipientName}.`,
+          },
+        })
+
+        // Notify user who sent the email (if different from creator)
+        if (proposal.clientApprovalEmailSentBy && proposal.clientApprovalEmailSentBy !== proposal.createdBy) {
+          await prisma.notification.create({
+            data: {
+              userId: proposal.clientApprovalEmailSentBy,
+              type: "PROPOSAL_APPROVAL",
+              proposalId: proposal.id,
+              title: `Proposal "${proposal.title}" Approved`,
+              message: `The proposal ${proposal.proposalNumber ? `#${proposal.proposalNumber}` : proposal.title} you sent has been approved by ${recipientName}.`,
+            },
+          })
+        }
+      } catch (notificationError) {
+        console.error("Failed to create notifications:", notificationError)
+        // Don't fail the request if notifications fail
+      }
+    }
+
     // Send confirmation emails
     try {
-      // Email to client
-      if (proposal.client && proposal.client.email) {
+      // Email to client/lead
+      const recipient = proposal.client || proposal.lead
+      if (recipient && recipient.email) {
         await sendApprovalConfirmation(
-          proposal.client.email,
-          proposal.client.name,
+          recipient.email,
+          recipient.name,
           {
             title: proposal.title,
             proposalNumber: proposal.proposalNumber,

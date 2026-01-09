@@ -131,7 +131,7 @@ export async function sendInternalApprovalRequest(
   })
 }
 
-// Client Approval Request Email
+// Client/Lead Approval Request Email
 export async function sendClientApprovalRequest(
   clientEmail: string,
   clientName: string,
@@ -144,12 +144,17 @@ export async function sendClientApprovalRequest(
     currency: string
     issueDate: Date | null
     expiryDate: Date | null
+    isLead?: boolean
   },
-  approvalToken: string
+  approvalToken: string,
+  attachments?: Array<{
+    filename: string
+    content: Buffer | string
+  }>
 ) {
-  const approveUrl = `${BASE_URL}/approve/${approvalToken}?action=approve`
-  const rejectUrl = `${BASE_URL}/approve/${approvalToken}?action=reject`
+  const reviewUrl = `${BASE_URL}/proposals/${proposal.id}/review?token=${approvalToken}`
   const currencySymbol = getCurrencySymbol(proposal.currency)
+  const recipientType = proposal.isLead ? "Lead" : "Client"
 
   const html = `
     <!DOCTYPE html>
@@ -176,16 +181,13 @@ export async function sendClientApprovalRequest(
         </div>
 
         <div style="text-align: center; margin: 30px 0;">
-          <a href="${approveUrl}" style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold; margin-right: 10px;">
-            Approve Proposal
-          </a>
-          <a href="${rejectUrl}" style="background-color: #ef4444; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
-            Reject Proposal
+          <a href="${reviewUrl}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold; margin-bottom: 10px;">
+            Review & Approve Proposal
           </a>
         </div>
 
         <p style="color: #6b7280; font-size: 14px; margin-top: 30px;">
-          You can also review the full proposal details by clicking the links above. If you have any questions, please contact us.
+          Please click the link above to review the full proposal details and provide your approval. A PDF copy is attached to this email for your records. If you have any questions, please contact us.
         </p>
       </body>
     </html>
@@ -195,6 +197,7 @@ export async function sendClientApprovalRequest(
     to: clientEmail,
     subject: `Proposal Approval Request: ${proposal.title}`,
     html,
+    attachments: attachments || undefined,
   })
 }
 

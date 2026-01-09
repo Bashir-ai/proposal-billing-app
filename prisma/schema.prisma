@@ -203,6 +203,8 @@ model User {
   managedLeads            Lead[]              @relation("LeadManager")
   leadInteractions        LeadInteraction[]  @relation("LeadInteractionCreator")
   notifications           Notification[]
+  createdEmailTemplates   EmailTemplate[]    @relation("EmailTemplateCreator")
+  sentProposalEmails      Proposal[]         @relation("ProposalEmailSender")
 }
 
 model Client {
@@ -336,6 +338,7 @@ model Proposal {
   internalApprovalsComplete Boolean              @default(false)
   // Client email approval fields
   clientApprovalEmailSent   Boolean              @default(false)
+  clientApprovalEmailSentBy String? // User ID who sent the approval email
   clientApprovalToken       String?              @unique // Token for email approval links
   clientApprovalTokenExpiry DateTime? // Token expiry date
   // Resubmission tracking
@@ -372,6 +375,7 @@ model Proposal {
   deletionRequester User?          @relation("DeletionRequester", fields: [deletionRequestedBy], references: [id])
   deletionApprover  User?          @relation("DeletionApprover", fields: [deletionApprovedBy], references: [id])
   resubmitter       User?          @relation("ProposalResubmitter", fields: [resubmittedBy], references: [id])
+  emailSentBy       User?          @relation("ProposalEmailSender", fields: [clientApprovalEmailSentBy], references: [id])
   todos             Todo[]
   notifications     Notification[]
   installmentInvoices InstallmentInvoice[]
@@ -924,4 +928,22 @@ model InstallmentInvoice {
   proposalItem ProposalItem? @relation(fields: [proposalItemId], references: [id], onDelete: Cascade)
   paymentTerm  PaymentTerm  @relation(fields: [paymentTermId], references: [id], onDelete: Cascade)
   bill         Bill?        @relation(fields: [billId], references: [id], onDelete: SetNull)
+}
+
+model EmailTemplate {
+  id          String   @id @default(cuid())
+  type        String   // "PROPOSAL", "INVOICE", "OTHER"
+  name        String
+  subject     String
+  body        String   // HTML template with variables
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdBy   String
+
+  // Relations
+  creator     User     @relation("EmailTemplateCreator", fields: [createdBy], references: [id])
+
+  @@index([type, isDefault])
+  @@index([createdBy])
 }
