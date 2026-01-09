@@ -515,6 +515,7 @@ export default async function ProposalDetailPage({
         </div>
         <ProposalActions
           proposalId={proposal.id}
+          proposalTitle={proposal.title}
           canEdit={canEdit}
           canSubmit={canSubmit}
           isClient={isClient}

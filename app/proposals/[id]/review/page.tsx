@@ -87,6 +87,22 @@ export default async function ProposalReviewPublicPage({
         },
         paymentTerms: {
           where: { proposalItemId: null }, // Proposal-level terms
+          select: {
+            id: true,
+            upfrontType: true,
+            upfrontValue: true,
+            installmentType: true,
+            installmentCount: true,
+            installmentFrequency: true,
+            milestoneIds: true,
+            balancePaymentType: true,
+            balanceDueDate: true,
+            installmentMaturityDates: true,
+            recurringEnabled: true,
+            recurringFrequency: true,
+            recurringCustomMonths: true,
+            recurringStartDate: true,
+          },
         },
         tags: true,
       },
@@ -165,6 +181,7 @@ export default async function ProposalReviewPublicPage({
         proposal={{
           ...proposal,
           currencySymbol,
+          paymentTerms: proposal.paymentTerms || [],
         }}
         token={token}
       />

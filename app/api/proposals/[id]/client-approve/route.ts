@@ -78,6 +78,55 @@ export async function POST(
       }
     }
 
+    // If approved and proposal is from a lead (not a client), convert lead to client
+    let convertedClientId: string | null = null
+    if (validatedData.action === "approve" && proposal.leadId && !proposal.clientId) {
+      try {
+        const lead = proposal.lead
+        
+        // Check if lead has already been converted
+        if (lead.convertedToClientId) {
+          // Lead already converted, use existing client
+          convertedClientId = lead.convertedToClientId
+          updateData.clientId = convertedClientId
+        } else {
+          // Convert lead to client
+          const newClient = await prisma.client.create({
+            data: {
+              name: lead.name,
+              email: lead.email,
+              company: lead.company,
+              contactInfo: lead.contactInfo,
+              billingAddressLine: lead.addressLine,
+              billingCity: lead.city,
+              billingState: lead.state,
+              billingZipCode: lead.zipCode,
+              billingCountry: lead.country,
+              createdBy: proposal.createdBy, // Use proposal creator as client creator
+            },
+          })
+          
+          convertedClientId = newClient.id
+          updateData.clientId = convertedClientId
+          
+          // Update lead to mark as converted
+          await prisma.lead.update({
+            where: { id: lead.id },
+            data: {
+              convertedToClientId: newClient.id,
+              convertedAt: new Date(),
+              status: "CONVERTED",
+            },
+          })
+          
+          console.log(`Lead ${lead.id} converted to client ${newClient.id} upon proposal approval`)
+        }
+      } catch (conversionError) {
+        console.error("Failed to convert lead to client:", conversionError)
+        // Don't fail the approval if conversion fails, but log the error
+      }
+    }
+
     const updatedProposal = await prisma.proposal.update({
       where: { id },
       data: updateData,

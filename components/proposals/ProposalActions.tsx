@@ -16,6 +16,7 @@ import { DeleteButton } from "@/components/shared/DeleteButton"
 
 interface ProposalActionsProps {
   proposalId: string
+  proposalTitle?: string
   canEdit: boolean
   canSubmit: boolean
   isClient: boolean
@@ -32,6 +33,7 @@ interface ProposalActionsProps {
 
 export function ProposalActions({
   proposalId,
+  proposalTitle,
   canEdit,
   canSubmit,
   isClient,
@@ -169,7 +171,7 @@ export function ProposalActions({
           <DeleteButton
             itemId={proposalId}
             itemType="proposal"
-            itemName={undefined}
+            itemName={proposalTitle}
           />
         )}
       </div>

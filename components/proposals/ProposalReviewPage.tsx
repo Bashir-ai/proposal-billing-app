@@ -53,6 +53,22 @@ interface ProposalReviewPageProps {
       percent: number | null
       dueDate: Date | null
     }>
+    paymentTerms: Array<{
+      id: string
+      upfrontType: string | null
+      upfrontValue: number | null
+      installmentType: string | null
+      installmentCount: number | null
+      installmentFrequency: string | null
+      milestoneIds: string[]
+      balancePaymentType: string | null
+      balanceDueDate: Date | null
+      installmentMaturityDates: Date[]
+      recurringEnabled: boolean
+      recurringFrequency: string | null
+      recurringCustomMonths: number | null
+      recurringStartDate: Date | null
+    }>
     tags: Array<{
       id: string
       name: string
@@ -265,6 +281,124 @@ export function ProposalReviewPage({ proposal, token }: ProposalReviewPageProps)
                       </tfoot>
                     )}
                   </table>
+                </div>
+              </div>
+            )}
+
+            {/* Milestones */}
+            {proposal.milestones.length > 0 && (
+              <div>
+                <p className="text-sm font-medium text-gray-700 mb-3">Milestones</p>
+                <div className="border rounded-lg overflow-hidden">
+                  <div className="divide-y divide-gray-200">
+                    {proposal.milestones.map((milestone) => (
+                      <div key={milestone.id} className="p-4">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <p className="font-medium text-gray-900">{milestone.name}</p>
+                            {milestone.description && (
+                              <p className="text-sm text-gray-600 mt-1">{milestone.description}</p>
+                            )}
+                            <div className="flex gap-4 mt-2 text-sm text-gray-600">
+                              {milestone.amount !== null && (
+                                <span>Amount: {formatCurrency(milestone.amount, proposal.currency)}</span>
+                              )}
+                              {milestone.percent !== null && (
+                                <span>Percentage: {milestone.percent}%</span>
+                              )}
+                              {milestone.dueDate && (
+                                <span>Due: {formatDate(milestone.dueDate)}</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Payment Terms */}
+            {proposal.paymentTerms && proposal.paymentTerms.length > 0 && (
+              <div>
+                <p className="text-sm font-medium text-gray-700 mb-3">Payment Terms</p>
+                <div className="border rounded-lg p-4 space-y-4">
+                  {proposal.paymentTerms.map((term) => (
+                    <div key={term.id} className="space-y-3">
+                      {/* Upfront Payment */}
+                      {term.upfrontType && term.upfrontValue !== null && (
+                        <div>
+                          <p className="text-sm font-medium text-gray-700">Upfront Payment</p>
+                          <p className="text-sm text-gray-900">
+                            {term.upfrontType === "PERCENT" 
+                              ? `${term.upfrontValue}%` 
+                              : formatCurrency(term.upfrontValue, proposal.currency)}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Installments */}
+                      {term.installmentType && term.installmentCount && (
+                        <div>
+                          <p className="text-sm font-medium text-gray-700">Installments</p>
+                          <p className="text-sm text-gray-900">
+                            {term.installmentCount} payment{term.installmentCount > 1 ? 's' : ''} 
+                            {term.installmentFrequency && ` (${term.installmentFrequency.toLowerCase()})`}
+                            {term.installmentType === "MILESTONE_BASED" && term.milestoneIds.length > 0 && (
+                              <span className="text-gray-600"> - Based on milestones</span>
+                            )}
+                            {term.installmentType === "TIME_BASED" && (
+                              <span className="text-gray-600"> - Time-based</span>
+                            )}
+                          </p>
+                          {term.installmentMaturityDates.length > 0 && (
+                            <div className="mt-2 text-xs text-gray-600">
+                              <p className="font-medium mb-1">Payment Dates:</p>
+                              <ul className="list-disc list-inside space-y-1">
+                                {term.installmentMaturityDates.map((date, idx) => (
+                                  <li key={idx}>{formatDate(date)}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Balance Payment */}
+                      {term.balancePaymentType && (
+                        <div>
+                          <p className="text-sm font-medium text-gray-700">Balance Payment</p>
+                          <p className="text-sm text-gray-900">
+                            {term.balancePaymentType === "MILESTONE_BASED" && "Based on milestones"}
+                            {term.balancePaymentType === "TIME_BASED" && term.balanceDueDate && (
+                              <>Due: {formatDate(term.balanceDueDate)}</>
+                            )}
+                            {term.balancePaymentType === "FULL_UPFRONT" && "Full upfront payment"}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Recurring Payment */}
+                      {term.recurringEnabled && term.recurringFrequency && (
+                        <div>
+                          <p className="text-sm font-medium text-gray-700">Recurring Payment</p>
+                          <p className="text-sm text-gray-900">
+                            {term.recurringFrequency === "MONTHLY_1" && "Monthly"}
+                            {term.recurringFrequency === "MONTHLY_3" && "Every 3 months"}
+                            {term.recurringFrequency === "MONTHLY_6" && "Every 6 months"}
+                            {term.recurringFrequency === "YEARLY_12" && "Yearly"}
+                            {term.recurringFrequency === "CUSTOM" && term.recurringCustomMonths && (
+                              `Every ${term.recurringCustomMonths} month${term.recurringCustomMonths > 1 ? 's' : ''}`
+                            )}
+                            {term.recurringStartDate && (
+                              <span className="text-gray-600"> - Starting {formatDate(term.recurringStartDate)}</span>
+                            )}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
