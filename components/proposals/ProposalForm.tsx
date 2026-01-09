@@ -145,7 +145,30 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
   const [customTags, setCustomTags] = useState<string[]>(initialData?.customTags || [])
   const [newCustomTag, setNewCustomTag] = useState("")
   
-  const [proposalPaymentTerm, setProposalPaymentTerm] = useState<any>(initialData?.paymentTerms?.find((pt: any) => !pt.proposalItemId) || null)
+  // Get default payment terms (monthly billing at beginning of month)
+  const getDefaultPaymentTerm = () => {
+    const now = new Date()
+    const day = now.getDate()
+    let startDate: string
+    if (day < 15) {
+      startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+    } else {
+      startDate = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString().split('T')[0]
+    }
+    return {
+      recurringEnabled: true,
+      recurringFrequency: "MONTHLY_1",
+      recurringStartDate: startDate,
+      upfrontType: null,
+      upfrontValue: null,
+      balancePaymentType: null,
+      installmentType: null,
+    }
+  }
+  
+  const [proposalPaymentTerm, setProposalPaymentTerm] = useState<any>(
+    initialData?.paymentTerms?.find((pt: any) => !pt.proposalItemId) || getDefaultPaymentTerm()
+  )
   const [itemPaymentTerms, setItemPaymentTerms] = useState<Array<any>>(
     items.map((_, index) => initialData?.paymentTerms?.find((pt: any) => pt.proposalItemId === initialData?.items?.[index]?.id) || null)
   )
@@ -478,11 +501,13 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
         dueDate: m.dueDate || undefined,
       })) : undefined,
       paymentTerms: [
-        ...(proposalPaymentTerm ? [{
-          ...proposalPaymentTerm,
+        // Always include proposal-level payment terms (mandatory)
+        {
+          ...(proposalPaymentTerm || getDefaultPaymentTerm()),
           proposalId: undefined,
           proposalItemId: undefined,
-        }] : []),
+        },
+        // Include item-level payment terms if any
         ...items.map((_, index) => itemPaymentTerms[index]).filter(Boolean).map((term, index) => ({
           ...term,
           proposalId: undefined,

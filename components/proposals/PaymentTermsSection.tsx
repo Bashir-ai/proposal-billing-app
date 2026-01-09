@@ -60,15 +60,56 @@ export function PaymentTermsSection({
   itemCount,
 }: PaymentTermsSectionProps) {
   const currencySymbol = CURRENCIES[currency] || currency
-  const [showProposalLevel, setShowProposalLevel] = useState(!!proposalLevel)
-  const [proposalTerm, setProposalTerm] = useState<PaymentTerm>(proposalLevel || {})
+  
+  // Calculate default start date: first day of next month (or current month if before the 15th)
+  const getDefaultStartDate = () => {
+    const now = new Date()
+    const day = now.getDate()
+    if (day < 15) {
+      // If before 15th, use first day of current month
+      return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+    } else {
+      // If 15th or later, use first day of next month
+      return new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString().split('T')[0]
+    }
+  }
+  
+  // Create default payment terms if none exist
+  const getDefaultPaymentTerm = (): PaymentTerm => ({
+    recurringEnabled: true,
+    recurringFrequency: "MONTHLY_1",
+    recurringStartDate: getDefaultStartDate(),
+    upfrontType: null,
+    upfrontValue: null,
+    balancePaymentType: null,
+    installmentType: null,
+  })
+  
+  const [proposalTerm, setProposalTerm] = useState<PaymentTerm>(
+    proposalLevel || getDefaultPaymentTerm()
+  )
+  
+  // Always show proposal level payment terms (mandatory)
+  const showProposalLevel = true
 
   useEffect(() => {
     if (proposalLevel) {
       setProposalTerm(proposalLevel)
-      setShowProposalLevel(true)
+    } else {
+      // If no proposal level terms, set defaults
+      const defaultTerm = getDefaultPaymentTerm()
+      setProposalTerm(defaultTerm)
+      onProposalLevelChange(defaultTerm)
     }
   }, [proposalLevel])
+  
+  // Ensure payment terms are always set on mount
+  useEffect(() => {
+    if (!proposalLevel) {
+      const defaultTerm = getDefaultPaymentTerm()
+      onProposalLevelChange(defaultTerm)
+    }
+  }, [])
 
   const updateProposalTerm = (field: keyof PaymentTerm, value: any) => {
     const updated = { ...proposalTerm, [field]: value }
@@ -108,26 +149,11 @@ export function PaymentTermsSection({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Proposal Level Payment Terms */}
+        {/* Proposal Level Payment Terms - Always Required */}
         <div className="space-y-4">
           <div className="flex items-center space-x-2">
-            <input
-              type="checkbox"
-              id="proposalPaymentTerms"
-              checked={showProposalLevel}
-              onChange={(e) => {
-                setShowProposalLevel(e.target.checked)
-                if (!e.target.checked) {
-                  onProposalLevelChange(null)
-                  setProposalTerm({})
-                } else {
-                  onProposalLevelChange(proposalTerm)
-                }
-              }}
-              className="rounded"
-            />
-            <Label htmlFor="proposalPaymentTerms" className="font-semibold">
-              Set Default Payment Terms for Entire Proposal
+            <Label className="font-semibold">
+              Payment Terms for Entire Proposal (Required)
             </Label>
           </div>
 
@@ -402,7 +428,94 @@ export function PaymentTermsSection({
                 )}
               </div>
 
-              {/* Note: Recurring Payment is now configured via billing method in line items */}
+              {/* Section 4: Recurring Payment */}
+              <div className="space-y-4 pt-4 border-t">
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="hasRecurring"
+                    checked={!!proposalTerm.recurringEnabled}
+                    onChange={(e) => {
+                      if (!e.target.checked) {
+                        const updated = {
+                          ...proposalTerm,
+                          recurringEnabled: false,
+                          recurringFrequency: null,
+                          recurringCustomMonths: null,
+                          recurringStartDate: null,
+                        }
+                        setProposalTerm(updated)
+                        onProposalLevelChange(updated)
+                      } else {
+                        const updated = {
+                          ...proposalTerm,
+                          recurringEnabled: true,
+                          recurringFrequency: "MONTHLY_1",
+                          recurringStartDate: getDefaultStartDate(),
+                        }
+                        setProposalTerm(updated)
+                        onProposalLevelChange(updated)
+                      }
+                    }}
+                    className="rounded"
+                  />
+                  <Label htmlFor="hasRecurring" className="font-semibold">
+                    Recurring Payment
+                  </Label>
+                </div>
+
+                {proposalTerm.recurringEnabled && (
+                  <div className="space-y-4 pl-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label className="text-sm">Frequency</Label>
+                        <Select
+                          value={proposalTerm.recurringFrequency || ""}
+                          onChange={(e) => {
+                            const frequency = e.target.value as PaymentTerm["recurringFrequency"]
+                            const updated = {
+                              ...proposalTerm,
+                              recurringFrequency: frequency,
+                              recurringCustomMonths: frequency === "CUSTOM" ? proposalTerm.recurringCustomMonths : null,
+                            }
+                            setProposalTerm(updated)
+                            onProposalLevelChange(updated)
+                          }}
+                        >
+                          {RECURRING_FREQUENCIES.map((freq) => (
+                            <option key={freq.value} value={freq.value}>
+                              {freq.label}
+                            </option>
+                          ))}
+                        </Select>
+                      </div>
+                      {proposalTerm.recurringFrequency === "CUSTOM" && (
+                        <div className="space-y-2">
+                          <Label className="text-sm">Custom Months</Label>
+                          <Input
+                            type="number"
+                            min="1"
+                            value={proposalTerm.recurringCustomMonths || ""}
+                            onChange={(e) => {
+                              const months = parseInt(e.target.value) || null
+                              updateProposalTerm("recurringCustomMonths", months)
+                            }}
+                            placeholder="e.g., 2"
+                          />
+                        </div>
+                      )}
+                      <div className="space-y-2">
+                        <Label className="text-sm">Start Date</Label>
+                        <Input
+                          type="date"
+                          value={proposalTerm.recurringStartDate || ""}
+                          onChange={(e) => updateProposalTerm("recurringStartDate", e.target.value || null)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>

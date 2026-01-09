@@ -607,15 +607,14 @@ export default async function ProposalDetailPage({
         </Card>
       </div>
 
-      {/* Billing Method Specific Details */}
-      {/* Payment Terms Section */}
+      {/* Payment Terms Section - Always shown (mandatory) */}
       {proposal.paymentTerms && proposal.paymentTerms.length > 0 && (() => {
         // Get proposal-level payment term (first one without proposalItemId)
         const proposalPaymentTerm = proposal.paymentTerms.find(pt => !pt.proposalItemId)
         
         if (!proposalPaymentTerm) return null
         
-        const { upfrontType, upfrontValue, installmentType, installmentCount, installmentFrequency, milestoneIds } = proposalPaymentTerm
+        const { upfrontType, upfrontValue, balancePaymentType, balanceDueDate, installmentType, installmentCount, installmentFrequency, milestoneIds, installmentMaturityDates, recurringEnabled, recurringFrequency, recurringCustomMonths, recurringStartDate } = proposalPaymentTerm
         
         // Get milestone names for milestone-based payments
         const milestoneNames = milestoneIds && milestoneIds.length > 0 && proposal.milestones
@@ -631,50 +630,132 @@ export default async function ProposalDetailPage({
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {/* Upfront Payment */}
+                {/* Upfront Payment Status */}
+                <div className="p-4 bg-blue-50 border border-blue-200 rounded">
+                  <h4 className="font-semibold text-blue-900 mb-2">Upfront Payment</h4>
+                  <p className="text-lg">
+                    {upfrontType && upfrontValue !== null && upfrontValue !== undefined
+                      ? (upfrontType === "PERCENT" 
+                          ? `${upfrontValue}% upfront`
+                          : `${currencySymbol}${upfrontValue.toFixed(2)} upfront`)
+                      : "No upfront payment"}
+                  </p>
+                </div>
+                
+                {/* Balance Payment (only shown if upfront exists) */}
                 {upfrontType && upfrontValue !== null && upfrontValue !== undefined && (
-                  <div className="p-4 bg-blue-50 border border-blue-200 rounded">
-                    <h4 className="font-semibold text-blue-900 mb-2">Upfront Payment</h4>
+                  <div className="p-4 bg-gray-50 border border-gray-200 rounded">
+                    <h4 className="font-semibold text-gray-900 mb-2">Balance Payment</h4>
+                    {balancePaymentType === "MILESTONE_BASED" && (
+                      <div>
+                        <p className="text-lg mb-2">
+                          {milestoneNames.length > 0
+                            ? `Based on milestones: ${milestoneNames.join(", ")}`
+                            : "Based on milestones"}
+                        </p>
+                      </div>
+                    )}
+                    {balancePaymentType === "TIME_BASED" && balanceDueDate && (
+                      <p className="text-lg">Time-based, due: {formatDate(balanceDueDate)}</p>
+                    )}
+                    {balancePaymentType === "FULL_UPFRONT" && (
+                      <p className="text-lg">Full upfront payment</p>
+                    )}
+                    {!balancePaymentType && installmentType && (
+                      <div>
+                        {installmentType === "MILESTONE_BASED" && (
+                          <div>
+                            <p className="text-lg mb-2">
+                              {milestoneNames.length > 0
+                                ? `Based on milestones: ${milestoneNames.join(", ")}`
+                                : "Based on milestones"}
+                            </p>
+                          </div>
+                        )}
+                        {installmentType === "TIME_BASED" && installmentCount && installmentFrequency && (
+                          <div>
+                            <p className="text-lg">
+                              Remaining balance in <strong>{installmentCount}</strong> {installmentFrequency.toLowerCase()} installments
+                            </p>
+                            {installmentMaturityDates && installmentMaturityDates.length > 0 && (
+                              <div className="mt-2 text-sm text-gray-600">
+                                <p className="font-medium mb-1">Payment Dates:</p>
+                                <ul className="list-disc list-inside space-y-1">
+                                  {installmentMaturityDates.map((date, idx) => (
+                                    <li key={idx}>{formatDate(date)}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {!balancePaymentType && !installmentType && (
+                      <p className="text-lg">Balance due upon completion of work</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Installments (if no upfront) */}
+                {(!upfrontType || upfrontValue === null || upfrontValue === undefined) && installmentType && installmentCount && (
+                  <div className="p-4 bg-gray-50 border border-gray-200 rounded">
+                    <h4 className="font-semibold text-gray-900 mb-2">Payment Schedule</h4>
+                    {installmentType === "TIME_BASED" && installmentFrequency && (
+                      <div>
+                        <p className="text-lg">
+                          {installmentCount} payment{installmentCount > 1 ? 's' : ''} ({installmentFrequency.toLowerCase()})
+                        </p>
+                        {installmentMaturityDates && installmentMaturityDates.length > 0 && (
+                          <div className="mt-2 text-sm text-gray-600">
+                            <p className="font-medium mb-1">Payment Dates:</p>
+                            <ul className="list-disc list-inside space-y-1">
+                              {installmentMaturityDates.map((date, idx) => (
+                                <li key={idx}>{formatDate(date)}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {installmentType === "MILESTONE_BASED" && (
+                      <div>
+                        <p className="text-lg mb-2">
+                          {milestoneNames.length > 0
+                            ? `Based on milestones: ${milestoneNames.join(", ")}`
+                            : "Based on milestones"}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Recurring Payment */}
+                {recurringEnabled && recurringFrequency && (
+                  <div className="p-4 bg-gray-50 border border-gray-200 rounded">
+                    <h4 className="font-semibold text-gray-900 mb-2">Recurring Payment</h4>
                     <p className="text-lg">
-                      {upfrontType === "PERCENT" 
-                        ? `${upfrontValue}% upfront`
-                        : `${currencySymbol}${upfrontValue.toFixed(2)} upfront`
-                      }
+                      {recurringFrequency === "MONTHLY_1" && "Monthly"}
+                      {recurringFrequency === "MONTHLY_3" && "Every 3 months"}
+                      {recurringFrequency === "MONTHLY_6" && "Every 6 months"}
+                      {recurringFrequency === "YEARLY_12" && "Yearly"}
+                      {recurringFrequency === "CUSTOM" && recurringCustomMonths && (
+                        `Every ${recurringCustomMonths} month${recurringCustomMonths > 1 ? 's' : ''}`
+                      )}
+                      {recurringStartDate && (
+                        <span className="text-gray-600"> - Starting {formatDate(recurringStartDate)}</span>
+                      )}
                     </p>
                   </div>
                 )}
-                
-                {/* Remaining Payment Schedule */}
-                <div className="p-4 bg-gray-50 border border-gray-200 rounded">
-                  <h4 className="font-semibold text-gray-900 mb-2">Remaining Payment Schedule</h4>
-                  {installmentType === "TIME_BASED" && installmentCount && installmentFrequency ? (
-                    <div>
-                      <p className="text-lg">
-                        Remaining balance in <strong>{installmentCount}</strong> {installmentFrequency.toLowerCase()} installments
-                      </p>
-                      {installmentFrequency === "WEEKLY" && (
-                        <p className="text-sm text-gray-600 mt-1">Payments due weekly</p>
-                      )}
-                      {installmentFrequency === "MONTHLY" && (
-                        <p className="text-sm text-gray-600 mt-1">Payments due monthly</p>
-                      )}
-                      {installmentFrequency === "QUARTERLY" && (
-                        <p className="text-sm text-gray-600 mt-1">Payments due quarterly</p>
-                      )}
-                    </div>
-                  ) : installmentType === "MILESTONE_BASED" && milestoneNames.length > 0 ? (
-                    <div>
-                      <p className="text-lg mb-2">Remaining balance due upon completion of milestones:</p>
-                      <ul className="list-disc list-inside space-y-1">
-                        {milestoneNames.map((name, index) => (
-                          <li key={index} className="text-gray-700">{name}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  ) : (
-                    <p className="text-lg">Balance due upon completion of work</p>
-                  )}
-                </div>
+
+                {/* Default: Monthly billing if nothing else is set */}
+                {!upfrontType && !installmentType && !recurringEnabled && (
+                  <div className="p-4 bg-gray-50 border border-gray-200 rounded">
+                    <h4 className="font-semibold text-gray-900 mb-2">Payment Terms</h4>
+                    <p className="text-lg">Billed monthly at the beginning of each month</p>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

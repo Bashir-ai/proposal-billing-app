@@ -511,73 +511,147 @@ export async function PUT(
       }
     }
 
-    // Update payment terms if provided
-    if (validatedData.paymentTerms && Array.isArray(validatedData.paymentTerms) && validatedData.paymentTerms.length > 0) {
-      try {
-        // Delete existing payment terms
-        await prisma.paymentTerm.deleteMany({
-          where: { proposalId: id },
-        })
+    // Update payment terms - mandatory, so always process
+    try {
+      // Delete existing payment terms
+      await prisma.paymentTerm.deleteMany({
+        where: { proposalId: id },
+      })
 
-        // Get created/updated items (after they've been created/updated)
-        const existingItems = await prisma.proposalItem.findMany({
-          where: { proposalId: id },
-          orderBy: { createdAt: "asc" },
-        })
+      // Get created/updated items (after they've been created/updated)
+      const existingItems = await prisma.proposalItem.findMany({
+        where: { proposalId: id },
+        orderBy: { createdAt: "asc" },
+      })
 
-        // Create new payment terms
-        // Payment terms structure: first term is proposal-level (no proposalItemId), 
-        // subsequent terms correspond to items in order
-        const paymentTermsToCreate: any[] = []
-        
-        let itemIndex = 0
-        validatedData.paymentTerms.forEach((term, index) => {
-          // Skip if term has no data
-          if (!term.upfrontType && !term.installmentType) {
-            return
-          }
-          
-          // First term without proposalItemId is proposal-level
-          const isProposalLevel = index === 0 && !term.proposalItemId
-          
-          paymentTermsToCreate.push({
-            proposalId: id,
-            proposalItemId: isProposalLevel ? null : (existingItems[itemIndex]?.id || null),
-            upfrontType: term.upfrontType || null,
-            upfrontValue: term.upfrontValue || null,
-            installmentType: term.installmentType || null,
-            installmentCount: term.installmentCount || null,
-            installmentFrequency: term.installmentFrequency || null,
-            milestoneIds: Array.isArray(term.milestoneIds) ? term.milestoneIds : [],
-            // Balance payment fields
-            balancePaymentType: term.balancePaymentType || null,
-            balanceDueDate: term.balanceDueDate ? new Date(term.balanceDueDate) : null,
-            // Installment maturity dates
-            installmentMaturityDates: Array.isArray(term.installmentMaturityDates)
-              ? term.installmentMaturityDates.map(date => new Date(date))
-              : [],
-            // Recurring payment fields
-            recurringEnabled: term.recurringEnabled ?? false,
-            recurringFrequency: term.recurringFrequency || null,
-            recurringCustomMonths: term.recurringCustomMonths || null,
-            recurringStartDate: term.recurringStartDate ? new Date(term.recurringStartDate) : null,
-          })
-          
-          // Only increment item index for non-proposal-level terms
-          if (!isProposalLevel && itemIndex < existingItems.length - 1) {
-            itemIndex++
-          }
-        })
-
-        if (paymentTermsToCreate.length > 0) {
-          await prisma.paymentTerm.createMany({
-            data: paymentTermsToCreate,
-          })
+      // Helper function to create default payment terms (monthly billing at beginning of month)
+      const getDefaultPaymentTerm = () => {
+        const now = new Date()
+        const day = now.getDate()
+        let startDate: Date
+        if (day < 15) {
+          startDate = new Date(now.getFullYear(), now.getMonth(), 1)
+        } else {
+          startDate = new Date(now.getFullYear(), now.getMonth() + 1, 1)
         }
-      } catch (paymentTermsError: any) {
-        console.error("Error updating payment terms:", paymentTermsError?.message || String(paymentTermsError))
-        // Don't fail the entire update if payment terms fail - log and continue
-        // The proposal update should still succeed even if payment terms fail
+        return {
+          proposalId: id,
+          proposalItemId: null, // Proposal-level
+          upfrontType: null,
+          upfrontValue: null,
+          balancePaymentType: null,
+          installmentType: null,
+          installmentCount: null,
+          installmentFrequency: null,
+          milestoneIds: [],
+          balanceDueDate: null,
+          installmentMaturityDates: [],
+          recurringEnabled: true,
+          recurringFrequency: "MONTHLY_1",
+          recurringCustomMonths: null,
+          recurringStartDate: startDate,
+        }
+      }
+
+      // Check if we have valid payment terms with at least one proposal-level term
+      const hasProposalLevelTerm = validatedData.paymentTerms && 
+        Array.isArray(validatedData.paymentTerms) && 
+        validatedData.paymentTerms.some(term => term && !term.proposalItemId)
+
+      // Filter out null/undefined terms and only keep terms with actual data
+      let validPaymentTerms = validatedData.paymentTerms && Array.isArray(validatedData.paymentTerms)
+        ? validatedData.paymentTerms.filter(term => 
+            term && (term.upfrontType || term.installmentType || term.recurringEnabled || term.balancePaymentType)
+          )
+        : []
+
+      // If no proposal-level payment terms exist, create default
+      if (!hasProposalLevelTerm || validPaymentTerms.length === 0) {
+        const defaultTerm = getDefaultPaymentTerm()
+        validPaymentTerms = [defaultTerm]
+      } else {
+        // Ensure we have at least one proposal-level term
+        const proposalLevelTerms = validPaymentTerms.filter(term => !term.proposalItemId)
+        if (proposalLevelTerms.length === 0) {
+          // Add default as first term
+          validPaymentTerms = [getDefaultPaymentTerm(), ...validPaymentTerms]
+        }
+      }
+
+      // Create new payment terms
+      const paymentTermsToCreate: any[] = []
+      
+      validPaymentTerms.forEach((term) => {
+        // Determine if this is a proposal-level term (no proposalItemId) or item-level
+        const isProposalLevel = !term.proposalItemId
+        
+        // For item-level terms, find the matching item
+        let proposalItemId: string | null = null
+        if (!isProposalLevel && term.proposalItemId) {
+          const matchingItem = existingItems.find(item => item.id === term.proposalItemId)
+          proposalItemId = matchingItem?.id || null
+        }
+        
+        paymentTermsToCreate.push({
+          proposalId: id,
+          proposalItemId: isProposalLevel ? null : proposalItemId,
+          upfrontType: term.upfrontType || null,
+          upfrontValue: term.upfrontValue || null,
+          installmentType: term.installmentType || null,
+          installmentCount: term.installmentCount || null,
+          installmentFrequency: term.installmentFrequency || null,
+          milestoneIds: Array.isArray(term.milestoneIds) ? term.milestoneIds : [],
+          // Balance payment fields
+          balancePaymentType: term.balancePaymentType || null,
+          balanceDueDate: term.balanceDueDate ? new Date(term.balanceDueDate) : null,
+          // Installment maturity dates
+          installmentMaturityDates: Array.isArray(term.installmentMaturityDates)
+            ? term.installmentMaturityDates.map(date => new Date(date))
+            : [],
+          // Recurring payment fields
+          recurringEnabled: term.recurringEnabled ?? false,
+          recurringFrequency: term.recurringFrequency || null,
+          recurringCustomMonths: term.recurringCustomMonths || null,
+          recurringStartDate: term.recurringStartDate ? new Date(term.recurringStartDate) : null,
+        })
+      })
+
+      // Always create payment terms (mandatory)
+      if (paymentTermsToCreate.length > 0) {
+        await prisma.paymentTerm.createMany({
+          data: paymentTermsToCreate,
+        })
+      } else {
+        // Fallback: create default payment terms if somehow we got here
+        const defaultTerm = getDefaultPaymentTerm()
+        await prisma.paymentTerm.create({
+          data: defaultTerm,
+        })
+      }
+    } catch (paymentTermsError: any) {
+      console.error("Error updating payment terms:", paymentTermsError?.message || String(paymentTermsError))
+      // Payment terms are mandatory, so if update fails, try to create default
+      try {
+        const now = new Date()
+        const day = now.getDate()
+        let startDate: Date
+        if (day < 15) {
+          startDate = new Date(now.getFullYear(), now.getMonth(), 1)
+        } else {
+          startDate = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+        }
+        await prisma.paymentTerm.create({
+          data: {
+            proposalId: id,
+            proposalItemId: null,
+            recurringEnabled: true,
+            recurringFrequency: "MONTHLY_1",
+            recurringStartDate: startDate,
+          },
+        })
+      } catch (fallbackError) {
+        console.error("Failed to create default payment terms:", fallbackError)
+        // Don't fail the entire update - payment terms will be missing but proposal update succeeds
       }
     }
 
