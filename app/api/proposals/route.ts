@@ -398,7 +398,7 @@ export async function POST(request: Request) {
     })
 
     // Helper function to create default payment terms (monthly billing at beginning of month)
-    const getDefaultPaymentTerm = () => {
+    const getDefaultPaymentTerm = (): any => {
       const now = new Date()
       const day = now.getDate()
       let startDate: Date
@@ -422,7 +422,7 @@ export async function POST(request: Request) {
         balanceDueDate: null,
         installmentMaturityDates: [],
         recurringEnabled: true,
-        recurringFrequency: "MONTHLY_1",
+        recurringFrequency: "MONTHLY_1" as const,
         recurringCustomMonths: null,
         recurringStartDate: startDate,
       }

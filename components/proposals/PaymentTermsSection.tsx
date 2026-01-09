@@ -101,6 +101,7 @@ export function PaymentTermsSection({
       setProposalTerm(defaultTerm)
       onProposalLevelChange(defaultTerm)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [proposalLevel])
   
   // Ensure payment terms are always set on mount
@@ -109,6 +110,7 @@ export function PaymentTermsSection({
       const defaultTerm = getDefaultPaymentTerm()
       onProposalLevelChange(defaultTerm)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const updateProposalTerm = (field: keyof PaymentTerm, value: any) => {
