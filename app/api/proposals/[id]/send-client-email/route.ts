@@ -120,13 +120,20 @@ export async function POST(
       if (isVercel) {
         try {
           const chromium = require("@sparticuz/chromium")
-          launchOptions.executablePath = await chromium.executablePath()
-          launchOptions.args = chromium.args
-          launchOptions.defaultViewport = chromium.defaultViewport
-          launchOptions.headless = chromium.headless
-        } catch (chromiumError) {
+          // Get executable path - this may extract chromium binary
+          const executablePath = await chromium.executablePath()
+          if (executablePath) {
+            launchOptions.executablePath = executablePath
+            launchOptions.args = chromium.args || []
+            launchOptions.defaultViewport = chromium.defaultViewport
+            launchOptions.headless = chromium.headless !== false
+          } else {
+            throw new Error("Could not get chromium executable path")
+          }
+        } catch (chromiumError: any) {
           console.error("Could not load @sparticuz/chromium:", chromiumError)
-          // In serverless, if chromium fails, we can't generate PDF
+          // If chromium fails, we can't generate PDF in serverless
+          // The outer try-catch will handle this and continue without PDF
           throw new Error("PDF generation not available in serverless environment without chromium")
         }
       }
