@@ -11,6 +11,7 @@ import { ProposalType } from "@prisma/client"
 import { Plus, Trash2, X } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
 import { PaymentTermsWizard } from "./PaymentTermsWizard"
+import { ProposalFormWizard } from "./ProposalFormWizard"
 
 interface ProposalFormProps {
   onSubmit: (data: any) => Promise<void>
@@ -155,6 +156,167 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
 
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [showCreateLeadDialog, setShowCreateLeadDialog] = useState(false)
+  
+  // Wizard state management
+  const shouldShowMilestonesStep = () => {
+    return formData.type === "FIXED_FEE" || formData.type === "MIXED_MODEL"
+  }
+  
+  const wizardSteps = [
+    { id: "billing", title: "Billing Method", required: true, conditional: false },
+    { id: "payment", title: "Payment Terms", required: true, conditional: false },
+    { id: "milestones", title: "Milestones", required: false, conditional: true },
+    { id: "items", title: "Line Items", required: true, conditional: false },
+    { id: "review", title: "Review", required: true, conditional: false },
+  ].filter(step => {
+    // Filter out milestones step if not applicable
+    if (step.id === "milestones" && !shouldShowMilestonesStep()) {
+      return false
+    }
+    return true
+  })
+  
+  const [currentWizardStep, setCurrentWizardStep] = useState(0)
+  const [completedSteps, setCompletedSteps] = useState<Set<string>>(new Set())
+  
+  // Initialize wizard state for editing
+  useEffect(() => {
+    if (initialData) {
+      // If editing, mark steps as completed and jump to review if all filled
+      const completed = new Set<string>()
+      if (initialData.type) completed.add("billing")
+      if (proposalPaymentTerm) completed.add("payment")
+      if (shouldShowMilestonesStep() && milestones.length > 0) completed.add("milestones")
+      if (items.length > 0 || milestones.length > 0) completed.add("items")
+      setCompletedSteps(completed)
+    }
+  }, [])
+  
+  // Wizard step validation
+  const validateCurrentStep = (): boolean => {
+    const currentStepId = wizardSteps[currentWizardStep]?.id
+    const newErrors: Record<string, string> = {}
+    
+    if (currentStepId === "billing") {
+      if (!formData.type) {
+        newErrors.type = "Please select a billing method"
+        setErrors(newErrors)
+        return false
+      }
+      setCompletedSteps(prev => new Set(prev).add("billing"))
+      return true
+    }
+    
+    if (currentStepId === "payment") {
+      if (!proposalPaymentTerm) {
+        newErrors.paymentTerms = "Please configure payment terms using the wizard above"
+        setErrors(newErrors)
+        return false
+      }
+      setCompletedSteps(prev => new Set(prev).add("payment"))
+      return true
+    }
+    
+    if (currentStepId === "milestones") {
+      // Milestones step is optional - allow skipping if no milestones defined
+      // But if billing method requires milestones (FIXED_FEE), at least one should be defined
+      if (formData.useMilestones && milestones.length === 0) {
+        newErrors.milestones = "Please define at least one milestone or disable milestone payments"
+        setErrors(newErrors)
+        return false
+      }
+      if (milestones.length > 0) {
+        setCompletedSteps(prev => new Set(prev).add("milestones"))
+      }
+      return true
+    }
+    
+    if (currentStepId === "items") {
+      // At least one line item OR milestone must exist
+      if (items.length === 0 && milestones.length === 0) {
+        newErrors.items = "Please add at least one line item or milestone"
+        setErrors(newErrors)
+        return false
+      }
+      setCompletedSteps(prev => new Set(prev).add("items"))
+      return true
+    }
+    
+    return true
+  }
+  
+  const handleWizardNext = (): boolean => {
+    if (validateCurrentStep()) {
+      setErrors({})
+      return true
+    }
+    return false
+  }
+  
+  const handleWizardBack = () => {
+    setErrors({})
+  }
+  
+  const handleWizardStepChange = (step: number) => {
+    setCurrentWizardStep(step)
+    setErrors({})
+  }
+  
+  const canProceedToNextStep = (): boolean => {
+    const currentStepId = wizardSteps[currentWizardStep]?.id
+    
+    if (currentStepId === "billing") {
+      return !!formData.type
+    }
+    
+    if (currentStepId === "payment") {
+      return !!proposalPaymentTerm
+    }
+    
+    if (currentStepId === "milestones") {
+      // Optional step - can always proceed
+      return true
+    }
+    
+    if (currentStepId === "items") {
+      return items.length > 0 || milestones.length > 0
+    }
+    
+    if (currentStepId === "review") {
+      return completedSteps.has("billing") && completedSteps.has("payment") && (completedSteps.has("items") || completedSteps.has("milestones"))
+    }
+    
+    return false
+  }
+  
+  // Recalculate wizard steps when billing method changes
+  useEffect(() => {
+    // If switching away from a method that requires milestones, clear milestones
+    if (!shouldShowMilestonesStep() && formData.useMilestones) {
+      setFormData(prev => ({ ...prev, useMilestones: false }))
+      setMilestones([])
+    }
+    
+    // Adjust current step if milestones step disappears
+    const newSteps = [
+      { id: "billing", title: "Billing Method", required: true, conditional: false },
+      { id: "payment", title: "Payment Terms", required: true, conditional: false },
+      { id: "milestones", title: "Milestones", required: false, conditional: true },
+      { id: "items", title: "Line Items", required: true, conditional: false },
+      { id: "review", title: "Review", required: true, conditional: false },
+    ].filter(step => {
+      if (step.id === "milestones" && !shouldShowMilestonesStep()) {
+        return false
+      }
+      return true
+    })
+    
+    // If current step is beyond available steps, adjust
+    if (currentWizardStep >= newSteps.length) {
+      setCurrentWizardStep(Math.max(0, newSteps.length - 1))
+    }
+  }, [formData.type])
+  
   const [creatingLead, setCreatingLead] = useState(false)
   const [newLeadData, setNewLeadData] = useState({
     name: "",
@@ -658,26 +820,6 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                 ))}
               </Select>
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="type">Billing Method *</Label>
-              <Select
-                id="type"
-                value={formData.type}
-                onChange={(e) => {
-                  setFormData({ ...formData, type: e.target.value as ProposalType })
-                  setItems([])
-                  setMilestones([])
-                }}
-              >
-                <option value="FIXED_FEE">Fixed Fee (with milestones)</option>
-                <option value="HOURLY">Hourly (with estimate and range)</option>
-                <option value="RETAINER">Retainer (with drawdown rules)</option>
-                <option value="SUCCESS_FEE">Success Fee</option>
-                <option value="RECURRING">Recurring</option>
-                <option value="MIXED_MODEL">Mixed Model (Fixed + Hourly)</option>
-              </Select>
-            </div>
           </div>
 
           <div className="space-y-2">
@@ -836,19 +978,6 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
         </CardContent>
       </Card>
 
-      {/* Payment Terms Wizard - Required */}
-      <div className="space-y-2">
-        <PaymentTermsWizard
-          currency={formData.currency}
-          milestones={milestones.map((m, index) => ({ id: index.toString(), name: m.name }))}
-          proposalLevel={proposalPaymentTerm}
-          onProposalLevelChange={(term) => setProposalPaymentTerm(term)}
-        />
-        {errors.paymentTerms && (
-          <p className="text-sm text-red-600 mt-2">{errors.paymentTerms}</p>
-        )}
-      </div>
-
       {/* Client Discount */}
       <Card>
         <CardHeader>
@@ -909,8 +1038,52 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
         </CardContent>
       </Card>
 
+      {/* Wizard Steps Section */}
+      <ProposalFormWizard
+        steps={wizardSteps.map(s => ({ id: s.id, title: s.title, required: s.required, conditional: s.conditional || false }))}
+        currentStep={currentWizardStep}
+        onStepChange={handleWizardStepChange}
+        onNext={handleWizardNext}
+        onBack={handleWizardBack}
+        canGoNext={canProceedToNextStep()}
+        isEditing={!!initialData}
+        onComplete={undefined}
+      >
+        {wizardSteps[currentWizardStep]?.id === "billing" && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Step 1: Select Billing Method</CardTitle>
+              <CardDescription>Choose how this proposal will be billed</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="type">Billing Method *</Label>
+                <Select
+                  id="type"
+                  value={formData.type}
+                  onChange={(e) => {
+                    setFormData({ ...formData, type: e.target.value as ProposalType })
+                    setItems([])
+                    setMilestones([])
+                  }}
+                >
+                  <option value="">-- Select a billing method --</option>
+                  <option value="FIXED_FEE">Fixed Fee (with milestones)</option>
+                  <option value="HOURLY">Hourly (with estimate and range)</option>
+                  <option value="RETAINER">Retainer (with drawdown rules)</option>
+                  <option value="SUCCESS_FEE">Success Fee</option>
+                  <option value="RECURRING">Recurring</option>
+                  <option value="MIXED_MODEL">Mixed Model (Fixed + Hourly)</option>
+                </Select>
+                {errors.type && (
+                  <p className="text-sm text-destructive">{errors.type}</p>
+                )}
+              </div>
 
-      {formData.type === "CAPPED_FEE" && (
+              {/* Show billing method-specific configuration after selection */}
+              {formData.type && (
+                <div className="space-y-4 mt-6 pt-6 border-t">
+                  {formData.type === "CAPPED_FEE" && (
         <Card>
           <CardHeader>
             <CardTitle>Capped Fee Configuration</CardTitle>
@@ -1363,137 +1536,191 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
           </CardContent>
         </Card>
       )}
-
-      {/* Line Items Section - Available for all billing methods */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>Line Items</CardTitle>
-            <Button type="button" onClick={addItem} size="sm" variant="outline">
-              <Plus className="h-4 w-4 mr-2" />
-              Add Line Item
-            </Button>
-          </div>
-        </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Milestone Enablement Checkbox */}
-            <div className="flex items-center space-x-2 p-4 border rounded">
-              <input
-                type="checkbox"
-                id="useMilestones"
-                checked={formData.useMilestones}
-                onChange={(e) => {
-                  setFormData({ ...formData, useMilestones: e.target.checked })
-                  if (!e.target.checked) {
-                    // Clear milestones and milestone assignments when disabled
-                    setMilestones([])
-                    setItems(items.map(item => ({ ...item, milestoneIds: [] })))
-                  }
-                }}
-                className="h-4 w-4 rounded border-gray-300"
-              />
-              <Label htmlFor="useMilestones" className="cursor-pointer font-semibold">
-                Enable milestone payments
-              </Label>
-              <p className="text-sm text-gray-500">
-                Define milestones and assign them to specific line items
-              </p>
-            </div>
-
-            {/* Milestone Definition Section - Only show when enabled */}
-            {formData.useMilestones && (
-              <div className="space-y-4 p-4 border rounded bg-gray-50">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="font-semibold text-lg">Define Milestones</h3>
-                    <p className="text-sm text-gray-500">Create milestones that can be assigned to line items below</p>
-                  </div>
-                  <Button type="button" onClick={addMilestone} size="sm" variant="outline">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Milestone
-                  </Button>
                 </div>
-                {milestones.length === 0 ? (
-                  <p className="text-sm text-gray-500 text-center py-4">
-                    No milestones defined. Add at least one milestone to assign to line items.
+              </Card>
+            )}
+          </Card>
+        )}
+
+        {wizardSteps[currentWizardStep]?.id === "payment" && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Step 2: Configure Payment Terms</CardTitle>
+              <CardDescription>Define when and how payments will be made</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <PaymentTermsWizard
+                currency={formData.currency}
+                milestones={milestones.map((m, index) => ({ id: index.toString(), name: m.name }))}
+                proposalLevel={proposalPaymentTerm}
+                onProposalLevelChange={(term) => setProposalPaymentTerm(term)}
+              />
+              {errors.paymentTerms && (
+                <p className="text-sm text-destructive mt-2">{errors.paymentTerms}</p>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {wizardSteps[currentWizardStep]?.id === "milestones" && shouldShowMilestonesStep() && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Step 3: Define Milestones (Optional)</CardTitle>
+              <CardDescription>Create milestones for milestone-based payments</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center space-x-2 p-4 border rounded">
+                <input
+                  type="checkbox"
+                  id="useMilestones"
+                  checked={formData.useMilestones}
+                  onChange={(e) => {
+                    setFormData({ ...formData, useMilestones: e.target.checked })
+                    if (!e.target.checked) {
+                      setMilestones([])
+                      setItems(items.map(item => ({ ...item, milestoneIds: [] })))
+                    }
+                  }}
+                  className="h-4 w-4 rounded border-gray-300"
+                />
+                <Label htmlFor="useMilestones" className="cursor-pointer font-semibold">
+                  Enable milestone payments
+                </Label>
+              </div>
+
+              {formData.useMilestones && (
+                <div className="space-y-4 p-4 border rounded bg-gray-50">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-semibold text-lg">Define Milestones</h3>
+                      <p className="text-sm text-gray-500">Create milestones that can be assigned to line items</p>
+                    </div>
+                    <Button type="button" onClick={addMilestone} size="sm" variant="outline">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Milestone
+                    </Button>
+                  </div>
+                  {milestones.length === 0 ? (
+                    <p className="text-sm text-gray-500 text-center py-4">
+                      No milestones defined. Add at least one milestone to assign to line items.
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      {milestones.map((milestone, index) => (
+                        <Card key={milestone.id || index}>
+                          <CardContent className="pt-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              <div className="space-y-2">
+                                <Label>Milestone Name *</Label>
+                                <Input
+                                  value={milestone.name}
+                                  onChange={(e) => updateMilestone(index, "name", e.target.value)}
+                                  required
+                                  placeholder="e.g., Milestone A, 50% Upfront"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Due Date</Label>
+                                <Input
+                                  type="date"
+                                  value={milestone.dueDate || ""}
+                                  onChange={(e) => updateMilestone(index, "dueDate", e.target.value)}
+                                />
+                              </div>
+                              <div className="space-y-2 md:col-span-2">
+                                <Label>Description</Label>
+                                <Textarea
+                                  value={milestone.description || ""}
+                                  onChange={(e) => updateMilestone(index, "description", e.target.value)}
+                                  rows={2}
+                                  placeholder="Optional description"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Amount ({selectedCurrency.symbol})</Label>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={milestone.amount || ""}
+                                  onChange={(e) => updateMilestone(index, "amount", parseFloat(e.target.value) || undefined)}
+                                  placeholder="Fixed amount (optional)"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Percentage (%)</Label>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  max="100"
+                                  value={milestone.percent || ""}
+                                  onChange={(e) => updateMilestone(index, "percent", parseFloat(e.target.value) || undefined)}
+                                  placeholder="Percentage (optional)"
+                                />
+                              </div>
+                            </div>
+                            <div className="mt-3 flex justify-end">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => removeMilestone(index)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+                  {errors.milestones && (
+                    <p className="text-sm text-destructive mt-2">{String(errors.milestones)}</p>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {wizardSteps[currentWizardStep]?.id === "items" && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Step 4: Configure Line Items</CardTitle>
+                  <CardDescription>Add line items for this proposal</CardDescription>
+                </div>
+                <Button type="button" onClick={addItem} size="sm" variant="outline">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Line Item
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Show milestone assignment section if milestones are enabled and defined */}
+              {formData.useMilestones && milestones.length > 0 && (
+                <div className="p-4 border rounded bg-blue-50">
+                  <p className="text-sm text-gray-700 mb-3">
+                    <strong>Note:</strong> You can assign milestones to line items below. Milestones are defined in Step 3.
                   </p>
-                ) : (
-                  <div className="space-y-3">
-                    {milestones.map((milestone, index) => (
-                      <Card key={milestone.id || index}>
-                        <CardContent className="pt-4">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <div className="space-y-2">
-                              <Label>Milestone Name *</Label>
-                              <Input
-                                value={milestone.name}
-                                onChange={(e) => updateMilestone(index, "name", e.target.value)}
-                                required
-                                placeholder="e.g., Milestone A, 50% Upfront"
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label>Due Date</Label>
-                              <Input
-                                type="date"
-                                value={milestone.dueDate || ""}
-                                onChange={(e) => updateMilestone(index, "dueDate", e.target.value)}
-                              />
-                            </div>
-                            <div className="space-y-2 md:col-span-2">
-                              <Label>Description</Label>
-                              <Textarea
-                                value={milestone.description || ""}
-                                onChange={(e) => updateMilestone(index, "description", e.target.value)}
-                                rows={2}
-                                placeholder="Optional description"
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label>Amount ({selectedCurrency.symbol})</Label>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                value={milestone.amount || ""}
-                                onChange={(e) => updateMilestone(index, "amount", parseFloat(e.target.value) || undefined)}
-                                placeholder="Fixed amount (optional)"
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label>Percentage (%)</Label>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                max="100"
-                                value={milestone.percent || ""}
-                                onChange={(e) => updateMilestone(index, "percent", parseFloat(e.target.value) || undefined)}
-                                placeholder="Percentage (optional)"
-                              />
-                            </div>
-                          </div>
-                          <div className="mt-3 flex justify-end">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => removeMilestone(index)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </CardContent>
-                      </Card>
+                  <div className="flex flex-wrap gap-2">
+                    {milestones.map((milestone) => (
+                      <span
+                        key={milestone.id || milestone.name}
+                        className="px-3 py-1 rounded-full text-sm bg-white border border-blue-200"
+                      >
+                        {milestone.name}
+                        {milestone.percent && ` (${milestone.percent}%)`}
+                        {milestone.amount && !milestone.percent && ` (${selectedCurrency.symbol}${milestone.amount})`}
+                      </span>
                     ))}
                   </div>
-                )}
-                {errors.milestones && (
-                  <p className="text-sm text-destructive mt-2">{String(errors.milestones)}</p>
-                )}
-              </div>
-            )}
-            {items.length === 0 ? (
+                </div>
+              )}
+              
+              {items.length === 0 ? (
               <p className="text-sm text-gray-500 text-center py-4">
                 No items added yet. Click &quot;Add Line Item&quot; to get started.
               </p>
@@ -1692,45 +1919,188 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
             {errors.items && (
               <p className="text-sm text-destructive mt-2">{String(errors.items)}</p>
             )}
-          </CardContent>
-        </Card>
 
-      {/* Summary Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Summary</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            <div className="flex justify-between">
-              <span>Subtotal:</span>
-              <span className="font-semibold">{selectedCurrency.symbol}{calculateSubtotal().toFixed(2)}</span>
-            </div>
-            {calculateClientDiscount() > 0 && (
-              <div className="flex justify-between text-green-600">
-                <span>Client Discount:</span>
-                <span>-{selectedCurrency.symbol}{calculateClientDiscount().toFixed(2)}</span>
-              </div>
-            )}
-            {calculateTax() > 0 && (
-              <div className="flex justify-between">
-                <span>Tax ({formData.taxRate}%):</span>
-                <span>{selectedCurrency.symbol}{calculateTax().toFixed(2)}</span>
-              </div>
-            )}
-            <div className="flex justify-between text-lg font-bold pt-2 border-t">
-              <span>Grand Total:</span>
-              <span>{selectedCurrency.symbol}{calculateGrandTotal().toFixed(2)}</span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+              {/* Summary Section */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Summary</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span>Subtotal:</span>
+                      <span className="font-semibold">{selectedCurrency.symbol}{calculateSubtotal().toFixed(2)}</span>
+                    </div>
+                    {calculateClientDiscount() > 0 && (
+                      <div className="flex justify-between text-green-600">
+                        <span>Client Discount:</span>
+                        <span>-{selectedCurrency.symbol}{calculateClientDiscount().toFixed(2)}</span>
+                      </div>
+                    )}
+                    {calculateTax() > 0 && (
+                      <div className="flex justify-between">
+                        <span>Tax ({formData.taxRate}%):</span>
+                        <span>{selectedCurrency.symbol}{calculateTax().toFixed(2)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-lg font-bold pt-2 border-t">
+                      <span>Grand Total:</span>
+                      <span>{selectedCurrency.symbol}{calculateGrandTotal().toFixed(2)}</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </CardContent>
+          </Card>
+        )}
 
-      <div className="flex space-x-4">
-        <Button type="submit" disabled={loading}>
-          {loading ? "Saving..." : initialData ? "Update Proposal" : "Create Proposal"}
-        </Button>
-      </div>
+        {wizardSteps[currentWizardStep]?.id === "review" && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Step {wizardSteps.length}: Review & Submit</CardTitle>
+              <CardDescription>Review all proposal details before submitting</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Proposal Information Summary */}
+              <div className="space-y-4">
+                <h3 className="font-semibold text-lg">Proposal Information</h3>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-gray-500">Client/Lead:</span>
+                    <span className="ml-2 font-medium">
+                      {formData.clientId ? clients.find(c => c.id === formData.clientId)?.name || "N/A" : 
+                       formData.leadId ? leads.find(l => l.id === formData.leadId)?.name || "N/A" : 
+                       "Not selected"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Title:</span>
+                    <span className="ml-2 font-medium">{formData.title || "Not set"}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Billing Method:</span>
+                    <span className="ml-2 font-medium">{formData.type || "Not selected"}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Currency:</span>
+                    <span className="ml-2 font-medium">{formData.currency}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Issue Date:</span>
+                    <span className="ml-2 font-medium">{formData.issueDate || "Not set"}</span>
+                  </div>
+                  {formData.expiryDate && (
+                    <div>
+                      <span className="text-gray-500">Expiry Date:</span>
+                      <span className="ml-2 font-medium">{formData.expiryDate}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Payment Terms Summary */}
+              {proposalPaymentTerm && (
+                <div className="space-y-4">
+                  <h3 className="font-semibold text-lg">Payment Terms</h3>
+                  <div className="text-sm space-y-1">
+                    {proposalPaymentTerm.upfrontType && proposalPaymentTerm.upfrontValue !== null && (
+                      <p>
+                        <span className="text-gray-500">Upfront Payment:</span>{" "}
+                        <span className="font-medium">
+                          {proposalPaymentTerm.upfrontType === "PERCENT" 
+                            ? `${proposalPaymentTerm.upfrontValue}%`
+                            : `${selectedCurrency.symbol}${proposalPaymentTerm.upfrontValue}`}
+                        </span>
+                      </p>
+                    )}
+                    {proposalPaymentTerm.recurringEnabled && proposalPaymentTerm.recurringFrequency && (
+                      <p>
+                        <span className="text-gray-500">Recurring:</span>{" "}
+                        <span className="font-medium">{proposalPaymentTerm.recurringFrequency}</span>
+                      </p>
+                    )}
+                    {proposalPaymentTerm.installmentType && proposalPaymentTerm.installmentCount && (
+                      <p>
+                        <span className="text-gray-500">Installments:</span>{" "}
+                        <span className="font-medium">
+                          {proposalPaymentTerm.installmentCount} payments ({proposalPaymentTerm.installmentType})
+                        </span>
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Milestones Summary */}
+              {shouldShowMilestonesStep() && milestones.length > 0 && (
+                <div className="space-y-4">
+                  <h3 className="font-semibold text-lg">Milestones ({milestones.length})</h3>
+                  <div className="space-y-2">
+                    {milestones.map((milestone, index) => (
+                      <div key={index} className="text-sm p-2 border rounded">
+                        <span className="font-medium">{milestone.name}</span>
+                        {milestone.amount && <span className="ml-2 text-gray-500">- {selectedCurrency.symbol}{milestone.amount}</span>}
+                        {milestone.percent && <span className="ml-2 text-gray-500">- {milestone.percent}%</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Line Items Summary */}
+              <div className="space-y-4">
+                <h3 className="font-semibold text-lg">Line Items ({items.length})</h3>
+                {items.length > 0 ? (
+                  <div className="space-y-2">
+                    {items.map((item, index) => (
+                      <div key={index} className="text-sm p-2 border rounded">
+                        <span className="font-medium">{item.description || `Item ${index + 1}`}</span>
+                        <span className="ml-2 text-gray-500">- {selectedCurrency.symbol}{item.amount?.toFixed(2) || "0.00"}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500">No line items defined</p>
+                )}
+              </div>
+
+              {/* Financial Summary */}
+              <div className="space-y-4 pt-4 border-t">
+                <h3 className="font-semibold text-lg">Financial Summary</h3>
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span>Subtotal:</span>
+                    <span className="font-semibold">{selectedCurrency.symbol}{calculateSubtotal().toFixed(2)}</span>
+                  </div>
+                  {calculateClientDiscount() > 0 && (
+                    <div className="flex justify-between text-green-600">
+                      <span>Client Discount:</span>
+                      <span>-{selectedCurrency.symbol}{calculateClientDiscount().toFixed(2)}</span>
+                    </div>
+                  )}
+                  {calculateTax() > 0 && (
+                    <div className="flex justify-between">
+                      <span>Tax ({formData.taxRate}%):</span>
+                      <span>{selectedCurrency.symbol}{calculateTax().toFixed(2)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-lg font-bold pt-2 border-t">
+                    <span>Grand Total:</span>
+                    <span>{selectedCurrency.symbol}{calculateGrandTotal().toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Submit Button */}
+              <div className="flex justify-end pt-4 border-t">
+                <Button type="submit" disabled={loading || !canProceedToNextStep()}>
+                  {loading ? "Saving..." : initialData ? "Update Proposal" : "Create Proposal"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </ProposalFormWizard>
     </form>
 
       {/* Create Lead Dialog */}
