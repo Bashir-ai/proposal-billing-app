@@ -449,12 +449,12 @@ export function PaymentTermsSection({
                         setProposalTerm(updated)
                         onProposalLevelChange(updated)
                       } else {
-                        const updated: PaymentTerm = {
+                        const updated = {
                           ...proposalTerm,
                           recurringEnabled: true,
                           recurringFrequency: "MONTHLY_1" as const,
                           recurringStartDate: getDefaultStartDate(),
-                        }
+                        } as PaymentTerm
                         setProposalTerm(updated)
                         onProposalLevelChange(updated)
                       }
