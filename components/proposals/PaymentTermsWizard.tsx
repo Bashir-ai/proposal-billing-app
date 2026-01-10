@@ -69,7 +69,7 @@ export function PaymentTermsWizard({
   }
 
   // Detect payment structure from existing proposalLevel
-  const detectPaymentStructure = (term: PaymentTerm | null): PaymentStructure => {
+  const detectPaymentStructure = (term: PaymentTerm | null | undefined): PaymentStructure => {
     if (!term) return null
     if (term.recurringEnabled && term.recurringFrequency) return "RECURRING"
     if (term.installmentType && term.installmentCount) return "INSTALLMENTS"
@@ -78,7 +78,7 @@ export function PaymentTermsWizard({
   }
 
   const [currentStep, setCurrentStep] = useState(1)
-  const [paymentStructure, setPaymentStructure] = useState<PaymentStructure>(detectPaymentStructure(proposalLevel))
+  const [paymentStructure, setPaymentStructure] = useState<PaymentStructure>(() => detectPaymentStructure(proposalLevel ?? null))
   const [wizardData, setWizardData] = useState<PaymentTerm>(proposalLevel || {})
   const [errors, setErrors] = useState<Record<string, string>>({})
 
@@ -282,6 +282,7 @@ export function PaymentTermsWizard({
       // Complete wizard immediately for one-time payment
       onProposalLevelChange(oneTimeData)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paymentStructure, currentStep])
 
   return (
