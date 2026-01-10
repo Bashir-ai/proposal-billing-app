@@ -108,6 +108,7 @@ export default async function ProposalReviewPublicPage({
           where: { proposalItemId: null }, // Proposal-level terms
           select: {
             id: true,
+            proposalItemId: true,
             upfrontType: true,
             upfrontValue: true,
             installmentType: true,
