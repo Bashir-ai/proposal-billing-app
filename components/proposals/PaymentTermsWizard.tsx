@@ -159,7 +159,9 @@ export function PaymentTermsWizard({
       if (wizardData.balancePaymentType === "TIME_BASED" && !wizardData.balanceDueDate) {
         newErrors.balanceDueDate = "Please select a due date"
       }
-      if (wizardData.balancePaymentType === "MILESTONE_BASED" && (!wizardData.milestoneIds || wizardData.milestoneIds.length === 0)) {
+      // Only require milestone selection if milestones are available
+      // If no milestones exist yet, user will create them in the milestones step
+      if (wizardData.balancePaymentType === "MILESTONE_BASED" && milestones.length > 0 && (!wizardData.milestoneIds || wizardData.milestoneIds.length === 0)) {
         newErrors.milestoneIds = "Please select at least one milestone"
       }
     }
@@ -256,12 +258,18 @@ export function PaymentTermsWizard({
       return false
     }
     if (paymentStructure === "UPFRONT_BALANCE") {
+      // For milestone-based balance payment, only require milestone selection if milestones exist
+      // If no milestones exist yet, user will create them in the milestones step
+      const milestoneRequirement = wizardData.balancePaymentType === "MILESTONE_BASED" 
+        ? (milestones.length === 0 || (wizardData.milestoneIds && wizardData.milestoneIds.length > 0))
+        : true
+      
       return !!(
         wizardData.upfrontType &&
         wizardData.upfrontValue !== null &&
         wizardData.balancePaymentType &&
         (wizardData.balancePaymentType !== "TIME_BASED" || wizardData.balanceDueDate) &&
-        (wizardData.balancePaymentType !== "MILESTONE_BASED" || (wizardData.milestoneIds && wizardData.milestoneIds.length > 0))
+        milestoneRequirement
       )
     }
     return false
@@ -653,32 +661,42 @@ export function PaymentTermsWizard({
               </div>
             )}
 
-            {wizardData.balancePaymentType === "MILESTONE_BASED" && milestones.length > 0 && (
-              <div className="space-y-2">
-                <Label>Select Milestones for Balance Payment</Label>
-                <div className="space-y-2 max-h-48 overflow-y-auto border rounded p-3">
-                  {milestones.map((milestone) => (
-                    <label key={milestone.id} className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        checked={wizardData.milestoneIds?.includes(milestone.id) || false}
-                        onChange={(e) => {
-                          const currentIds = wizardData.milestoneIds || []
-                          const updatedIds = e.target.checked
-                            ? [...currentIds, milestone.id]
-                            : currentIds.filter(id => id !== milestone.id)
-                          updateWizardData("milestoneIds", updatedIds)
-                        }}
-                        className="rounded"
-                      />
-                      <span>{milestone.name}</span>
-                    </label>
-                  ))}
-                </div>
-                {errors.milestoneIds && (
-                  <p className="text-sm text-red-600">{errors.milestoneIds}</p>
+            {wizardData.balancePaymentType === "MILESTONE_BASED" && (
+              <>
+                {milestones.length > 0 ? (
+                  <div className="space-y-2">
+                    <Label>Select Milestones for Balance Payment</Label>
+                    <div className="space-y-2 max-h-48 overflow-y-auto border rounded p-3">
+                      {milestones.map((milestone) => (
+                        <label key={milestone.id} className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            checked={wizardData.milestoneIds?.includes(milestone.id) || false}
+                            onChange={(e) => {
+                              const currentIds = wizardData.milestoneIds || []
+                              const updatedIds = e.target.checked
+                                ? [...currentIds, milestone.id]
+                                : currentIds.filter(id => id !== milestone.id)
+                              updateWizardData("milestoneIds", updatedIds)
+                            }}
+                            className="rounded"
+                          />
+                          <span>{milestone.name}</span>
+                        </label>
+                      ))}
+                    </div>
+                    {errors.milestoneIds && (
+                      <p className="text-sm text-red-600">{errors.milestoneIds}</p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="text-sm text-blue-800">
+                      <strong>Note:</strong> You haven't created any milestones yet. You'll be able to create milestones in the next step and then return here to assign them to the balance payment if needed.
+                    </p>
+                  </div>
                 )}
-              </div>
+              </>
             )}
           </div>
         )}

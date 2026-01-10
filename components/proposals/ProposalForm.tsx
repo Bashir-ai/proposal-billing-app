@@ -1551,7 +1551,7 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
             <CardContent className="space-y-4">
               <PaymentTermsWizard
                 currency={formData.currency}
-                milestones={milestones.map((m, index) => ({ id: index.toString(), name: m.name }))}
+                milestones={milestones.map((m, index) => ({ id: m.id || `temp-${index}`, name: m.name }))}
                 proposalLevel={proposalPaymentTerm}
                 onProposalLevelChange={(term) => setProposalPaymentTerm(term)}
               />
