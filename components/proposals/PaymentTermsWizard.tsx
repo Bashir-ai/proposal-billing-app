@@ -184,17 +184,8 @@ export function PaymentTermsWizard({
           installmentType: null,
         })
       } else if (paymentStructure === "ONE_TIME") {
-        // For one-time, set everything to null/default
-        setWizardData({
-          upfrontType: null,
-          upfrontValue: null,
-          balancePaymentType: null,
-          installmentType: null,
-          recurringEnabled: null,
-          recurringFrequency: null,
-        })
-        // Complete wizard immediately for one-time
-        onProposalLevelChange(wizardData)
+        // For one-time, the wizard is already completed by useEffect
+        // Just confirm completion
         return
       } else if (paymentStructure === "INSTALLMENTS") {
         setWizardData({
@@ -276,7 +267,7 @@ export function PaymentTermsWizard({
     return false
   }
 
-  // Auto-complete one-time payment when selected
+  // Handle one-time payment completion immediately when selected
   useEffect(() => {
     if (paymentStructure === "ONE_TIME" && currentStep === 1) {
       const oneTimeData: PaymentTerm = {
@@ -288,9 +279,10 @@ export function PaymentTermsWizard({
         recurringFrequency: null,
       }
       setWizardData(oneTimeData)
+      // Complete wizard immediately for one-time payment
       onProposalLevelChange(oneTimeData)
     }
-  }, [paymentStructure])
+  }, [paymentStructure, currentStep])
 
   return (
     <Card>
