@@ -77,7 +77,7 @@ export function PaymentTermsSection({
   // Create default payment terms if none exist
   const getDefaultPaymentTerm = (): PaymentTerm => ({
     recurringEnabled: true,
-    recurringFrequency: "MONTHLY_1",
+    recurringFrequency: "MONTHLY_1" as const,
     recurringStartDate: getDefaultStartDate(),
     upfrontType: null,
     upfrontValue: null,
@@ -475,7 +475,7 @@ export function PaymentTermsSection({
                           value={proposalTerm.recurringFrequency || ""}
                           onChange={(e) => {
                             const frequency = e.target.value as PaymentTerm["recurringFrequency"]
-                            const updated = {
+                            const updated: PaymentTerm = {
                               ...proposalTerm,
                               recurringFrequency: frequency,
                               recurringCustomMonths: frequency === "CUSTOM" ? proposalTerm.recurringCustomMonths : null,
