@@ -171,7 +171,7 @@ export function PaymentTermsSection({
                     onChange={(e) => {
                       if (!e.target.checked) {
                         // Clear upfront payment fields in a single update
-                        const updated = {
+                        const updated: PaymentTerm = {
                           ...proposalTerm,
                           upfrontType: null,
                           upfrontValue: null,
@@ -180,7 +180,7 @@ export function PaymentTermsSection({
                         onProposalLevelChange(updated)
                       } else {
                         // Set default upfront payment values
-                        const updated = {
+                        const updated: PaymentTerm = {
                           ...proposalTerm,
                           upfrontType: "PERCENT" as const,
                           upfrontValue: 0,
@@ -291,7 +291,7 @@ export function PaymentTermsSection({
                     onChange={(e) => {
                       if (!e.target.checked) {
                         // Clear all installment fields in a single update
-                        const updated = {
+                        const updated: PaymentTerm = {
                           ...proposalTerm,
                           installmentType: null,
                           installmentCount: null,
@@ -302,7 +302,7 @@ export function PaymentTermsSection({
                         onProposalLevelChange(updated)
                       } else {
                         // Set default installment values
-                        const updated = {
+                        const updated: PaymentTerm = {
                           ...proposalTerm,
                           installmentType: "TIME_BASED" as const,
                           installmentCount: 1,
