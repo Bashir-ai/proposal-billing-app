@@ -321,8 +321,8 @@ export function ProposalReviewPage({ proposal, token }: ProposalReviewPageProps)
 
             {/* Payment Terms - Always shown (mandatory) */}
             {proposal.paymentTerms && proposal.paymentTerms.length > 0 && (() => {
-              // Get proposal-level payment term (first one without proposalItemId)
-              const proposalPaymentTerm = proposal.paymentTerms.find(pt => !pt.proposalItemId)
+              // Get proposal-level payment term (query already filters for proposal-level terms)
+              const proposalPaymentTerm = proposal.paymentTerms[0]
               
               if (!proposalPaymentTerm) return null
               
