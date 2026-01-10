@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { ProposalType } from "@prisma/client"
 import { Plus, Trash2, X } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
-import { PaymentTermsSection } from "./PaymentTermsSection"
+import { PaymentTermsWizard } from "./PaymentTermsWizard"
 
 interface ProposalFormProps {
   onSubmit: (data: any) => Promise<void>
@@ -145,29 +145,9 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
   const [customTags, setCustomTags] = useState<string[]>(initialData?.customTags || [])
   const [newCustomTag, setNewCustomTag] = useState("")
   
-  // Get default payment terms (monthly billing at beginning of month)
-  const getDefaultPaymentTerm = () => {
-    const now = new Date()
-    const day = now.getDate()
-    let startDate: string
-    if (day < 15) {
-      startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
-    } else {
-      startDate = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString().split('T')[0]
-    }
-    return {
-      recurringEnabled: true,
-      recurringFrequency: "MONTHLY_1",
-      recurringStartDate: startDate,
-      upfrontType: null,
-      upfrontValue: null,
-      balancePaymentType: null,
-      installmentType: null,
-    }
-  }
-  
+  // Payment terms should be explicitly configured by user (no auto-defaults)
   const [proposalPaymentTerm, setProposalPaymentTerm] = useState<any>(
-    initialData?.paymentTerms?.find((pt: any) => !pt.proposalItemId) || getDefaultPaymentTerm()
+    initialData?.paymentTerms?.find((pt: any) => !pt.proposalItemId) || null
   )
   const [itemPaymentTerms, setItemPaymentTerms] = useState<Array<any>>(
     items.map((_, index) => initialData?.paymentTerms?.find((pt: any) => pt.proposalItemId === initialData?.items?.[index]?.id) || null)
@@ -450,6 +430,12 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
       return
     }
 
+    // Payment terms validation - must be explicitly configured
+    if (!proposalPaymentTerm) {
+      setErrors({ paymentTerms: "Please configure payment terms using the wizard above" })
+      return
+    }
+
     if (formData.expiryDate && formData.issueDate && formData.expiryDate < formData.issueDate) {
       setErrors({ expiryDate: "Expiry date must be after issue date" })
       return
@@ -501,9 +487,9 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
         dueDate: m.dueDate || undefined,
       })) : undefined,
       paymentTerms: [
-        // Always include proposal-level payment terms (mandatory)
+        // Proposal-level payment terms (mandatory - validated above)
         {
-          ...(proposalPaymentTerm || getDefaultPaymentTerm()),
+          ...proposalPaymentTerm,
           proposalId: undefined,
           proposalItemId: undefined,
         },
@@ -850,20 +836,18 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
         </CardContent>
       </Card>
 
-      {/* Payment Terms */}
-      <PaymentTermsSection
-        currency={formData.currency}
-        milestones={milestones.map((m, index) => ({ id: index.toString(), name: m.name }))}
-        proposalLevel={proposalPaymentTerm}
-        itemLevel={itemPaymentTerms}
-        onProposalLevelChange={(term) => setProposalPaymentTerm(term)}
-        onItemLevelChange={(index, term) => {
-          const updated = [...itemPaymentTerms]
-          updated[index] = term
-          setItemPaymentTerms(updated)
-        }}
-        itemCount={items.length}
-      />
+      {/* Payment Terms Wizard - Required */}
+      <div className="space-y-2">
+        <PaymentTermsWizard
+          currency={formData.currency}
+          milestones={milestones.map((m, index) => ({ id: index.toString(), name: m.name }))}
+          proposalLevel={proposalPaymentTerm}
+          onProposalLevelChange={(term) => setProposalPaymentTerm(term)}
+        />
+        {errors.paymentTerms && (
+          <p className="text-sm text-red-600 mt-2">{errors.paymentTerms}</p>
+        )}
+      </div>
 
       {/* Client Discount */}
       <Card>

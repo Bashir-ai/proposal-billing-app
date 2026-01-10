@@ -37,23 +37,23 @@ const milestoneSchema = z.object({
 })
 
 const paymentTermSchema = z.object({
-  upfrontType: z.enum(["PERCENT", "FIXED_AMOUNT"]).optional().nullable(),
-  upfrontValue: z.number().optional().nullable(),
-  installmentType: z.enum(["TIME_BASED", "MILESTONE_BASED"]).optional().nullable(),
-  installmentCount: z.number().optional().nullable(),
-  installmentFrequency: z.enum(["WEEKLY", "MONTHLY", "QUARTERLY"]).optional().nullable(),
-  milestoneIds: z.array(z.string()).optional().nullable(),
-  proposalItemId: z.string().optional().nullable(),
+  proposalItemId: z.string().optional(), // Reference to specific proposal item (null for proposal-level terms)
+  upfrontType: z.enum(["PERCENT", "FIXED_AMOUNT"]).nullable().optional(),
+  upfrontValue: z.number().nullable().optional(),
+  installmentType: z.enum(["TIME_BASED", "MILESTONE_BASED"]).nullable().optional(),
+  installmentCount: z.number().nullable().optional(),
+  installmentFrequency: z.enum(["WEEKLY", "MONTHLY", "QUARTERLY"]).nullable().optional(),
+  milestoneIds: z.array(z.string()).optional(),
   // Balance payment fields
-  balancePaymentType: z.enum(["MILESTONE_BASED", "TIME_BASED", "FULL_UPFRONT"]).optional().nullable(),
-  balanceDueDate: z.string().optional().nullable(), // ISO date string
+  balancePaymentType: z.enum(["MILESTONE_BASED", "TIME_BASED", "FULL_UPFRONT"]).nullable().optional(),
+  balanceDueDate: z.string().nullable().optional(), // ISO date string
   // Installment maturity dates (custom dates for each installment)
-  installmentMaturityDates: z.array(z.string()).optional().nullable(), // Array of ISO date strings
+  installmentMaturityDates: z.array(z.string()).optional(), // Array of ISO date strings
   // Recurring payment fields
-  recurringEnabled: z.boolean().optional().nullable(),
-  recurringFrequency: z.enum(["MONTHLY_1", "MONTHLY_3", "MONTHLY_6", "YEARLY_12", "CUSTOM"]).optional().nullable(),
-  recurringCustomMonths: z.number().optional().nullable(),
-  recurringStartDate: z.string().optional().nullable(), // ISO date string
+  recurringEnabled: z.boolean().nullable().optional(),
+  recurringFrequency: z.enum(["MONTHLY_1", "MONTHLY_3", "MONTHLY_6", "YEARLY_12", "CUSTOM"]).nullable().optional(),
+  recurringCustomMonths: z.number().nullable().optional(),
+  recurringStartDate: z.string().nullable().optional(), // ISO date string
 })
 
 const proposalUpdateSchema = z.object({

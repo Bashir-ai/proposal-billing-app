@@ -37,22 +37,22 @@ const milestoneSchema = z.object({
 
 const paymentTermSchema = z.object({
   proposalItemId: z.string().optional(), // Reference to specific proposal item (null for proposal-level terms)
-  upfrontType: z.enum(["PERCENT", "FIXED_AMOUNT"]).optional(),
-  upfrontValue: z.number().optional(),
-  installmentType: z.enum(["TIME_BASED", "MILESTONE_BASED"]).optional(),
-  installmentCount: z.number().optional(),
-  installmentFrequency: z.enum(["WEEKLY", "MONTHLY", "QUARTERLY"]).optional(),
+  upfrontType: z.enum(["PERCENT", "FIXED_AMOUNT"]).nullable().optional(),
+  upfrontValue: z.number().nullable().optional(),
+  installmentType: z.enum(["TIME_BASED", "MILESTONE_BASED"]).nullable().optional(),
+  installmentCount: z.number().nullable().optional(),
+  installmentFrequency: z.enum(["WEEKLY", "MONTHLY", "QUARTERLY"]).nullable().optional(),
   milestoneIds: z.array(z.string()).optional(),
   // Balance payment fields
-  balancePaymentType: z.enum(["MILESTONE_BASED", "TIME_BASED", "FULL_UPFRONT"]).optional(),
-  balanceDueDate: z.string().optional(), // ISO date string
+  balancePaymentType: z.enum(["MILESTONE_BASED", "TIME_BASED", "FULL_UPFRONT"]).nullable().optional(),
+  balanceDueDate: z.string().nullable().optional(), // ISO date string
   // Installment maturity dates (custom dates for each installment)
   installmentMaturityDates: z.array(z.string()).optional(), // Array of ISO date strings
   // Recurring payment fields
-  recurringEnabled: z.boolean().optional(),
-  recurringFrequency: z.enum(["MONTHLY_1", "MONTHLY_3", "MONTHLY_6", "YEARLY_12", "CUSTOM"]).optional(),
-  recurringCustomMonths: z.number().optional(),
-  recurringStartDate: z.string().optional(), // ISO date string
+  recurringEnabled: z.boolean().nullable().optional(),
+  recurringFrequency: z.enum(["MONTHLY_1", "MONTHLY_3", "MONTHLY_6", "YEARLY_12", "CUSTOM"]).nullable().optional(),
+  recurringCustomMonths: z.number().nullable().optional(),
+  recurringStartDate: z.string().nullable().optional(), // ISO date string
 })
 
 const proposalSchema = z.object({
