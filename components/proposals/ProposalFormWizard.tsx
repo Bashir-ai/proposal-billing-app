@@ -1,10 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { ChevronLeft, ChevronRight, Check, Circle } from "lucide-react"
-import { ProposalType } from "@prisma/client"
+import { ChevronLeft, ChevronRight, Check } from "lucide-react"
 
 interface WizardStep {
   id: string
@@ -36,7 +34,8 @@ export function ProposalFormWizard({
   onComplete,
   isEditing = false,
 }: ProposalFormWizardProps) {
-  const visibleSteps = steps.filter(step => !step.conditional || step.conditional === false || steps.findIndex(s => s.id === step.id) <= currentStep)
+  // Steps are already filtered by the parent component
+  const visibleSteps = steps
   const totalSteps = visibleSteps.length
 
   const handleNext = () => {
@@ -56,9 +55,6 @@ export function ProposalFormWizard({
     }
   }
 
-  const getStepIndex = (stepId: string) => {
-    return visibleSteps.findIndex(s => s.id === stepId)
-  }
 
   return (
     <div className="space-y-6">

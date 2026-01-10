@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -158,23 +158,27 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
   const [showCreateLeadDialog, setShowCreateLeadDialog] = useState(false)
   
   // Wizard state management
-  const shouldShowMilestonesStep = () => {
+  const shouldShowMilestonesStep = useMemo(() => {
     return formData.type === "FIXED_FEE" || formData.type === "MIXED_MODEL"
-  }
+  }, [formData.type])
   
-  const wizardSteps = [
+  const allWizardSteps = [
     { id: "billing", title: "Billing Method", required: true, conditional: false },
     { id: "payment", title: "Payment Terms", required: true, conditional: false },
     { id: "milestones", title: "Milestones", required: false, conditional: true },
     { id: "items", title: "Line Items", required: true, conditional: false },
     { id: "review", title: "Review", required: true, conditional: false },
-  ].filter(step => {
-    // Filter out milestones step if not applicable
-    if (step.id === "milestones" && !shouldShowMilestonesStep()) {
-      return false
-    }
-    return true
-  })
+  ]
+  
+  const wizardSteps = useMemo(() => {
+    return allWizardSteps.filter(step => {
+      // Filter out milestones step if not applicable
+      if (step.id === "milestones" && !shouldShowMilestonesStep) {
+        return false
+      }
+      return true
+    })
+  }, [shouldShowMilestonesStep])
   
   const [currentWizardStep, setCurrentWizardStep] = useState(0)
   const [completedSteps, setCompletedSteps] = useState<Set<string>>(new Set())
@@ -186,7 +190,7 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
       const completed = new Set<string>()
       if (initialData.type) completed.add("billing")
       if (proposalPaymentTerm) completed.add("payment")
-      if (shouldShowMilestonesStep() && milestones.length > 0) completed.add("milestones")
+      if (shouldShowMilestonesStep && milestones.length > 0) completed.add("milestones")
       if (items.length > 0 || milestones.length > 0) completed.add("items")
       setCompletedSteps(completed)
     }
@@ -292,30 +296,25 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
   // Recalculate wizard steps when billing method changes
   useEffect(() => {
     // If switching away from a method that requires milestones, clear milestones
-    if (!shouldShowMilestonesStep() && formData.useMilestones) {
+    if (!shouldShowMilestonesStep && formData.useMilestones) {
       setFormData(prev => ({ ...prev, useMilestones: false }))
       setMilestones([])
     }
     
-    // Adjust current step if milestones step disappears
-    const newSteps = [
-      { id: "billing", title: "Billing Method", required: true, conditional: false },
-      { id: "payment", title: "Payment Terms", required: true, conditional: false },
-      { id: "milestones", title: "Milestones", required: false, conditional: true },
-      { id: "items", title: "Line Items", required: true, conditional: false },
-      { id: "review", title: "Review", required: true, conditional: false },
-    ].filter(step => {
-      if (step.id === "milestones" && !shouldShowMilestonesStep()) {
-        return false
-      }
-      return true
-    })
-    
     // If current step is beyond available steps, adjust
-    if (currentWizardStep >= newSteps.length) {
-      setCurrentWizardStep(Math.max(0, newSteps.length - 1))
+    if (currentWizardStep >= wizardSteps.length) {
+      setCurrentWizardStep(Math.max(0, wizardSteps.length - 1))
     }
-  }, [formData.type])
+    
+    // If we're on the milestones step and it's no longer applicable, move to next step
+    if (wizardSteps[currentWizardStep]?.id === "milestones" && !shouldShowMilestonesStep) {
+      // Skip to next step (items)
+      const itemsStepIndex = wizardSteps.findIndex(s => s.id === "items")
+      if (itemsStepIndex >= 0) {
+        setCurrentWizardStep(itemsStepIndex)
+      }
+    }
+  }, [formData.type, shouldShowMilestonesStep, wizardSteps, currentWizardStep])
   
   const [creatingLead, setCreatingLead] = useState(false)
   const [newLeadData, setNewLeadData] = useState({
@@ -1047,7 +1046,6 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
         onBack={handleWizardBack}
         canGoNext={canProceedToNextStep()}
         isEditing={!!initialData}
-        onComplete={undefined}
       >
         {wizardSteps[currentWizardStep]?.id === "billing" && (
           <Card>
@@ -1084,461 +1082,463 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
               {formData.type && (
                 <div className="space-y-4 mt-6 pt-6 border-t">
                   {formData.type === "CAPPED_FEE" && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Capped Fee Configuration</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <Label htmlFor="cappedAmount">Cap Amount ({selectedCurrency.symbol})</Label>
-              <Input
-                id="cappedAmount"
-                type="number"
-                step="0.01"
-                min="0"
-                value={formData.cappedAmount}
-                onChange={(e) => setFormData({ ...formData, cappedAmount: parseFloat(e.target.value) || 0 })}
-              />
-            </div>
-          </CardContent>
-        </Card>
-      )}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Capped Fee Configuration</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-2">
+                          <Label htmlFor="cappedAmount">Cap Amount ({selectedCurrency.symbol})</Label>
+                          <Input
+                            id="cappedAmount"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={formData.cappedAmount}
+                            onChange={(e) => setFormData({ ...formData, cappedAmount: parseFloat(e.target.value) || 0 })}
+                          />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
 
-      {formData.type === "HOURLY" && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Hourly Rate Configuration</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="estimatedHours">Estimated Hours</Label>
-                <Input
-                  id="estimatedHours"
-                  type="number"
-                  step="0.25"
-                  min="0"
-                  value={formData.estimatedHours}
-                  onChange={(e) => setFormData({ ...formData, estimatedHours: parseFloat(e.target.value) || 0 })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="hourlyCapHours">Maximum Hours Cap (Optional)</Label>
-                <Input
-                  id="hourlyCapHours"
-                  type="number"
-                  step="0.25"
-                  min="0"
-                  value={formData.hourlyCapHours}
-                  onChange={(e) => setFormData({ ...formData, hourlyCapHours: parseFloat(e.target.value) || 0 })}
-                  placeholder="Cap total billable hours at this amount"
-                />
-                <p className="text-xs text-gray-500">Optional: Cap total billable hours at this amount</p>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="hourlyRateRangeMin">Minimum Rate ({selectedCurrency.symbol}/hr)</Label>
-                <Input
-                  id="hourlyRateRangeMin"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={formData.hourlyRateRangeMin}
-                  onChange={(e) => setFormData({ ...formData, hourlyRateRangeMin: parseFloat(e.target.value) || 0 })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="hourlyRateRangeMax">Maximum Rate ({selectedCurrency.symbol}/hr)</Label>
-                <Input
-                  id="hourlyRateRangeMax"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={formData.hourlyRateRangeMax}
-                  onChange={(e) => setFormData({ ...formData, hourlyRateRangeMax: parseFloat(e.target.value) || 0 })}
-                />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+                  {formData.type === "HOURLY" && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Hourly Rate Configuration</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="estimatedHours">Estimated Hours</Label>
+                            <Input
+                              id="estimatedHours"
+                              type="number"
+                              step="0.25"
+                              min="0"
+                              value={formData.estimatedHours}
+                              onChange={(e) => setFormData({ ...formData, estimatedHours: parseFloat(e.target.value) || 0 })}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="hourlyCapHours">Maximum Hours Cap (Optional)</Label>
+                            <Input
+                              id="hourlyCapHours"
+                              type="number"
+                              step="0.25"
+                              min="0"
+                              value={formData.hourlyCapHours}
+                              onChange={(e) => setFormData({ ...formData, hourlyCapHours: parseFloat(e.target.value) || 0 })}
+                              placeholder="Cap total billable hours at this amount"
+                            />
+                            <p className="text-xs text-gray-500">Optional: Cap total billable hours at this amount</p>
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="hourlyRateRangeMin">Minimum Rate ({selectedCurrency.symbol}/hr)</Label>
+                            <Input
+                              id="hourlyRateRangeMin"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={formData.hourlyRateRangeMin}
+                              onChange={(e) => setFormData({ ...formData, hourlyRateRangeMin: parseFloat(e.target.value) || 0 })}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="hourlyRateRangeMax">Maximum Rate ({selectedCurrency.symbol}/hr)</Label>
+                            <Input
+                              id="hourlyRateRangeMax"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={formData.hourlyRateRangeMax}
+                              onChange={(e) => setFormData({ ...formData, hourlyRateRangeMax: parseFloat(e.target.value) || 0 })}
+                            />
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
 
-      {formData.type === "RETAINER" && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Retainer Configuration</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="retainerMonthlyAmount">Monthly Amount ({selectedCurrency.symbol})</Label>
-                <Input
-                  id="retainerMonthlyAmount"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={formData.retainerMonthlyAmount}
-                  onChange={(e) => setFormData({ ...formData, retainerMonthlyAmount: parseFloat(e.target.value) || 0 })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="retainerHourlyCap">Hourly Cap ({selectedCurrency.symbol})</Label>
-                <Input
-                  id="retainerHourlyCap"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={formData.retainerHourlyCap}
-                  onChange={(e) => setFormData({ ...formData, retainerHourlyCap: parseFloat(e.target.value) || 0 })}
-                />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+                  {formData.type === "RETAINER" && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Retainer Configuration</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="retainerMonthlyAmount">Monthly Amount ({selectedCurrency.symbol})</Label>
+                            <Input
+                              id="retainerMonthlyAmount"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={formData.retainerMonthlyAmount}
+                              onChange={(e) => setFormData({ ...formData, retainerMonthlyAmount: parseFloat(e.target.value) || 0 })}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="retainerHourlyCap">Hourly Cap ({selectedCurrency.symbol})</Label>
+                            <Input
+                              id="retainerHourlyCap"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={formData.retainerHourlyCap}
+                              onChange={(e) => setFormData({ ...formData, retainerHourlyCap: parseFloat(e.target.value) || 0 })}
+                            />
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
 
-      {/* Blended Rate Option - Available for all billing methods */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Blended Rate Option</CardTitle>
-          <CardDescription>Apply a single rate to all line items regardless of individual professional rates</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center space-x-2">
-            <input
-              type="checkbox"
-              id="useBlendedRate"
-              checked={formData.useBlendedRate}
-              onChange={(e) => setFormData({ ...formData, useBlendedRate: e.target.checked })}
-              className="h-4 w-4 rounded border-gray-300"
-            />
-            <Label htmlFor="useBlendedRate" className="cursor-pointer">
-              Use blended rate for all line items
-            </Label>
-          </div>
-          {formData.useBlendedRate && (
-            <div className="space-y-2">
-              <Label htmlFor="blendedRate">Blended Rate ({selectedCurrency.symbol}/hr)</Label>
-              <Input
-                id="blendedRate"
-                type="number"
-                step="0.01"
-                min="0"
-                value={formData.blendedRate}
-                onChange={(e) => setFormData({ ...formData, blendedRate: parseFloat(e.target.value) || 0 })}
-                placeholder="Enter blended hourly rate"
-              />
-              <p className="text-xs text-gray-500">This rate will be applied to all line items when enabled</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                  {/* Blended Rate Option - Available for all billing methods */}
+                  {formData.type && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Blended Rate Option</CardTitle>
+                        <CardDescription>Apply a single rate to all line items regardless of individual professional rates</CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            id="useBlendedRate"
+                            checked={formData.useBlendedRate}
+                            onChange={(e) => setFormData({ ...formData, useBlendedRate: e.target.checked })}
+                            className="h-4 w-4 rounded border-gray-300"
+                          />
+                          <Label htmlFor="useBlendedRate" className="cursor-pointer">
+                            Use blended rate for all line items
+                          </Label>
+                        </div>
+                        {formData.useBlendedRate && (
+                          <div className="space-y-2">
+                            <Label htmlFor="blendedRate">Blended Rate ({selectedCurrency.symbol}/hr)</Label>
+                            <Input
+                              id="blendedRate"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={formData.blendedRate}
+                              onChange={(e) => setFormData({ ...formData, blendedRate: parseFloat(e.target.value) || 0 })}
+                              placeholder="Enter blended hourly rate"
+                            />
+                            <p className="text-xs text-gray-500">This rate will be applied to all line items when enabled</p>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )}
 
-      {formData.type === "RECURRING" && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Recurring Payment Configuration</CardTitle>
-            <CardDescription>Configure how often invoices will be generated for this recurring proposal</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="recurringFrequency">Frequency</Label>
-                <Select
-                  id="recurringFrequency"
-                  value={formData.recurringFrequency || ""}
-                  onChange={(e) => {
-                    setFormData({ 
-                      ...formData, 
-                      recurringFrequency: e.target.value || undefined,
-                      recurringCustomMonths: e.target.value !== "CUSTOM" ? undefined : formData.recurringCustomMonths
-                    })
-                  }}
-                >
-                  <option value="">Select frequency</option>
-                  <option value="MONTHLY_1">1 Month</option>
-                  <option value="MONTHLY_3">3 Months</option>
-                  <option value="MONTHLY_6">6 Months</option>
-                  <option value="YEARLY_12">12 Months</option>
-                  <option value="CUSTOM">Custom</option>
-                </Select>
-              </div>
-              {formData.recurringFrequency === "CUSTOM" && (
-                <div className="space-y-2">
-                  <Label htmlFor="recurringCustomMonths">Custom Months</Label>
-                  <Input
-                    id="recurringCustomMonths"
-                    type="number"
-                    min="1"
-                    value={formData.recurringCustomMonths || ""}
-                    onChange={(e) => setFormData({ ...formData, recurringCustomMonths: parseInt(e.target.value) || undefined })}
-                    placeholder="e.g., 2"
-                  />
+                  {formData.type === "RECURRING" && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Recurring Payment Configuration</CardTitle>
+                        <CardDescription>Configure how often invoices will be generated for this recurring proposal</CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="recurringFrequency">Frequency</Label>
+                            <Select
+                              id="recurringFrequency"
+                              value={formData.recurringFrequency || ""}
+                              onChange={(e) => {
+                                setFormData({ 
+                                  ...formData, 
+                                  recurringFrequency: e.target.value || undefined,
+                                  recurringCustomMonths: e.target.value !== "CUSTOM" ? undefined : formData.recurringCustomMonths
+                                })
+                              }}
+                            >
+                              <option value="">Select frequency</option>
+                              <option value="MONTHLY_1">1 Month</option>
+                              <option value="MONTHLY_3">3 Months</option>
+                              <option value="MONTHLY_6">6 Months</option>
+                              <option value="YEARLY_12">12 Months</option>
+                              <option value="CUSTOM">Custom</option>
+                            </Select>
+                          </div>
+                          {formData.recurringFrequency === "CUSTOM" && (
+                            <div className="space-y-2">
+                              <Label htmlFor="recurringCustomMonths">Custom Months</Label>
+                              <Input
+                                id="recurringCustomMonths"
+                                type="number"
+                                min="1"
+                                value={formData.recurringCustomMonths || ""}
+                                onChange={(e) => setFormData({ ...formData, recurringCustomMonths: parseInt(e.target.value) || undefined })}
+                                placeholder="e.g., 2"
+                              />
+                            </div>
+                          )}
+                          <div className="space-y-2">
+                            <Label htmlFor="recurringStartDate">Start Date</Label>
+                            <Input
+                              id="recurringStartDate"
+                              type="date"
+                              value={formData.recurringStartDate || ""}
+                              onChange={(e) => setFormData({ ...formData, recurringStartDate: e.target.value || undefined })}
+                            />
+                          </div>
+                        </div>
+                        <div className="p-3 bg-blue-50 rounded">
+                          <p className="text-sm text-gray-600">
+                            This proposal will generate recurring invoices based on the selected frequency, starting from the specified start date.
+                          </p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {formData.type === "SUCCESS_FEE" && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Success Fee Configuration</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="successFeePercent">Success Fee Percentage (%)</Label>
+                            <Input
+                              id="successFeePercent"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              max="100"
+                              value={formData.successFeePercent}
+                              onChange={(e) => setFormData({ ...formData, successFeePercent: parseFloat(e.target.value) || 0 })}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="successFeeAmount">Fixed Success Fee ({selectedCurrency.symbol})</Label>
+                            <Input
+                              id="successFeeAmount"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={formData.successFeeAmount}
+                              onChange={(e) => setFormData({ ...formData, successFeeAmount: parseFloat(e.target.value) || 0 })}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="successFeeValue">Transaction/Deal Value ({selectedCurrency.symbol})</Label>
+                            <Input
+                              id="successFeeValue"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={formData.successFeeValue}
+                              onChange={(e) => setFormData({ ...formData, successFeeValue: parseFloat(e.target.value) || 0 })}
+                              placeholder="For percentage calculation"
+                            />
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {formData.type === "MIXED_MODEL" && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Mixed Model Configuration</CardTitle>
+                        <CardDescription>Select which billing methods to include in this mixed model proposal</CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="space-y-2">
+                          <Label>Select Billing Methods</Label>
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                            <label className="flex items-center space-x-2 cursor-pointer p-2 border rounded hover:bg-gray-50">
+                              <input
+                                type="checkbox"
+                                checked={formData.mixedModelMethods.includes("FIXED_FEE")}
+                                onChange={(e) => {
+                                  const methods = e.target.checked
+                                    ? [...formData.mixedModelMethods, "FIXED_FEE"]
+                                    : formData.mixedModelMethods.filter((m: string) => m !== "FIXED_FEE")
+                                  setFormData({ ...formData, mixedModelMethods: methods })
+                                }}
+                                className="rounded"
+                              />
+                              <span>Fixed Fee</span>
+                            </label>
+                            <label className="flex items-center space-x-2 cursor-pointer p-2 border rounded hover:bg-gray-50">
+                              <input
+                                type="checkbox"
+                                checked={formData.mixedModelMethods.includes("HOURLY")}
+                                onChange={(e) => {
+                                  const methods = e.target.checked
+                                    ? [...formData.mixedModelMethods, "HOURLY"]
+                                    : formData.mixedModelMethods.filter((m: string) => m !== "HOURLY")
+                                  setFormData({ ...formData, mixedModelMethods: methods })
+                                }}
+                                className="rounded"
+                              />
+                              <span>Hourly</span>
+                            </label>
+                            <label className="flex items-center space-x-2 cursor-pointer p-2 border rounded hover:bg-gray-50">
+                              <input
+                                type="checkbox"
+                                checked={formData.mixedModelMethods.includes("RETAINER")}
+                                onChange={(e) => {
+                                  const methods = e.target.checked
+                                    ? [...formData.mixedModelMethods, "RETAINER"]
+                                    : formData.mixedModelMethods.filter((m: string) => m !== "RETAINER")
+                                  setFormData({ ...formData, mixedModelMethods: methods })
+                                }}
+                                className="rounded"
+                              />
+                              <span>Retainer</span>
+                            </label>
+                            <label className="flex items-center space-x-2 cursor-pointer p-2 border rounded hover:bg-gray-50">
+                              <input
+                                type="checkbox"
+                                checked={formData.mixedModelMethods.includes("SUCCESS_FEE")}
+                                onChange={(e) => {
+                                  const methods = e.target.checked
+                                    ? [...formData.mixedModelMethods, "SUCCESS_FEE"]
+                                    : formData.mixedModelMethods.filter((m: string) => m !== "SUCCESS_FEE")
+                                  setFormData({ ...formData, mixedModelMethods: methods })
+                                }}
+                                className="rounded"
+                              />
+                              <span>Success Fee</span>
+                            </label>
+                          </div>
+                        </div>
+
+                        {/* Show configuration fields for selected methods */}
+                        {formData.mixedModelMethods.includes("FIXED_FEE") && (
+                          <div className="space-y-2 p-4 border rounded">
+                            <Label className="font-semibold">Fixed Fee Configuration</Label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              placeholder="Fixed amount"
+                              value={formData.fixedAmount}
+                              onChange={(e) => setFormData({ ...formData, fixedAmount: parseFloat(e.target.value) || 0 })}
+                            />
+                          </div>
+                        )}
+
+                        {formData.mixedModelMethods.includes("HOURLY") && (
+                          <div className="space-y-2 p-4 border rounded">
+                            <Label className="font-semibold">Hourly Configuration</Label>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                              <Input
+                                type="number"
+                                step="0.25"
+                                min="0"
+                                placeholder="Estimated hours"
+                                value={formData.estimatedHours}
+                                onChange={(e) => setFormData({ ...formData, estimatedHours: parseFloat(e.target.value) || 0 })}
+                              />
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                placeholder="Min rate"
+                                value={formData.hourlyRateRangeMin}
+                                onChange={(e) => setFormData({ ...formData, hourlyRateRangeMin: parseFloat(e.target.value) || 0 })}
+                              />
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                placeholder="Max rate"
+                                value={formData.hourlyRateRangeMax}
+                                onChange={(e) => setFormData({ ...formData, hourlyRateRangeMax: parseFloat(e.target.value) || 0 })}
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        {formData.mixedModelMethods.includes("RETAINER") && (
+                          <div className="space-y-2 p-4 border rounded">
+                            <Label className="font-semibold">Retainer Configuration</Label>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                placeholder="Monthly amount"
+                                value={formData.retainerMonthlyAmount}
+                                onChange={(e) => setFormData({ ...formData, retainerMonthlyAmount: parseFloat(e.target.value) || 0 })}
+                              />
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                placeholder="Hourly cap"
+                                value={formData.retainerHourlyCap}
+                                onChange={(e) => setFormData({ ...formData, retainerHourlyCap: parseFloat(e.target.value) || 0 })}
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        {formData.mixedModelMethods.includes("BLENDED_RATE") && (
+                          <div className="space-y-2 p-4 border rounded">
+                            <Label className="font-semibold">Blended Rate Configuration</Label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              placeholder="Blended rate"
+                              value={formData.blendedRate}
+                              onChange={(e) => setFormData({ ...formData, blendedRate: parseFloat(e.target.value) || 0 })}
+                            />
+                          </div>
+                        )}
+
+                        {formData.mixedModelMethods.includes("SUCCESS_FEE") && (
+                          <div className="space-y-2 p-4 border rounded">
+                            <Label className="font-semibold">Success Fee Configuration</Label>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                max="100"
+                                placeholder="Success fee %"
+                                value={formData.successFeePercent}
+                                onChange={(e) => setFormData({ ...formData, successFeePercent: parseFloat(e.target.value) || 0 })}
+                              />
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                placeholder="Fixed success fee"
+                                value={formData.successFeeAmount}
+                                onChange={(e) => setFormData({ ...formData, successFeeAmount: parseFloat(e.target.value) || 0 })}
+                              />
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                placeholder="Transaction value"
+                                value={formData.successFeeValue}
+                                onChange={(e) => setFormData({ ...formData, successFeeValue: parseFloat(e.target.value) || 0 })}
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        {formData.mixedModelMethods.length === 0 && (
+                          <p className="text-sm text-gray-500 text-center py-4">
+                            Select at least one billing method above
+                          </p>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )}
                 </div>
               )}
-              <div className="space-y-2">
-                <Label htmlFor="recurringStartDate">Start Date</Label>
-                <Input
-                  id="recurringStartDate"
-                  type="date"
-                  value={formData.recurringStartDate || ""}
-                  onChange={(e) => setFormData({ ...formData, recurringStartDate: e.target.value || undefined })}
-                />
-              </div>
-            </div>
-            <div className="p-3 bg-blue-50 rounded">
-              <p className="text-sm text-gray-600">
-                This proposal will generate recurring invoices based on the selected frequency, starting from the specified start date.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {formData.type === "SUCCESS_FEE" && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Success Fee Configuration</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="successFeePercent">Success Fee Percentage (%)</Label>
-                <Input
-                  id="successFeePercent"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  max="100"
-                  value={formData.successFeePercent}
-                  onChange={(e) => setFormData({ ...formData, successFeePercent: parseFloat(e.target.value) || 0 })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="successFeeAmount">Fixed Success Fee ({selectedCurrency.symbol})</Label>
-                <Input
-                  id="successFeeAmount"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={formData.successFeeAmount}
-                  onChange={(e) => setFormData({ ...formData, successFeeAmount: parseFloat(e.target.value) || 0 })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="successFeeValue">Transaction/Deal Value ({selectedCurrency.symbol})</Label>
-                <Input
-                  id="successFeeValue"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={formData.successFeeValue}
-                  onChange={(e) => setFormData({ ...formData, successFeeValue: parseFloat(e.target.value) || 0 })}
-                  placeholder="For percentage calculation"
-                />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {formData.type === "MIXED_MODEL" && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Mixed Model Configuration</CardTitle>
-            <CardDescription>Select which billing methods to include in this mixed model proposal</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label>Select Billing Methods</Label>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                <label className="flex items-center space-x-2 cursor-pointer p-2 border rounded hover:bg-gray-50">
-                  <input
-                    type="checkbox"
-                    checked={formData.mixedModelMethods.includes("FIXED_FEE")}
-                    onChange={(e) => {
-                      const methods = e.target.checked
-                        ? [...formData.mixedModelMethods, "FIXED_FEE"]
-                        : formData.mixedModelMethods.filter((m: string) => m !== "FIXED_FEE")
-                      setFormData({ ...formData, mixedModelMethods: methods })
-                    }}
-                    className="rounded"
-                  />
-                  <span>Fixed Fee</span>
-                </label>
-                <label className="flex items-center space-x-2 cursor-pointer p-2 border rounded hover:bg-gray-50">
-                  <input
-                    type="checkbox"
-                    checked={formData.mixedModelMethods.includes("HOURLY")}
-                    onChange={(e) => {
-                      const methods = e.target.checked
-                        ? [...formData.mixedModelMethods, "HOURLY"]
-                        : formData.mixedModelMethods.filter((m: string) => m !== "HOURLY")
-                      setFormData({ ...formData, mixedModelMethods: methods })
-                    }}
-                    className="rounded"
-                  />
-                  <span>Hourly</span>
-                </label>
-                <label className="flex items-center space-x-2 cursor-pointer p-2 border rounded hover:bg-gray-50">
-                  <input
-                    type="checkbox"
-                    checked={formData.mixedModelMethods.includes("RETAINER")}
-                    onChange={(e) => {
-                      const methods = e.target.checked
-                        ? [...formData.mixedModelMethods, "RETAINER"]
-                        : formData.mixedModelMethods.filter((m: string) => m !== "RETAINER")
-                      setFormData({ ...formData, mixedModelMethods: methods })
-                    }}
-                    className="rounded"
-                  />
-                  <span>Retainer</span>
-                </label>
-                <label className="flex items-center space-x-2 cursor-pointer p-2 border rounded hover:bg-gray-50">
-                  <input
-                    type="checkbox"
-                    checked={formData.mixedModelMethods.includes("SUCCESS_FEE")}
-                    onChange={(e) => {
-                      const methods = e.target.checked
-                        ? [...formData.mixedModelMethods, "SUCCESS_FEE"]
-                        : formData.mixedModelMethods.filter((m: string) => m !== "SUCCESS_FEE")
-                      setFormData({ ...formData, mixedModelMethods: methods })
-                    }}
-                    className="rounded"
-                  />
-                  <span>Success Fee</span>
-                </label>
-              </div>
-            </div>
-
-            {/* Show configuration fields for selected methods */}
-            {formData.mixedModelMethods.includes("FIXED_FEE") && (
-              <div className="space-y-2 p-4 border rounded">
-                <Label className="font-semibold">Fixed Fee Configuration</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="Fixed amount"
-                  value={formData.fixedAmount}
-                  onChange={(e) => setFormData({ ...formData, fixedAmount: parseFloat(e.target.value) || 0 })}
-                />
-              </div>
-            )}
-
-            {formData.mixedModelMethods.includes("HOURLY") && (
-              <div className="space-y-2 p-4 border rounded">
-                <Label className="font-semibold">Hourly Configuration</Label>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                  <Input
-                    type="number"
-                    step="0.25"
-                    min="0"
-                    placeholder="Estimated hours"
-                    value={formData.estimatedHours}
-                    onChange={(e) => setFormData({ ...formData, estimatedHours: parseFloat(e.target.value) || 0 })}
-                  />
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="Min rate"
-                    value={formData.hourlyRateRangeMin}
-                    onChange={(e) => setFormData({ ...formData, hourlyRateRangeMin: parseFloat(e.target.value) || 0 })}
-                  />
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="Max rate"
-                    value={formData.hourlyRateRangeMax}
-                    onChange={(e) => setFormData({ ...formData, hourlyRateRangeMax: parseFloat(e.target.value) || 0 })}
-                  />
-                </div>
-              </div>
-            )}
-
-            {formData.mixedModelMethods.includes("RETAINER") && (
-              <div className="space-y-2 p-4 border rounded">
-                <Label className="font-semibold">Retainer Configuration</Label>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="Monthly amount"
-                    value={formData.retainerMonthlyAmount}
-                    onChange={(e) => setFormData({ ...formData, retainerMonthlyAmount: parseFloat(e.target.value) || 0 })}
-                  />
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="Hourly cap"
-                    value={formData.retainerHourlyCap}
-                    onChange={(e) => setFormData({ ...formData, retainerHourlyCap: parseFloat(e.target.value) || 0 })}
-                  />
-                </div>
-              </div>
-            )}
-
-            {formData.mixedModelMethods.includes("BLENDED_RATE") && (
-              <div className="space-y-2 p-4 border rounded">
-                <Label className="font-semibold">Blended Rate Configuration</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="Blended rate"
-                  value={formData.blendedRate}
-                  onChange={(e) => setFormData({ ...formData, blendedRate: parseFloat(e.target.value) || 0 })}
-                />
-              </div>
-            )}
-
-            {formData.mixedModelMethods.includes("SUCCESS_FEE") && (
-              <div className="space-y-2 p-4 border rounded">
-                <Label className="font-semibold">Success Fee Configuration</Label>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max="100"
-                    placeholder="Success fee %"
-                    value={formData.successFeePercent}
-                    onChange={(e) => setFormData({ ...formData, successFeePercent: parseFloat(e.target.value) || 0 })}
-                  />
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="Fixed success fee"
-                    value={formData.successFeeAmount}
-                    onChange={(e) => setFormData({ ...formData, successFeeAmount: parseFloat(e.target.value) || 0 })}
-                  />
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="Transaction value"
-                    value={formData.successFeeValue}
-                    onChange={(e) => setFormData({ ...formData, successFeeValue: parseFloat(e.target.value) || 0 })}
-                  />
-                </div>
-              </div>
-            )}
-
-            {formData.mixedModelMethods.length === 0 && (
-              <p className="text-sm text-gray-500 text-center py-4">
-                Select at least one billing method above
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      )}
-                </div>
-              </Card>
-            )}
+            </CardContent>
           </Card>
         )}
 
@@ -1562,7 +1562,7 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
           </Card>
         )}
 
-        {wizardSteps[currentWizardStep]?.id === "milestones" && shouldShowMilestonesStep() && (
+        {wizardSteps[currentWizardStep]?.id === "milestones" && shouldShowMilestonesStep && (
           <Card>
             <CardHeader>
               <CardTitle>Step 3: Define Milestones (Optional)</CardTitle>
@@ -2032,7 +2032,7 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
               )}
 
               {/* Milestones Summary */}
-              {shouldShowMilestonesStep() && milestones.length > 0 && (
+              {shouldShowMilestonesStep && milestones.length > 0 && (
                 <div className="space-y-4">
                   <h3 className="font-semibold text-lg">Milestones ({milestones.length})</h3>
                   <div className="space-y-2">
