@@ -117,10 +117,10 @@ export function PaymentTermsWizard({
         if (wizardData.upfrontValue === null || wizardData.upfrontValue === undefined) {
           newErrors.upfrontValue = "Please enter upfront payment amount"
         }
-        if (wizardData.upfrontValue !== null && wizardData.upfrontValue < 0) {
+        if (wizardData.upfrontValue !== null && wizardData.upfrontValue !== undefined && wizardData.upfrontValue < 0) {
           newErrors.upfrontValue = "Upfront payment must be positive"
         }
-        if (wizardData.upfrontType === "PERCENT" && wizardData.upfrontValue !== null && wizardData.upfrontValue > 100) {
+        if (wizardData.upfrontType === "PERCENT" && wizardData.upfrontValue !== null && wizardData.upfrontValue !== undefined && wizardData.upfrontValue > 100) {
           newErrors.upfrontValue = "Percentage cannot exceed 100%"
         }
       } else if (paymentStructure === "RECURRING") {
