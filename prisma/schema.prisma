@@ -1044,7 +1044,7 @@ model CompensationEntry {
   // Relations
   user          User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   compensation  UserCompensation    @relation(fields: [compensationId], references: [id], onDelete: Cascade)
-  transactions  UserFinancialTransaction[]
+  // Note: transactions are queried via relatedId and relatedType in UserFinancialTransaction
 }
 
 model OfficeAdvance {
@@ -1070,7 +1070,7 @@ model OfficeAdvance {
   // Relations
   user        User                @relation("AdvanceUser", fields: [userId], references: [id], onDelete: Cascade)
   creator     User                @relation("AdvanceCreator", fields: [createdBy], references: [id])
-  transactions UserFinancialTransaction[]
+  // Note: transactions are queried via relatedId and relatedType in UserFinancialTransaction
 }
 
 model FringeBenefit {

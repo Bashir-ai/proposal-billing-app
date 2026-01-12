@@ -137,7 +137,7 @@ export async function GET(
     // Get advances if requested
     let advances: any[] = []
     if (includeAdvances) {
-      advances = await prisma.officeAdvance.findMany({
+      const advancesList = await prisma.officeAdvance.findMany({
         where: {
           userId,
           ...(startDate || endDate ? {
@@ -145,12 +145,24 @@ export async function GET(
           } : {}),
         },
         orderBy: { createdAt: 'desc' },
-        include: {
-          transactions: {
-            orderBy: { transactionDate: 'desc' },
-          },
-        },
       })
+
+      // Fetch transactions for each advance
+      advances = await Promise.all(
+        advancesList.map(async (advance) => {
+          const transactions = await prisma.userFinancialTransaction.findMany({
+            where: {
+              relatedId: advance.id,
+              relatedType: "ADVANCE",
+            },
+            orderBy: { transactionDate: 'desc' },
+          })
+          return {
+            ...advance,
+            transactions,
+          }
+        })
+      )
     }
 
     // Get benefits if requested

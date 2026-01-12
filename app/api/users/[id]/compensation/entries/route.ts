@@ -59,13 +59,27 @@ export async function GET(
       ],
       include: {
         compensation: true,
-        transactions: {
-          orderBy: { transactionDate: 'desc' },
-        },
       },
     })
 
-    return NextResponse.json({ entries })
+    // Fetch transactions for each entry
+    const entriesWithTransactions = await Promise.all(
+      entries.map(async (entry) => {
+        const transactions = await prisma.userFinancialTransaction.findMany({
+          where: {
+            relatedId: entry.id,
+            relatedType: "COMPENSATION_ENTRY",
+          },
+          orderBy: { transactionDate: 'desc' },
+        })
+        return {
+          ...entry,
+          transactions,
+        }
+      })
+    )
+
+    return NextResponse.json({ entries: entriesWithTransactions })
   } catch (error: any) {
     console.error("Error fetching compensation entries:", error)
     return NextResponse.json(

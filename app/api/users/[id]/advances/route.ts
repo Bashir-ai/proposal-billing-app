@@ -50,13 +50,27 @@ export async function GET(
         creator: {
           select: { id: true, name: true, email: true },
         },
-        transactions: {
-          orderBy: { transactionDate: 'desc' },
-        },
       },
     })
 
-    return NextResponse.json({ advances })
+    // Fetch transactions for each advance
+    const advancesWithTransactions = await Promise.all(
+      advances.map(async (advance) => {
+        const transactions = await prisma.userFinancialTransaction.findMany({
+          where: {
+            relatedId: advance.id,
+            relatedType: "ADVANCE",
+          },
+          orderBy: { transactionDate: 'desc' },
+        })
+        return {
+          ...advance,
+          transactions,
+        }
+      })
+    )
+
+    return NextResponse.json({ advances: advancesWithTransactions })
   } catch (error: any) {
     console.error("Error fetching advances:", error)
     return NextResponse.json(
