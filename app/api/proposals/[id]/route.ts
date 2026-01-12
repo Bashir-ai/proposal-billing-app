@@ -11,6 +11,7 @@ const proposalItemSchema = z.object({
   id: z.string().optional(),
   billingMethod: z.enum(["FIXED_FEE", "SUCCESS_FEE", "RECURRING", "HOURLY", "CAPPED_FEE"]).optional(),
   personId: z.string().optional(),
+  expenseId: z.string().optional(), // Reference to ProjectExpense if this is an expense line item
   description: z.string(),
   quantity: z.number().optional(),
   rate: z.number().optional(),
