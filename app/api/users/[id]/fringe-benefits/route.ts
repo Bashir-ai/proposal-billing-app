@@ -4,13 +4,16 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
-import { UserRole, FringeBenefitCategory } from "@prisma/client"
+import { UserRole, FringeBenefitCategory, AdvanceType } from "@prisma/client"
 
 const benefitSchema = z.object({
+  type: z.enum(["ONE_OFF", "RECURRING"]).optional().default("ONE_OFF"),
   description: z.string().min(1),
   amount: z.number().positive(),
   currency: z.string().default("EUR"),
   benefitDate: z.string().transform((str) => new Date(str)),
+  endDate: z.string().transform((str) => new Date(str)).optional().nullable(),
+  frequency: z.enum(["MONTHLY", "QUARTERLY", "YEARLY"]).optional().nullable(),
   category: z.enum(["HEALTH", "TRANSPORT", "MEAL", "OTHER"]),
 })
 
@@ -89,14 +92,28 @@ export async function POST(
     const body = await request.json()
     const validatedData = benefitSchema.parse(body)
 
+    // Validate based on type
+    const benefitType = validatedData.type || "ONE_OFF"
+    if (benefitType === "RECURRING") {
+      if (!validatedData.frequency) {
+        return NextResponse.json({ error: "Frequency is required for recurring benefits" }, { status: 400 })
+      }
+      if (!validatedData.endDate) {
+        return NextResponse.json({ error: "End date is required for recurring benefits" }, { status: 400 })
+      }
+    }
+
     // Create benefit
     const benefit = await prisma.fringeBenefit.create({
       data: {
         userId,
+        type: benefitType as AdvanceType,
         description: validatedData.description,
         amount: validatedData.amount,
         currency: validatedData.currency,
         benefitDate: validatedData.benefitDate,
+        endDate: validatedData.endDate || null,
+        frequency: validatedData.frequency || null,
         category: validatedData.category as FringeBenefitCategory,
         createdBy: session.user.id,
       },

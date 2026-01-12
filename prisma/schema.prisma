@@ -1085,11 +1085,15 @@ model OfficeAdvance {
 model FringeBenefit {
   id          String                @id @default(cuid())
   userId      String
+  type        AdvanceType            @default(ONE_OFF) // ONE_OFF or RECURRING
   description String
   amount      Float
   currency    String                @default("EUR")
-  benefitDate DateTime
+  benefitDate DateTime               // Start date for recurring, or date for one-off
+  endDate     DateTime?             // End date for recurring benefits (null for one-off)
+  frequency   AdvanceFrequency?     // Frequency for recurring benefits (MONTHLY, QUARTERLY, YEARLY)
   category    FringeBenefitCategory
+  isActive    Boolean                @default(true)
   createdBy   String
   createdAt   DateTime              @default(now())
   updatedAt   DateTime              @updatedAt
@@ -1097,6 +1101,8 @@ model FringeBenefit {
   @@index([userId])
   @@index([benefitDate])
   @@index([category])
+  @@index([type])
+  @@index([isActive])
 
   // Relations
   user    User  @relation("BenefitUser", fields: [userId], references: [id], onDelete: Cascade)

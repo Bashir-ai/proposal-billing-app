@@ -12,11 +12,15 @@ import { Plus, Edit, Trash2, Gift } from "lucide-react"
 
 interface Benefit {
   id: string
+  type: "RECURRING" | "ONE_OFF"
   description: string
   amount: number
   currency: string
   benefitDate: string
+  endDate: string | null
+  frequency: "MONTHLY" | "QUARTERLY" | "YEARLY" | null
   category: "HEALTH" | "TRANSPORT" | "MEAL" | "OTHER"
+  isActive: boolean
   createdAt: string
   creator: {
     id: string
@@ -39,10 +43,13 @@ export function BenefitsSection({ userId, startDate, endDate, isAdmin }: Benefit
   const [editingBenefit, setEditingBenefit] = useState<Benefit | null>(null)
   const [selectedCategory, setSelectedCategory] = useState<string>("")
   const [formData, setFormData] = useState({
+    type: "ONE_OFF" as "RECURRING" | "ONE_OFF",
     description: "",
     amount: "",
     currency: "EUR",
     benefitDate: new Date().toISOString().split("T")[0],
+    endDate: "",
+    frequency: "MONTHLY" as "MONTHLY" | "QUARTERLY" | "YEARLY" | null,
     category: "OTHER" as "HEALTH" | "TRANSPORT" | "MEAL" | "OTHER",
   })
   const [submitting, setSubmitting] = useState(false)
@@ -73,10 +80,13 @@ export function BenefitsSection({ userId, startDate, endDate, isAdmin }: Benefit
   const handleCreate = () => {
     setEditingBenefit(null)
     setFormData({
+      type: "ONE_OFF",
       description: "",
       amount: "",
       currency: "EUR",
       benefitDate: new Date().toISOString().split("T")[0],
+      endDate: "",
+      frequency: "MONTHLY",
       category: "OTHER",
     })
     setShowCreateModal(true)
@@ -85,10 +95,13 @@ export function BenefitsSection({ userId, startDate, endDate, isAdmin }: Benefit
   const handleEdit = (benefit: Benefit) => {
     setEditingBenefit(benefit)
     setFormData({
+      type: benefit.type,
       description: benefit.description,
       amount: benefit.amount.toString(),
       currency: benefit.currency,
       benefitDate: new Date(benefit.benefitDate).toISOString().split("T")[0],
+      endDate: benefit.endDate ? new Date(benefit.endDate).toISOString().split("T")[0] : "",
+      frequency: benefit.frequency || "MONTHLY",
       category: benefit.category,
     })
     setShowCreateModal(true)
@@ -110,6 +123,8 @@ export function BenefitsSection({ userId, startDate, endDate, isAdmin }: Benefit
         body: JSON.stringify({
           ...formData,
           amount: parseFloat(formData.amount),
+          endDate: formData.endDate || null,
+          frequency: formData.type === "RECURRING" ? formData.frequency : null,
         }),
       })
 
@@ -225,23 +240,45 @@ export function BenefitsSection({ userId, startDate, endDate, isAdmin }: Benefit
                   <div className="flex-1">
                     <div className="flex items-center gap-4 mb-2">
                       <h4 className="font-semibold">{benefit.description}</h4>
+                      <span className={`px-2 py-1 rounded text-xs ${
+                        benefit.isActive ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"
+                      }`}>
+                        {benefit.isActive ? "Active" : "Inactive"}
+                      </span>
                       <span className="px-2 py-1 rounded text-xs bg-purple-100 text-purple-800">
                         {getCategoryLabel(benefit.category)}
                       </span>
+                      <span className="px-2 py-1 rounded text-xs bg-blue-100 text-blue-800">
+                        {benefit.type === "RECURRING" ? "Recurring" : "One-off"}
+                      </span>
                     </div>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                       <div>
                         <span className="text-gray-600">Amount:</span>
                         <div className="font-semibold">{formatCurrency(benefit.amount)}</div>
                       </div>
                       <div>
-                        <span className="text-gray-600">Date:</span>
+                        <span className="text-gray-600">Start Date:</span>
                         <div className="font-semibold">{formatDate(benefit.benefitDate)}</div>
                       </div>
-                      <div>
-                        <span className="text-gray-600">Created By:</span>
-                        <div className="font-semibold">{benefit.creator.name}</div>
-                      </div>
+                      {benefit.endDate && (
+                        <div>
+                          <span className="text-gray-600">End Date:</span>
+                          <div className="font-semibold">{formatDate(benefit.endDate)}</div>
+                        </div>
+                      )}
+                      {benefit.frequency && (
+                        <div>
+                          <span className="text-gray-600">Frequency:</span>
+                          <div className="font-semibold">{benefit.frequency}</div>
+                        </div>
+                      )}
+                      {!benefit.endDate && !benefit.frequency && (
+                        <div>
+                          <span className="text-gray-600">Created By:</span>
+                          <div className="font-semibold">{benefit.creator.name}</div>
+                        </div>
+                      )}
                     </div>
                   </div>
                   {isAdmin && (
@@ -282,6 +319,17 @@ export function BenefitsSection({ userId, startDate, endDate, isAdmin }: Benefit
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
+                  <Label>Type *</Label>
+                  <Select
+                    value={formData.type}
+                    onChange={(e) => setFormData({ ...formData, type: e.target.value as "RECURRING" | "ONE_OFF" })}
+                  >
+                    <option value="ONE_OFF">One-off</option>
+                    <option value="RECURRING">Recurring</option>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
                   <Label>Description *</Label>
                   <Textarea
                     value={formData.description}
@@ -316,28 +364,52 @@ export function BenefitsSection({ userId, startDate, endDate, isAdmin }: Benefit
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Benefit Date *</Label>
-                    <Input
-                      type="date"
-                      value={formData.benefitDate}
-                      onChange={(e) => setFormData({ ...formData, benefitDate: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Category *</Label>
-                    <Select
-                      value={formData.category}
-                      onChange={(e) => setFormData({ ...formData, category: e.target.value as "HEALTH" | "TRANSPORT" | "MEAL" | "OTHER" })}
-                    >
-                      <option value="HEALTH">Health</option>
-                      <option value="TRANSPORT">Transport</option>
-                      <option value="MEAL">Meal</option>
-                      <option value="OTHER">Other</option>
-                    </Select>
-                  </div>
+                <div className="space-y-2">
+                  <Label>Start Date *</Label>
+                  <Input
+                    type="date"
+                    value={formData.benefitDate}
+                    onChange={(e) => setFormData({ ...formData, benefitDate: e.target.value })}
+                    required
+                  />
+                </div>
+
+                {formData.type === "RECURRING" && (
+                  <>
+                    <div className="space-y-2">
+                      <Label>End Date *</Label>
+                      <Input
+                        type="date"
+                        value={formData.endDate}
+                        onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Frequency *</Label>
+                      <Select
+                        value={formData.frequency || "MONTHLY"}
+                        onChange={(e) => setFormData({ ...formData, frequency: e.target.value as "MONTHLY" | "QUARTERLY" | "YEARLY" })}
+                      >
+                        <option value="MONTHLY">Monthly</option>
+                        <option value="QUARTERLY">Quarterly</option>
+                        <option value="YEARLY">Yearly</option>
+                      </Select>
+                    </div>
+                  </>
+                )}
+
+                <div className="space-y-2">
+                  <Label>Category *</Label>
+                  <Select
+                    value={formData.category}
+                    onChange={(e) => setFormData({ ...formData, category: e.target.value as "HEALTH" | "TRANSPORT" | "MEAL" | "OTHER" })}
+                  >
+                    <option value="HEALTH">Health</option>
+                    <option value="TRANSPORT">Transport</option>
+                    <option value="MEAL">Meal</option>
+                    <option value="OTHER">Other</option>
+                  </Select>
                 </div>
 
                 <div className="flex justify-end gap-4 pt-4">
