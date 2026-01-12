@@ -160,14 +160,19 @@ export async function POST(
     }
 
     // Create or update eligibility record
+    // Convert undefined to null for Prisma unique constraint
+    const projectIdValue = validatedData.projectId ?? null
+    const clientIdValue = validatedData.clientId ?? null
+    const billIdValue = validatedData.billId ?? null
+
     const eligibility = await prisma.compensationEligibility.upsert({
       where: {
         userId_compensationId_projectId_clientId_billId: {
           userId,
           compensationId: validatedData.compensationId,
-          projectId: validatedData.projectId || null,
-          clientId: validatedData.clientId || null,
-          billId: validatedData.billId || null,
+          projectId: projectIdValue,
+          clientId: clientIdValue,
+          billId: billIdValue,
         },
       },
       update: {
@@ -176,9 +181,9 @@ export async function POST(
       create: {
         userId,
         compensationId: validatedData.compensationId,
-        projectId: validatedData.projectId || null,
-        clientId: validatedData.clientId || null,
-        billId: validatedData.billId || null,
+        projectId: projectIdValue,
+        clientId: clientIdValue,
+        billId: billIdValue,
         isEligible: validatedData.isEligible,
       },
       include: {

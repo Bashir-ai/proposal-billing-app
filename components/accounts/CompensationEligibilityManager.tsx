@@ -95,6 +95,7 @@ export function CompensationEligibilityManager({
       fetchEligibility()
       fetchCompensations()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedUserId, projectId, clientId, billId, isAdmin])
 
   const fetchUsers = async () => {
