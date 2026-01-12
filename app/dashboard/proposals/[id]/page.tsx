@@ -934,7 +934,12 @@ export default async function ProposalDetailPage({
                           {proposal.type === "MIXED_MODEL" && (
                             <td className="p-2">
                               <span className="px-2 py-1 rounded text-xs bg-gray-100">
-                                {item.billingMethod === "hourly" ? "Hourly" : "Fixed"}
+                                {item.billingMethod === "HOURLY" ? "Hourly" :
+                                 item.billingMethod === "FIXED_FEE" ? "Fixed Fee" :
+                                 item.billingMethod === "SUCCESS_FEE" ? "Success Fee" :
+                                 item.billingMethod === "RECURRING" ? "Recurring" :
+                                 item.billingMethod === "CAPPED_FEE" ? "Capped Fee" :
+                                 item.billingMethod || "Fixed"}
                               </span>
                             </td>
                           )}

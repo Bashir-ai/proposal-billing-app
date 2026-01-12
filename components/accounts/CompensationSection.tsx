@@ -131,7 +131,24 @@ export function CompensationSection({ userId, startDate, endDate, isAdmin }: Com
     return (
       <Card>
         <CardContent className="pt-6">
-          <p className="text-gray-500">No compensation structure configured for this user.</p>
+          <div className="space-y-4">
+            <p className="text-gray-500">No compensation structure configured for this user.</p>
+            {isAdmin && (
+              <div>
+                <p className="text-sm text-gray-600 mb-2">
+                  To configure compensation, go to Settings → User Management and click "Compensation" for this user.
+                </p>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    window.location.href = `/dashboard/settings/users/${userId}/compensation`
+                  }}
+                >
+                  Configure Compensation
+                </Button>
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
     )
@@ -142,8 +159,23 @@ export function CompensationSection({ userId, startDate, endDate, isAdmin }: Com
       {/* Current Compensation Structure */}
       <Card>
         <CardHeader>
-          <CardTitle>Compensation Structure</CardTitle>
-          <CardDescription>Current compensation configuration</CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Compensation Structure</CardTitle>
+              <CardDescription>Current compensation configuration</CardDescription>
+            </div>
+            {isAdmin && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  window.location.href = `/dashboard/settings/users/${userId}/compensation`
+                }}
+              >
+                Edit Compensation
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

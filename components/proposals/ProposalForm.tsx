@@ -12,6 +12,7 @@ import { Plus, Trash2, X } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
 import { PaymentTermsWizard } from "./PaymentTermsWizard"
 import { ProposalFormWizard } from "./ProposalFormWizard"
+import { AddExpenseButton } from "./AddExpenseButton"
 
 interface ProposalFormProps {
   onSubmit: (data: any) => Promise<void>
@@ -44,6 +45,7 @@ interface LineItem {
   amount: number
   date?: string
   milestoneIds?: string[] // Array of milestone IDs assigned to this item
+  expenseId?: string // Reference to ProjectExpense if this is an expense line item
   // Recurring payment fields (when billingMethod is "RECURRING")
   recurringEnabled?: boolean
   recurringFrequency?: "MONTHLY_1" | "MONTHLY_3" | "MONTHLY_6" | "YEARLY_12" | "CUSTOM"
@@ -1711,10 +1713,27 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                   <CardTitle>Step 4: Configure Line Items</CardTitle>
                   <CardDescription>Add line items for this proposal</CardDescription>
                 </div>
-                <Button type="button" onClick={addItem} size="sm" variant="outline">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Line Item
-                </Button>
+                <div className="flex gap-2">
+                  <Button type="button" onClick={addItem} size="sm" variant="outline">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Line Item
+                  </Button>
+                  {formData.clientId && (
+                    <AddExpenseButton
+                      clientId={formData.clientId}
+                      currency={formData.currency}
+                      onExpenseAdded={(expense) => {
+                        const newItem: LineItem = {
+                          description: expense.description,
+                          amount: expense.amount,
+                          expenseId: expense.id,
+                          billingMethod: "FIXED_FEE", // Expenses are typically fixed fee
+                        }
+                        setItems([...items, newItem])
+                      }}
+                    />
+                  )}
+                </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -1802,13 +1821,25 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                         )}
 
                         <div className={`space-y-2 ${(formData.type === "MIXED_MODEL" || formData.type === "FIXED_FEE" || formData.type === "SUCCESS_FEE" || formData.type === "HOURLY" || formData.type === "CAPPED_FEE") ? "" : "md:col-span-2"}`}>
-                          <Label>Description *</Label>
+                          <div className="flex items-center gap-2">
+                            <Label>Description *</Label>
+                            {item.expenseId && (
+                              <span className="px-2 py-0.5 rounded text-xs bg-purple-100 text-purple-800">
+                                Expense
+                              </span>
+                            )}
+                          </div>
                           <Input
                             value={item.description}
                             onChange={(e) => updateItem(index, "description", e.target.value)}
                             required
                             placeholder="e.g., Opening a bank account"
+                            disabled={!!item.expenseId}
+                            className={item.expenseId ? "bg-gray-50" : ""}
                           />
+                          {item.expenseId && (
+                            <p className="text-xs text-gray-500">Linked to project expense (read-only)</p>
+                          )}
                         </div>
 
                         {/* For HOURLY proposals, show person selector, quantity (hours) and rate fields */}

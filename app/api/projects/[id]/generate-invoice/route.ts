@@ -58,6 +58,20 @@ export async function POST(
             billed: false,
           },
         },
+        expenses: {
+          where: {
+            isBillable: true,
+            billedAt: null,
+          },
+          include: {
+            creator: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
       },
     })
 
@@ -68,8 +82,9 @@ export async function POST(
     // Check if there are any unbilled items
     const unbilledTimesheetEntries = project.timesheetEntries || []
     const unbilledCharges = project.charges || []
+    const unbilledExpenses = project.expenses || []
 
-    if (unbilledTimesheetEntries.length === 0 && unbilledCharges.length === 0) {
+    if (unbilledTimesheetEntries.length === 0 && unbilledCharges.length === 0 && unbilledExpenses.length === 0) {
       return NextResponse.json(
         { error: "No unbilled items to invoice" },
         { status: 400 }
@@ -85,7 +100,11 @@ export async function POST(
       (sum, charge) => sum + charge.amount,
       0
     )
-    let subtotal = timesheetTotal + chargesTotal
+    const expensesTotal = unbilledExpenses.reduce(
+      (sum, expense) => sum + expense.amount,
+      0
+    )
+    let subtotal = timesheetTotal + chargesTotal + expensesTotal
 
     // Check for paid upfront invoices to apply as credits
     const paidUpfrontInvoices = await prisma.bill.findMany({
@@ -315,6 +334,36 @@ export async function POST(
         },
         data: {
           billed: true,
+        },
+      })
+    }
+
+      // Create BillItems for expenses
+    if (unbilledExpenses.length > 0) {
+      await prisma.billItem.createMany({
+        data: unbilledExpenses.map(expense => ({
+          billId: invoice.id,
+          type: "CHARGE",
+          description: expense.isReimbursement 
+            ? `Reimbursement: ${expense.description}`
+            : expense.description,
+          quantity: 1,
+          unitPrice: expense.amount,
+          amount: expense.amount,
+          isCredit: false,
+        })),
+      })
+
+      // Mark expenses as billed
+      await prisma.projectExpense.updateMany({
+        where: {
+          id: {
+            in: unbilledExpenses.map(e => e.id),
+          },
+        },
+        data: {
+          billedAt: new Date(),
+          billId: invoice.id,
         },
       })
     }

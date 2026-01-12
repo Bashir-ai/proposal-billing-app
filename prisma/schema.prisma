@@ -433,6 +433,7 @@ model ProposalItem {
   type            String? // For hourly: "timeEntry", for subject: "lineItem", etc.
   billingMethod   String? // Which billing method applies to this line (for mixed models): FIXED_FEE, SUCCESS_FEE, RECURRING, HOURLY, CAPPED_FEE
   personId        String? // User ID for person-specific hourly rates
+  expenseId       String? // Reference to ProjectExpense if this line item is linked to an expense
   description     String
   quantity        Float?
   rate            Float?
@@ -449,9 +450,12 @@ model ProposalItem {
   recurringStartDate        DateTime?
   lastRecurringInvoiceDate   DateTime?
 
+  @@index([expenseId])
+
   // Relations
   proposal     Proposal     @relation(fields: [proposalId], references: [id], onDelete: Cascade)
   person       User?        @relation("ProposalItemPerson", fields: [personId], references: [id])
+  expense      ProjectExpense? @relation(fields: [expenseId], references: [id], onDelete: SetNull)
   paymentTerms PaymentTerm?
   milestones   Milestone[] // Many-to-many: milestones assigned to this line item
   todos        Todo[]
@@ -1122,6 +1126,7 @@ model ProjectExpense {
   project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
   bill    Bill?    @relation(fields: [billId], references: [id], onDelete: SetNull)
   creator User     @relation("ExpenseCreator", fields: [createdBy], references: [id])
+  proposalItems ProposalItem[] // Line items in proposals that reference this expense
 }
 
 model UserFinancialTransaction {

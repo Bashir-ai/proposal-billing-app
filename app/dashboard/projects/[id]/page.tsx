@@ -76,6 +76,25 @@ export default async function ProjectDetailPage({
       charges: {
         orderBy: { createdAt: "desc" },
       },
+      expenses: {
+        include: {
+          creator: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+          bill: {
+            select: {
+              id: true,
+              invoiceNumber: true,
+              amount: true,
+            },
+          },
+        },
+        orderBy: { expenseDate: "desc" },
+      },
     },
   })
 
@@ -322,6 +341,33 @@ export default async function ProjectDetailPage({
                   </p>
                 </div>
               </div>
+              
+              {/* Expense Summary */}
+              {totalExpenses > 0 && (
+                <div className="mt-6 pt-6 border-t">
+                  <h4 className="font-semibold mb-3">Expense Summary</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div>
+                      <p className="text-sm text-gray-600 mb-1">Total Expenses</p>
+                      <p className="text-xl font-bold">{formatCurrency(totalExpenses)}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600 mb-1">Billable Expenses</p>
+                      <p className="text-xl font-bold">{formatCurrency(totalBillableExpenses)}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600 mb-1">Unbilled Expenses</p>
+                      <p className="text-xl font-bold text-yellow-600">{formatCurrency(totalUnbilledExpenses)}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600 mb-1">Billed Expenses</p>
+                      <p className="text-xl font-bold text-green-600">
+                        {formatCurrency(totalBillableExpenses - totalUnbilledExpenses)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {project.proposal.items && project.proposal.items.length > 0 && (
                 <div className="mt-6">
@@ -427,6 +473,112 @@ export default async function ProjectDetailPage({
                         .reduce((sum, e) => sum + (e.rate || 0) * e.hours, 0)
                     )}
                   </span>
+                </div>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Expenses Section */}
+      <Card className="mb-8">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle>Project Expenses</CardTitle>
+            <Link href={`/dashboard/projects/${id}/expenses/new`}>
+              <Button size="sm">
+                <Plus className="h-4 w-4 mr-2" />
+                Add Expense
+              </Button>
+            </Link>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {project.expenses.length === 0 ? (
+            <p className="text-gray-500 text-center py-4">No expenses yet</p>
+          ) : (
+            <div className="space-y-2">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left p-2">Date</th>
+                      <th className="text-left p-2">Description</th>
+                      <th className="text-left p-2">Category</th>
+                      <th className="text-right p-2">Amount</th>
+                      <th className="text-center p-2">Billable</th>
+                      <th className="text-center p-2">Reimbursement</th>
+                      <th className="text-center p-2">Billed</th>
+                      <th className="text-center p-2">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {project.expenses.map((expense) => (
+                      <tr key={expense.id} className="border-b">
+                        <td className="p-2">{formatDate(expense.expenseDate)}</td>
+                        <td className="p-2">{expense.description}</td>
+                        <td className="p-2">{expense.category || "—"}</td>
+                        <td className="p-2 text-right">{formatCurrency(expense.amount)}</td>
+                        <td className="p-2 text-center">
+                          {expense.isBillable ? (
+                            <span className="text-green-600">✓</span>
+                          ) : (
+                            <span className="text-gray-400">—</span>
+                          )}
+                        </td>
+                        <td className="p-2 text-center">
+                          {expense.isReimbursement ? (
+                            <span className="text-blue-600">✓</span>
+                          ) : (
+                            <span className="text-gray-400">—</span>
+                          )}
+                        </td>
+                        <td className="p-2 text-center">
+                          {expense.billedAt ? (
+                            <div className="flex flex-col items-center">
+                              <span className="text-blue-600">✓</span>
+                              {expense.bill && (
+                                <Link href={`/dashboard/bills/${expense.bill.id}`} className="text-xs text-blue-600 hover:underline">
+                                  #{expense.bill.invoiceNumber || expense.bill.id.slice(0, 8)}
+                                </Link>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-gray-400">—</span>
+                          )}
+                        </td>
+                        <td className="p-2 text-center">
+                          <Link href={`/dashboard/projects/${id}/expenses/${expense.id}/edit`}>
+                            <Button variant="ghost" size="sm">
+                              Edit
+                            </Button>
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="mt-4 pt-4 border-t">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
+                  <div>
+                    <span className="font-semibold">Total Expenses:</span>
+                    <div className="text-lg">{formatCurrency(totalExpenses)}</div>
+                  </div>
+                  <div>
+                    <span className="font-semibold">Billable Expenses:</span>
+                    <div className="text-lg">{formatCurrency(totalBillableExpenses)}</div>
+                  </div>
+                  <div>
+                    <span className="font-semibold">Unbilled Expenses:</span>
+                    <div className="text-lg text-yellow-600">{formatCurrency(totalUnbilledExpenses)}</div>
+                  </div>
+                  <div>
+                    <span className="font-semibold">Billed Expenses:</span>
+                    <div className="text-lg text-green-600">
+                      {formatCurrency(totalBillableExpenses - totalUnbilledExpenses)}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

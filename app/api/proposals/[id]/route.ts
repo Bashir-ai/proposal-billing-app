@@ -485,6 +485,7 @@ export async function PUT(
                 proposalId: id,
                 billingMethod: item.billingMethod || null,
                 personId: item.personId || null,
+                expenseId: item.expenseId || null,
                 description: item.description,
                 quantity: item.quantity || null,
                 rate: item.rate || null,

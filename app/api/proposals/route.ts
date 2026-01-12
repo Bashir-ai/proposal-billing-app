@@ -18,6 +18,7 @@ const proposalItemSchema = z.object({
   discountAmount: z.number().optional(),
   amount: z.number(),
   date: z.string().optional(),
+  expenseId: z.string().optional(), // Reference to ProjectExpense if this is an expense line item
   milestoneIds: z.array(z.string()).optional(), // Array of milestone IDs assigned to this item
   // Recurring payment fields (for item-level recurring)
   recurringEnabled: z.boolean().optional(),
@@ -369,6 +370,7 @@ export async function POST(request: Request) {
             proposalId: proposal.id,
             billingMethod: item.billingMethod || null,
             personId: item.personId || null,
+            expenseId: item.expenseId || null,
             description: item.description,
             quantity: item.quantity || null,
             rate: item.rate || null,
