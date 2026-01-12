@@ -17,6 +17,7 @@ import { SendInvoiceEmailButton } from "@/components/invoices/SendInvoiceEmailBu
 import { SendPaymentReminderButton } from "@/components/invoices/SendPaymentReminderButton"
 import { getLogoPath } from "@/lib/settings"
 import Image from "next/image"
+import { CompensationEligibilityManager } from "@/components/accounts/CompensationEligibilityManager"
 
 export const dynamic = 'force-dynamic'
 
@@ -562,6 +563,16 @@ export default async function BillDetailPage({
               ))}
             </div>
           </CardContent>
+        </Card>
+      )}
+
+      {/* Compensation Eligibility Section (Admin only) */}
+      {session?.user.role === "ADMIN" && (
+        <Card className="mt-8">
+          <CompensationEligibilityManager
+            billId={id}
+            isAdmin={true}
+          />
         </Card>
       )}
     </div>

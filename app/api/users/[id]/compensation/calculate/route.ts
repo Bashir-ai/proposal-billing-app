@@ -89,6 +89,59 @@ export async function POST(
       let projectTotalEarnings = 0
       let directWorkEarnings = 0
 
+      // Get all eligibility records for this user and compensation
+      const eligibilityRecords = await prisma.compensationEligibility.findMany({
+        where: {
+          userId,
+          compensationId: compensation.id,
+        },
+      })
+
+      // Create maps for quick lookup
+      const projectEligibilityMap = new Map<string, boolean>()
+      const clientEligibilityMap = new Map<string, boolean>()
+      const billEligibilityMap = new Map<string, boolean>()
+
+      for (const record of eligibilityRecords) {
+        if (record.projectId) {
+          projectEligibilityMap.set(record.projectId, record.isEligible)
+        }
+        if (record.clientId) {
+          clientEligibilityMap.set(record.clientId, record.isEligible)
+        }
+        if (record.billId) {
+          billEligibilityMap.set(record.billId, record.isEligible)
+        }
+      }
+
+      // Helper function to check if a project is eligible
+      const isProjectEligible = (project: any): boolean => {
+        // Check project-specific eligibility first
+        if (projectEligibilityMap.has(project.id)) {
+          return projectEligibilityMap.get(project.id)!
+        }
+        // Check client-specific eligibility
+        if (clientEligibilityMap.has(project.clientId)) {
+          return clientEligibilityMap.get(project.clientId)!
+        }
+        // Default to eligible if no eligibility record exists (backward compatibility)
+        return true
+      }
+
+      // Helper function to check if a bill is eligible
+      const isBillEligible = (bill: any): boolean => {
+        // Check bill-specific eligibility first
+        if (billEligibilityMap.has(bill.id)) {
+          return billEligibilityMap.get(bill.id)!
+        }
+        // If no bill-specific record, check project eligibility
+        if (bill.projectId) {
+          return isProjectEligible({ id: bill.projectId, clientId: null })
+        }
+        // Default to eligible
+        return true
+      }
+
       // Get projects user participated in (as manager or through timesheets)
       const userProjects = await prisma.project.findMany({
         where: {
@@ -122,9 +175,13 @@ export async function POST(
       })
 
       for (const project of userProjects) {
-        // Calculate project total value (from paid invoices)
+        // Check if project is eligible
+        if (!isProjectEligible(project)) {
+          continue // Skip this project
+        }
+        // Calculate project total value (from paid invoices that are eligible)
         const projectTotal = project.bills
-          .filter(bill => bill.paidAt)
+          .filter(bill => bill.paidAt && isBillEligible(bill))
           .reduce((sum, bill) => sum + bill.amount, 0)
 
         // Calculate direct work value (from timesheets and bill items)
@@ -132,8 +189,9 @@ export async function POST(
           return sum + (entry.hours * (entry.rate || 0))
         }, 0)
 
-        // Also check bill items for this user
+        // Also check bill items for this user (only from eligible bills)
         const billItemsValue = project.bills
+          .filter(bill => isBillEligible(bill))
           .flatMap(bill => bill.items)
           .filter(item => item.personId === userId)
           .reduce((sum, item) => sum + item.amount, 0)

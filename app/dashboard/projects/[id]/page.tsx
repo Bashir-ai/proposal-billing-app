@@ -8,6 +8,7 @@ import { formatDate, formatCurrency } from "@/lib/utils"
 import { ProjectStatus } from "@prisma/client"
 import Link from "next/link"
 import { Plus } from "lucide-react"
+import { CompensationEligibilityManager } from "@/components/accounts/CompensationEligibilityManager"
 
 // Force dynamic rendering to ensure fresh data on each request
 export const dynamic = 'force-dynamic'
@@ -676,6 +677,16 @@ export default async function ProjectDetailPage({
           )}
         </CardContent>
       </Card>
+
+      {/* Compensation Eligibility Section (Admin only) */}
+      {session?.user.role === "ADMIN" && (
+        <Card className="mb-8">
+          <CompensationEligibilityManager
+            projectId={id}
+            isAdmin={true}
+          />
+        </Card>
+      )}
 
       {/* Bills Section */}
       <Card>

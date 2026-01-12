@@ -2,9 +2,13 @@
 
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Select } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
 import { formatCurrency, formatDate } from "@/lib/utils"
-import { ArrowUpCircle, ArrowDownCircle, DollarSign } from "lucide-react"
+import { ArrowUpCircle, ArrowDownCircle, DollarSign, Plus } from "lucide-react"
 
 interface Transaction {
   id: string
@@ -26,13 +30,25 @@ interface TransactionsListProps {
   userId: string
   startDate: string | null
   endDate: string | null
+  isAdmin?: boolean
+  isManager?: boolean
 }
 
-export function TransactionsList({ userId, startDate, endDate }: TransactionsListProps) {
+export function TransactionsList({ userId, startDate, endDate, isAdmin = false, isManager = false }: TransactionsListProps) {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedType, setSelectedType] = useState<string>("")
   const [sortBy, setSortBy] = useState<"date" | "amount">("date")
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [formData, setFormData] = useState({
+    type: "ADJUSTMENT" as "COMPENSATION" | "ADVANCE" | "PAYMENT" | "ADJUSTMENT",
+    amount: "",
+    currency: "EUR",
+    transactionDate: new Date().toISOString().split("T")[0],
+    description: "",
+    notes: "",
+  })
 
   useEffect(() => {
     fetchTransactions()
@@ -90,6 +106,49 @@ export function TransactionsList({ userId, startDate, endDate }: TransactionsLis
     }
   }
 
+  const handleCreate = () => {
+    setFormData({
+      type: "ADJUSTMENT",
+      amount: "",
+      currency: "EUR",
+      transactionDate: new Date().toISOString().split("T")[0],
+      description: "",
+      notes: "",
+    })
+    setShowCreateModal(true)
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSubmitting(true)
+
+    try {
+      const response = await fetch(`/api/users/${userId}/accounts/transactions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...formData,
+          amount: parseFloat(formData.amount),
+          notes: formData.notes || null,
+        }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        alert(error.error || "Failed to create transaction")
+        return
+      }
+
+      setShowCreateModal(false)
+      await fetchTransactions()
+    } catch (error) {
+      console.error("Error creating transaction:", error)
+      alert("Failed to create transaction")
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   if (loading) {
     return <div>Loading transactions...</div>
   }
@@ -101,6 +160,12 @@ export function TransactionsList({ userId, startDate, endDate }: TransactionsLis
           <h3 className="text-lg font-semibold">Financial Transactions</h3>
           <p className="text-sm text-gray-600">Unified transaction log</p>
         </div>
+        {(isAdmin || isManager) && (
+          <Button onClick={handleCreate}>
+            <Plus className="h-4 w-4 mr-2" />
+            Create Transaction
+          </Button>
+        )}
       </div>
 
       {/* Filters */}
@@ -186,6 +251,103 @@ export function TransactionsList({ userId, startDate, endDate }: TransactionsLis
               </CardContent>
             </Card>
           ))}
+        </div>
+      )}
+
+      {/* Create Transaction Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <Card className="w-full max-w-2xl m-4">
+            <CardHeader>
+              <CardTitle>Create Transaction</CardTitle>
+              <CardDescription>Manually create a financial transaction (use negative amounts for debts)</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Type *</Label>
+                  <Select
+                    value={formData.type}
+                    onChange={(e) => setFormData({ ...formData, type: e.target.value as Transaction["type"] })}
+                  >
+                    <option value="ADJUSTMENT">Adjustment</option>
+                    <option value="PAYMENT">Payment</option>
+                    <option value="ADVANCE">Advance</option>
+                    <option value="COMPENSATION">Compensation</option>
+                  </Select>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Amount *</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={formData.amount}
+                      onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                      required
+                      placeholder="Use negative for debts"
+                    />
+                    <p className="text-xs text-gray-500">Use negative amounts for debts/things owed</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Currency</Label>
+                    <Select
+                      value={formData.currency}
+                      onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
+                    >
+                      <option value="EUR">EUR</option>
+                      <option value="USD">USD</option>
+                      <option value="GBP">GBP</option>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Transaction Date *</Label>
+                  <Input
+                    type="date"
+                    value={formData.transactionDate}
+                    onChange={(e) => setFormData({ ...formData, transactionDate: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Description *</Label>
+                  <Input
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    required
+                    placeholder="e.g., Office equipment purchase"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Notes (Optional)</Label>
+                  <Textarea
+                    value={formData.notes}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                    rows={3}
+                    placeholder="Additional notes about this transaction"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-4 pt-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowCreateModal(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={submitting}>
+                    {submitting ? "Creating..." : "Create Transaction"}
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
         </div>
       )}
     </div>

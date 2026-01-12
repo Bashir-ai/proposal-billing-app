@@ -250,6 +250,7 @@ model User {
   createdBenefits         FringeBenefit[]    @relation("BenefitCreator")
   financialTransactions   UserFinancialTransaction[] @relation("TransactionUser")
   createdTransactions     UserFinancialTransaction[] @relation("TransactionCreator")
+  eligibilityRecords     CompensationEligibility[] @relation("EligibilityUser")
   createdExpenses         ProjectExpense[]          @relation("ExpenseCreator")
 }
 
@@ -298,6 +299,7 @@ model Client {
   finderFees    FinderFee[] // Finder fees earned for this client
   todos         Todo[] // Todos associated with this client
   convertedFrom Lead?        @relation("ConvertedLead")
+  compensationEligibility CompensationEligibility[] @relation("EligibilityClient")
 }
 
 model ClientContact {
@@ -528,6 +530,7 @@ model Bill {
   finderFees     FinderFee[] // Finder fees generated when invoice is paid
   installmentInvoices InstallmentInvoice[]
   expenses       ProjectExpense[] // Expenses billed on this invoice
+  compensationEligibility CompensationEligibility[] @relation("EligibilityBill")
 }
 
 model BillItem {
@@ -608,6 +611,7 @@ model Project {
   projectManagers  ProjectManager[]
   todos            Todo[]
   expenses         ProjectExpense[]
+  compensationEligibility CompensationEligibility[] @relation("EligibilityProject")
 }
 
 model PaymentTerm {
@@ -1021,6 +1025,7 @@ model UserCompensation {
   // Relations
   user                User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   compensationEntries CompensationEntry[]
+  eligibilityRecords  CompensationEligibility[]
 }
 
 model CompensationEntry {
@@ -1152,4 +1157,30 @@ model UserFinancialTransaction {
   // Relations
   user    User  @relation("TransactionUser", fields: [userId], references: [id], onDelete: Cascade)
   creator User  @relation("TransactionCreator", fields: [createdBy], references: [id])
+}
+
+model CompensationEligibility {
+  id              String   @id @default(cuid())
+  userId          String
+  compensationId  String
+  projectId       String?  // If set, applies to this project only
+  clientId        String?  // If set, applies to all projects for this client
+  billId         String?  // If set, applies to this invoice only
+  isEligible      Boolean  @default(true) // Can be used to exclude specific items
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([userId, compensationId, projectId, clientId, billId])
+  @@index([userId])
+  @@index([compensationId])
+  @@index([projectId])
+  @@index([clientId])
+  @@index([billId])
+
+  // Relations
+  user          User                @relation("EligibilityUser", fields: [userId], references: [id], onDelete: Cascade)
+  compensation  UserCompensation    @relation(fields: [compensationId], references: [id], onDelete: Cascade)
+  project       Project?            @relation("EligibilityProject", fields: [projectId], references: [id], onDelete: Cascade)
+  client        Client?            @relation("EligibilityClient", fields: [clientId], references: [id], onDelete: Cascade)
+  bill          Bill?              @relation("EligibilityBill", fields: [billId], references: [id], onDelete: Cascade)
 }

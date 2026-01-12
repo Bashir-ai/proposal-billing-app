@@ -300,6 +300,8 @@ export default function AccountsPage() {
               userId={targetUserId}
               startDate={startDate}
               endDate={endDate}
+              isAdmin={isAdmin}
+              isManager={isManager}
             />
           )}
 

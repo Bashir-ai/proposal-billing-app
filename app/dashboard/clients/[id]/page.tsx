@@ -10,6 +10,7 @@ import { KycAlert } from "@/components/clients/KycAlert"
 import { DeleteButton } from "@/components/shared/DeleteButton"
 import { ArchiveButton } from "@/components/clients/ArchiveButton"
 import { UserRole } from "@prisma/client"
+import { CompensationEligibilityManager } from "@/components/accounts/CompensationEligibilityManager"
 
 export const dynamic = 'force-dynamic'
 
@@ -286,6 +287,16 @@ export default async function ClientDetailPage({
           </CardContent>
         </Card>
       </div>
+
+      {/* Compensation Eligibility Section (Admin only) */}
+      {session?.user.role === UserRole.ADMIN && (
+        <Card className="mt-8">
+          <CompensationEligibilityManager
+            clientId={id}
+            isAdmin={true}
+          />
+        </Card>
+      )}
     </div>
   )
 }
