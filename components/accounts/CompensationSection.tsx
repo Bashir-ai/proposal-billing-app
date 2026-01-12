@@ -54,6 +54,7 @@ export function CompensationSection({ userId, startDate, endDate, isAdmin }: Com
   useEffect(() => {
     fetchCompensation()
     fetchEntries()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, startDate, endDate])
 
   const fetchCompensation = async () => {
@@ -136,7 +137,7 @@ export function CompensationSection({ userId, startDate, endDate, isAdmin }: Com
             {isAdmin && (
               <div>
                 <p className="text-sm text-gray-600 mb-2">
-                  To configure compensation, go to Settings → User Management and click "Compensation" for this user.
+                  To configure compensation, go to Settings → User Management and click &quot;Compensation&quot; for this user.
                 </p>
                 <Button
                   variant="outline"

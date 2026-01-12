@@ -42,6 +42,7 @@ export default function UserCompensationPage() {
     
     fetchUser()
     fetchCompensation()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, session])
 
   const fetchUser = async () => {

@@ -36,6 +36,7 @@ export function TransactionsList({ userId, startDate, endDate }: TransactionsLis
 
   useEffect(() => {
     fetchTransactions()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, startDate, endDate, selectedType])
 
   const fetchTransactions = async () => {

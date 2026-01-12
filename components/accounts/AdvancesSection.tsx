@@ -59,6 +59,7 @@ export function AdvancesSection({ userId, startDate, endDate, isAdmin }: Advance
 
   useEffect(() => {
     fetchAdvances()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, startDate, endDate])
 
   const fetchAdvances = async () => {

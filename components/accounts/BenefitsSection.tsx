@@ -49,6 +49,7 @@ export function BenefitsSection({ userId, startDate, endDate, isAdmin }: Benefit
 
   useEffect(() => {
     fetchBenefits()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, startDate, endDate, selectedCategory])
 
   const fetchBenefits = async () => {
