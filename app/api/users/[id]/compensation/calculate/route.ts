@@ -121,7 +121,7 @@ export async function POST(
           return projectEligibilityMap.get(project.id)!
         }
         // Check client-specific eligibility
-        if (clientEligibilityMap.has(project.clientId)) {
+        if (project.clientId && clientEligibilityMap.has(project.clientId)) {
           return clientEligibilityMap.get(project.clientId)!
         }
         // Default to eligible if no eligibility record exists (backward compatibility)
@@ -179,7 +179,9 @@ export async function POST(
         if (!isProjectEligible(project)) {
           continue // Skip this project
         }
+        
         // Calculate project total value (from paid invoices that are eligible)
+        // Note: Expenses are NEVER included in compensation calculations
         const projectTotal = project.bills
           .filter(bill => bill.paidAt && isBillEligible(bill))
           .reduce((sum, bill) => sum + bill.amount, 0)
