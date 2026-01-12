@@ -158,6 +158,42 @@ enum InteractionType {
   OTHER
 }
 
+enum CompensationType {
+  SALARY_BONUS
+  PERCENTAGE_BASED
+}
+
+enum PercentageType {
+  PROJECT_TOTAL
+  DIRECT_WORK
+  BOTH
+}
+
+enum AdvanceType {
+  RECURRING
+  ONE_OFF
+}
+
+enum AdvanceFrequency {
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+enum FringeBenefitCategory {
+  HEALTH
+  TRANSPORT
+  MEAL
+  OTHER
+}
+
+enum TransactionType {
+  COMPENSATION
+  ADVANCE
+  PAYMENT
+  ADJUSTMENT
+}
+
 model User {
   id                  String   @id @default(cuid())
   email               String   @unique
@@ -205,6 +241,16 @@ model User {
   notifications           Notification[]
   createdEmailTemplates   EmailTemplate[]    @relation("EmailTemplateCreator")
   sentProposalEmails      Proposal[]         @relation("ProposalEmailSender")
+  // Financial tracking relations
+  compensations           UserCompensation[]
+  compensationEntries     CompensationEntry[]
+  advances                OfficeAdvance[]    @relation("AdvanceUser")
+  createdAdvances         OfficeAdvance[]    @relation("AdvanceCreator")
+  fringeBenefits          FringeBenefit[]    @relation("BenefitUser")
+  createdBenefits         FringeBenefit[]    @relation("BenefitCreator")
+  financialTransactions   UserFinancialTransaction[] @relation("TransactionUser")
+  createdTransactions     UserFinancialTransaction[] @relation("TransactionCreator")
+  createdExpenses         ProjectExpense[]          @relation("ExpenseCreator")
 }
 
 model Client {
@@ -477,6 +523,7 @@ model Bill {
   todos          Todo[]
   finderFees     FinderFee[] // Finder fees generated when invoice is paid
   installmentInvoices InstallmentInvoice[]
+  expenses       ProjectExpense[] // Expenses billed on this invoice
 }
 
 model BillItem {
@@ -556,6 +603,7 @@ model Project {
   charges          ProjectCharge[]
   projectManagers  ProjectManager[]
   todos            Todo[]
+  expenses         ProjectExpense[]
 }
 
 model PaymentTerm {
@@ -946,4 +994,157 @@ model EmailTemplate {
 
   @@index([type, isDefault])
   @@index([createdBy])
+}
+
+model UserCompensation {
+  id                  String            @id @default(cuid())
+  userId              String
+  compensationType    CompensationType
+  baseSalary          Float? // For salary-based compensation
+  maxBonusMultiplier  Float? // For salary-based compensation (e.g., 2.0 = up to 2x salary)
+  percentageType      PercentageType? // For percentage-based compensation
+  projectPercentage   Float? // Percentage of project total (0-100)
+  directWorkPercentage Float? // Percentage of direct work fees/hours (0-100)
+  effectiveFrom       DateTime
+  effectiveTo         DateTime? // Null means currently active
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([userId])
+  @@index([effectiveFrom, effectiveTo])
+  @@index([compensationType])
+
+  // Relations
+  user                User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  compensationEntries CompensationEntry[]
+}
+
+model CompensationEntry {
+  id                String   @id @default(cuid())
+  userId            String
+  compensationId    String
+  periodYear        Int
+  periodMonth       Int // 1-12
+  baseSalary        Float? // Snapshot of base salary at time of calculation
+  bonusMultiplier   Float? // Actual bonus multiplier used (0 to maxBonusMultiplier)
+  bonusAmount       Float? // Calculated bonus amount
+  percentageEarnings Float? // For percentage-based compensation
+  totalEarned       Float // Total compensation earned this period
+  totalPaid         Float @default(0) // Total paid so far
+  balance           Float // totalEarned - totalPaid (positive = office owes user, negative = user owes office)
+  calculatedAt      DateTime @default(now())
+  notes             String?
+
+  @@unique([userId, periodYear, periodMonth])
+  @@index([userId])
+  @@index([compensationId])
+  @@index([periodYear, periodMonth])
+  @@index([calculatedAt])
+
+  // Relations
+  user          User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  compensation  UserCompensation    @relation(fields: [compensationId], references: [id], onDelete: Cascade)
+  transactions  UserFinancialTransaction[]
+}
+
+model OfficeAdvance {
+  id          String          @id @default(cuid())
+  userId      String
+  type        AdvanceType
+  description String
+  amount      Float
+  currency    String          @default("EUR")
+  startDate   DateTime
+  endDate     DateTime? // Null for one-off, set for recurring
+  frequency   AdvanceFrequency? // For recurring advances
+  isActive    Boolean         @default(true)
+  createdBy   String
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([userId])
+  @@index([isActive])
+  @@index([type])
+  @@index([startDate, endDate])
+
+  // Relations
+  user        User                @relation("AdvanceUser", fields: [userId], references: [id], onDelete: Cascade)
+  creator     User                @relation("AdvanceCreator", fields: [createdBy], references: [id])
+  transactions UserFinancialTransaction[]
+}
+
+model FringeBenefit {
+  id          String                @id @default(cuid())
+  userId      String
+  description String
+  amount      Float
+  currency    String                @default("EUR")
+  benefitDate DateTime
+  category    FringeBenefitCategory
+  createdBy   String
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  @@index([userId])
+  @@index([benefitDate])
+  @@index([category])
+
+  // Relations
+  user    User  @relation("BenefitUser", fields: [userId], references: [id], onDelete: Cascade)
+  creator User  @relation("BenefitCreator", fields: [createdBy], references: [id])
+}
+
+model ProjectExpense {
+  id              String    @id @default(cuid())
+  projectId       String?
+  description     String
+  amount          Float
+  currency        String    @default("EUR")
+  expenseDate     DateTime
+  category        String? // Optional category for expenses
+  receiptPath     String? // Path to receipt file (optional)
+  isBillable      Boolean   @default(false) // If true, should be added to invoice total
+  isReimbursement Boolean   @default(false) // If true, tracked for reimbursement
+  billedAt        DateTime? // When expense was billed
+  billId          String? // Reference to Bill if billed
+  createdBy       String
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([projectId])
+  @@index([billId])
+  @@index([expenseDate])
+  @@index([isBillable])
+  @@index([isReimbursement])
+  @@index([billedAt])
+
+  // Relations
+  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  bill    Bill?    @relation(fields: [billId], references: [id], onDelete: SetNull)
+  creator User     @relation("ExpenseCreator", fields: [createdBy], references: [id])
+}
+
+model UserFinancialTransaction {
+  id              String          @id @default(cuid())
+  userId          String
+  type            TransactionType
+  relatedId      String? // Reference to related record ID (flexible - can be CompensationEntry, OfficeAdvance, etc.)
+  relatedType     String? // Type of related record: "COMPENSATION_ENTRY", "ADVANCE", etc.
+  amount          Float // Positive for credits to user, negative for debits
+  currency        String          @default("EUR")
+  transactionDate DateTime        @default(now())
+  description     String
+  notes           String?
+  createdBy       String
+  createdAt       DateTime        @default(now())
+
+  @@index([userId])
+  @@index([type])
+  @@index([transactionDate])
+  @@index([relatedId, relatedType])
+  @@index([userId, transactionDate])
+
+  // Relations
+  user    User  @relation("TransactionUser", fields: [userId], references: [id], onDelete: Cascade)
+  creator User  @relation("TransactionCreator", fields: [createdBy], references: [id])
 }
