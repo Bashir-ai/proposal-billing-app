@@ -68,6 +68,15 @@ const CURRENCIES = [
   { code: "AUD", symbol: "A$", name: "Australian Dollar" },
 ]
 
+// Define wizard steps outside component to avoid recreating on every render
+const ALL_WIZARD_STEPS = [
+  { id: "billing", title: "Billing Method", required: true, conditional: false },
+  { id: "payment", title: "Payment Terms", required: true, conditional: false },
+  { id: "milestones", title: "Milestones", required: false, conditional: true },
+  { id: "items", title: "Line Items", required: true, conditional: false },
+  { id: "review", title: "Review", required: true, conditional: false },
+]
+
 export function ProposalForm({ onSubmit, initialData, clients, leads = [], users = [], loading, onLeadCreated, onClientCreated }: ProposalFormProps) {
   const today = new Date().toISOString().split("T")[0]
   const selectedClient = clients.find(c => c.id === (initialData?.clientId || "")) as ClientWithDiscounts | undefined
@@ -162,16 +171,8 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
     return formData.type === "FIXED_FEE" || formData.type === "MIXED_MODEL"
   }, [formData.type])
   
-  const allWizardSteps = [
-    { id: "billing", title: "Billing Method", required: true, conditional: false },
-    { id: "payment", title: "Payment Terms", required: true, conditional: false },
-    { id: "milestones", title: "Milestones", required: false, conditional: true },
-    { id: "items", title: "Line Items", required: true, conditional: false },
-    { id: "review", title: "Review", required: true, conditional: false },
-  ]
-  
   const wizardSteps = useMemo(() => {
-    return allWizardSteps.filter(step => {
+    return ALL_WIZARD_STEPS.filter(step => {
       // Filter out milestones step if not applicable
       if (step.id === "milestones" && !shouldShowMilestonesStep) {
         return false
@@ -194,6 +195,7 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
       if (items.length > 0 || milestones.length > 0) completed.add("items")
       setCompletedSteps(completed)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   
   // Wizard step validation
@@ -314,6 +316,7 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
         setCurrentWizardStep(itemsStepIndex)
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.type, shouldShowMilestonesStep, wizardSteps, currentWizardStep])
   
   const [creatingLead, setCreatingLead] = useState(false)

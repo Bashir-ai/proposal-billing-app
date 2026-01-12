@@ -692,7 +692,7 @@ export function PaymentTermsWizard({
                 ) : (
                   <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
                     <p className="text-sm text-blue-800">
-                      <strong>Note:</strong> You haven't created any milestones yet. You'll be able to create milestones in the next step and then return here to assign them to the balance payment if needed.
+                      <strong>Note:</strong> You haven&apos;t created any milestones yet. You&apos;ll be able to create milestones in the next step and then return here to assign them to the balance payment if needed.
                     </p>
                   </div>
                 )}
