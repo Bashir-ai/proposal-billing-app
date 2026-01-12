@@ -128,6 +128,14 @@ export default async function ProjectDetailPage({
   ]
   
   const totalBilled = allBills.reduce((sum, bill) => sum + bill.amount, 0)
+  
+  // Calculate expense totals
+  const totalExpenses = project.expenses.reduce((sum, exp) => sum + exp.amount, 0)
+  const billableExpenses = project.expenses.filter(exp => exp.isBillable)
+  const totalBillableExpenses = billableExpenses.reduce((sum, exp) => sum + exp.amount, 0)
+  const unbilledExpenses = project.expenses.filter(exp => exp.isBillable && !exp.billedAt)
+  const totalUnbilledExpenses = unbilledExpenses.reduce((sum, exp) => sum + exp.amount, 0)
+  
   const variance = proposedAmount - totalBilled
   const variancePercent = proposedAmount > 0 ? (variance / proposedAmount) * 100 : 0
 
