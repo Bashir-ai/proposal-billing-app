@@ -5,8 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button"
 import { Select } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
-import { formatDate } from "@/lib/utils"
+import { formatDate, formatCurrency } from "@/lib/utils"
 import { Plus, X, Check, XCircle } from "lucide-react"
+import { Input } from "@/components/ui/input"
 
 interface EligibilityRecord {
   id: string
@@ -15,6 +16,9 @@ interface EligibilityRecord {
   clientId: string | null
   billId: string | null
   isEligible: boolean
+  projectPercentageOverride: number | null
+  directWorkPercentageOverride: number | null
+  fixedAmountOverride: number | null
   createdAt: string
   compensation: {
     id: string
@@ -79,6 +83,10 @@ export function CompensationEligibilityManager({
   const [showAddModal, setShowAddModal] = useState(false)
   const [selectedCompensationId, setSelectedCompensationId] = useState<string>("")
   const [isEligible, setIsEligible] = useState<boolean>(true)
+  const [compensationType, setCompensationType] = useState<"PERCENTAGE" | "FIXED">("PERCENTAGE")
+  const [projectPercentageOverride, setProjectPercentageOverride] = useState<string>("")
+  const [directWorkPercentageOverride, setDirectWorkPercentageOverride] = useState<string>("")
+  const [fixedAmountOverride, setFixedAmountOverride] = useState<string>("")
   const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
@@ -153,6 +161,24 @@ export function CompensationEligibilityManager({
   const handleAdd = () => {
     setSelectedCompensationId("")
     setIsEligible(true)
+    setCompensationType("PERCENTAGE")
+    setProjectPercentageOverride("")
+    setDirectWorkPercentageOverride("")
+    setFixedAmountOverride("")
+    setShowAddModal(true)
+  }
+
+  const handleEdit = (record: EligibilityRecord) => {
+    setSelectedCompensationId(record.compensationId)
+    setIsEligible(record.isEligible)
+    if (record.fixedAmountOverride !== null) {
+      setCompensationType("FIXED")
+      setFixedAmountOverride(record.fixedAmountOverride.toString())
+    } else {
+      setCompensationType("PERCENTAGE")
+      setProjectPercentageOverride(record.projectPercentageOverride?.toString() || "")
+      setDirectWorkPercentageOverride(record.directWorkPercentageOverride?.toString() || "")
+    }
     setShowAddModal(true)
   }
 
@@ -162,16 +188,28 @@ export function CompensationEligibilityManager({
 
     setSubmitting(true)
     try {
+      const body: any = {
+        compensationId: selectedCompensationId,
+        projectId: projectId || null,
+        clientId: clientId || null,
+        billId: billId || null,
+        isEligible,
+      }
+
+      if (compensationType === "FIXED") {
+        body.fixedAmountOverride = fixedAmountOverride ? parseFloat(fixedAmountOverride) : null
+        body.projectPercentageOverride = null
+        body.directWorkPercentageOverride = null
+      } else {
+        body.projectPercentageOverride = projectPercentageOverride ? parseFloat(projectPercentageOverride) : null
+        body.directWorkPercentageOverride = directWorkPercentageOverride ? parseFloat(directWorkPercentageOverride) : null
+        body.fixedAmountOverride = null
+      }
+
       const response = await fetch(`/api/users/${selectedUserId}/compensation/eligibility`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          compensationId: selectedCompensationId,
-          projectId: projectId || null,
-          clientId: clientId || null,
-          billId: billId || null,
-          isEligible,
-        }),
+        body: JSON.stringify(body),
       })
 
       if (!response.ok) {
@@ -305,7 +343,11 @@ export function CompensationEligibilityManager({
                         <XCircle className="h-4 w-4 text-red-600" />
                       )}
                       <span className="font-semibold">
-                        {comp.percentageType === "PROJECT_TOTAL" && comp.projectPercentage
+                        {record.fixedAmountOverride !== null
+                          ? `Fixed: ${formatCurrency(record.fixedAmountOverride)}`
+                          : record.projectPercentageOverride !== null || record.directWorkPercentageOverride !== null
+                          ? `${record.projectPercentageOverride || comp.projectPercentage || 0}% Project${record.directWorkPercentageOverride !== null || comp.directWorkPercentage ? ` + ${record.directWorkPercentageOverride || comp.directWorkPercentage || 0}% Direct` : ""}`
+                          : comp.percentageType === "PROJECT_TOTAL" && comp.projectPercentage
                           ? `${comp.projectPercentage}% of Project Total`
                           : comp.percentageType === "DIRECT_WORK" && comp.directWorkPercentage
                           ? `${comp.directWorkPercentage}% of Direct Work`
@@ -323,17 +365,33 @@ export function CompensationEligibilityManager({
                         {record.isEligible ? "Eligible" : "Excluded"}
                       </span>
                     </div>
+                    {(record.projectPercentageOverride !== null || record.directWorkPercentageOverride !== null || record.fixedAmountOverride !== null) && (
+                      <p className="text-xs text-blue-600 mt-1">
+                        Override: {record.fixedAmountOverride !== null 
+                          ? `Fixed ${formatCurrency(record.fixedAmountOverride)}`
+                          : `${record.projectPercentageOverride !== null ? `${record.projectPercentageOverride}% Project` : ""}${record.directWorkPercentageOverride !== null ? `${record.projectPercentageOverride !== null ? " + " : ""}${record.directWorkPercentageOverride}% Direct` : ""}`}
+                      </p>
+                    )}
                     <p className="text-xs text-gray-500">
                       Created {formatDate(record.createdAt)}
                     </p>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleDelete(record.id)}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleEdit(record)}
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDelete(record.id)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               )
             })}
@@ -373,6 +431,80 @@ export function CompensationEligibilityManager({
                       ))}
                     </Select>
                   </div>
+
+                  <div className="space-y-2">
+                    <Label>Compensation Type</Label>
+                    <Select
+                      value={compensationType}
+                      onChange={(e) => {
+                        setCompensationType(e.target.value as "PERCENTAGE" | "FIXED")
+                        if (e.target.value === "FIXED") {
+                          setProjectPercentageOverride("")
+                          setDirectWorkPercentageOverride("")
+                        } else {
+                          setFixedAmountOverride("")
+                        }
+                      }}
+                    >
+                      <option value="PERCENTAGE">Percentage-Based (Override)</option>
+                      <option value="FIXED">Fixed Amount</option>
+                    </Select>
+                    <p className="text-xs text-gray-500">
+                      Leave empty to use default compensation percentages. Set overrides to customize for this {scopeLabel.toLowerCase()}.
+                    </p>
+                  </div>
+
+                  {compensationType === "PERCENTAGE" && (
+                    <>
+                      <div className="space-y-2">
+                        <Label>Project Percentage Override (%)</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          max="100"
+                          value={projectPercentageOverride}
+                          onChange={(e) => setProjectPercentageOverride(e.target.value)}
+                          placeholder="Leave empty to use default"
+                        />
+                        <p className="text-xs text-gray-500">
+                          Override percentage of project total (0-100). Leave empty to use compensation scheme default.
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Direct Work Percentage Override (%)</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          max="100"
+                          value={directWorkPercentageOverride}
+                          onChange={(e) => setDirectWorkPercentageOverride(e.target.value)}
+                          placeholder="Leave empty to use default"
+                        />
+                        <p className="text-xs text-gray-500">
+                          Override percentage of direct work fees/hours (0-100). Leave empty to use compensation scheme default.
+                        </p>
+                      </div>
+                    </>
+                  )}
+
+                  {compensationType === "FIXED" && (
+                    <div className="space-y-2">
+                      <Label>Fixed Amount Override</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={fixedAmountOverride}
+                        onChange={(e) => setFixedAmountOverride(e.target.value)}
+                        placeholder="Enter fixed amount"
+                      />
+                      <p className="text-xs text-gray-500">
+                        Fixed amount for this {scopeLabel.toLowerCase()} (overrides percentage-based calculation).
+                      </p>
+                    </div>
+                  )}
 
                   <div className="space-y-2">
                     <Label>Eligibility Status *</Label>

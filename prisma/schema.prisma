@@ -1166,15 +1166,19 @@ model UserFinancialTransaction {
 }
 
 model CompensationEligibility {
-  id              String   @id @default(cuid())
-  userId          String
-  compensationId  String
-  projectId       String?  // If set, applies to this project only
-  clientId        String?  // If set, applies to all projects for this client
-  billId         String?  // If set, applies to this invoice only
-  isEligible      Boolean  @default(true) // Can be used to exclude specific items
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id                      String   @id @default(cuid())
+  userId                  String
+  compensationId          String
+  projectId               String?  // If set, applies to this project only
+  clientId                String?  // If set, applies to all projects for this client
+  billId                  String?  // If set, applies to this invoice only
+  isEligible              Boolean  @default(true) // Can be used to exclude specific items
+  // Override fields - if set, these override the compensation scheme percentages
+  projectPercentageOverride Float? // Override percentage for project total (0-100)
+  directWorkPercentageOverride Float? // Override percentage for direct work (0-100)
+  fixedAmountOverride     Float?   // Fixed amount override (for fixed fee compensation)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
 
   @@unique([userId, compensationId, projectId, clientId, billId])
   @@index([userId])

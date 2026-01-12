@@ -12,6 +12,9 @@ const eligibilitySchema = z.object({
   clientId: z.string().optional().nullable(),
   billId: z.string().optional().nullable(),
   isEligible: z.boolean().default(true),
+  projectPercentageOverride: z.number().min(0).max(100).optional().nullable(),
+  directWorkPercentageOverride: z.number().min(0).max(100).optional().nullable(),
+  fixedAmountOverride: z.number().positive().optional().nullable(),
 })
 
 export async function GET(
@@ -160,62 +163,118 @@ export async function POST(
     }
 
     // Create or update eligibility record
-    // For Prisma unique constraints with nullable fields, we need to handle null/undefined carefully
+    // Use findFirst + create/update instead of upsert to handle nullable fields in unique constraint
     const projectIdValue = validatedData.projectId ?? null
     const clientIdValue = validatedData.clientId ?? null
     const billIdValue = validatedData.billId ?? null
 
-    // Prisma's generated types for unique constraints with nullable fields have a known type issue
-    // We use a type assertion to bypass this, as the runtime behavior is correct
-    const eligibility = await prisma.compensationEligibility.upsert({
-      where: {
-        userId_compensationId_projectId_clientId_billId: {
+    // Build where clause for finding existing record
+    const whereClause: any = {
+      userId,
+      compensationId: validatedData.compensationId,
+    }
+    if (projectIdValue !== null) {
+      whereClause.projectId = projectIdValue
+    } else {
+      whereClause.projectId = null
+    }
+    if (clientIdValue !== null) {
+      whereClause.clientId = clientIdValue
+    } else {
+      whereClause.clientId = null
+    }
+    if (billIdValue !== null) {
+      whereClause.billId = billIdValue
+    } else {
+      whereClause.billId = null
+    }
+
+    // Find existing record
+    const existing = await prisma.compensationEligibility.findFirst({
+      where: whereClause,
+    })
+
+    const data: any = {
+      isEligible: validatedData.isEligible,
+      projectPercentageOverride: validatedData.projectPercentageOverride ?? null,
+      directWorkPercentageOverride: validatedData.directWorkPercentageOverride ?? null,
+      fixedAmountOverride: validatedData.fixedAmountOverride ?? null,
+    }
+
+    let eligibility
+    if (existing) {
+      // Update existing record
+      eligibility = await prisma.compensationEligibility.update({
+        where: { id: existing.id },
+        data,
+        include: {
+          compensation: {
+            select: {
+              id: true,
+              compensationType: true,
+              percentageType: true,
+            },
+          },
+          project: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          client: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          bill: {
+            select: {
+              id: true,
+              invoiceNumber: true,
+            },
+          },
+        },
+      })
+    } else {
+      // Create new record
+      eligibility = await prisma.compensationEligibility.create({
+        data: {
+          ...data,
           userId,
           compensationId: validatedData.compensationId,
           projectId: projectIdValue,
           clientId: clientIdValue,
           billId: billIdValue,
-        } as any,
-      },
-      update: {
-        isEligible: validatedData.isEligible,
-      },
-      create: {
-        userId,
-        compensationId: validatedData.compensationId,
-        projectId: projectIdValue,
-        clientId: clientIdValue,
-        billId: billIdValue,
-        isEligible: validatedData.isEligible,
-      },
-      include: {
-        compensation: {
-          select: {
-            id: true,
-            compensationType: true,
-            percentageType: true,
+        },
+        include: {
+          compensation: {
+            select: {
+              id: true,
+              compensationType: true,
+              percentageType: true,
+            },
+          },
+          project: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          client: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          bill: {
+            select: {
+              id: true,
+              invoiceNumber: true,
+            },
           },
         },
-        project: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-        client: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-        bill: {
-          select: {
-            id: true,
-            invoiceNumber: true,
-          },
-        },
-      },
-    })
+      })
+    }
 
     return NextResponse.json({ eligibility }, { status: 201 })
   } catch (error: any) {
