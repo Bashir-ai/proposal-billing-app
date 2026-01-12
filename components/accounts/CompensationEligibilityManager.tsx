@@ -61,6 +61,7 @@ interface User {
   id: string
   name: string
   email: string
+  role?: string
 }
 
 export function CompensationEligibilityManager({
@@ -103,7 +104,7 @@ export function CompensationEligibilityManager({
       const response = await fetch("/api/users")
       if (response.ok) {
         const data = await response.json()
-        setUsers(data.filter((u: User) => u.role !== "CLIENT"))
+        setUsers(data.filter((u: User) => u.role && u.role !== "CLIENT"))
       }
     } catch (error) {
       console.error("Error fetching users:", error)
