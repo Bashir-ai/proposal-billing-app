@@ -533,15 +533,31 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
 
   const updateItem = (index: number, field: keyof LineItem, value: any) => {
     const updated = [...items]
-    updated[index] = { ...updated[index], [field]: value }
+    const currentItem = updated[index]
+    updated[index] = { ...currentItem, [field]: value }
     
     // Auto-fill rate from person's default rate
     if (field === "personId" && value) {
       const person = users.find(u => u.id === value)
       if (person?.defaultHourlyRate) {
         updated[index].rate = person.defaultHourlyRate
-        updated[index].amount = calculateLineItemAmount(updated[index])
+        // Auto-calculate amount for hourly items
+        if (formData.type === "HOURLY" || updated[index].billingMethod === "HOURLY") {
+          const hours = updated[index].quantity || 0
+          const rate = updated[index].rate || 0
+          updated[index].amount = hours * rate
+        } else {
+          updated[index].amount = calculateLineItemAmount(updated[index])
+        }
       }
+    }
+    
+    // Auto-calculate amount for hourly items when quantity or rate changes
+    if ((formData.type === "HOURLY" || currentItem.billingMethod === "HOURLY") && 
+        (field === "quantity" || field === "rate")) {
+      const hours = field === "quantity" ? (value || 0) : (updated[index].quantity || 0)
+      const rate = field === "rate" ? (value || 0) : (updated[index].rate || 0)
+      updated[index].amount = hours * rate
     }
     
     setItems(updated)
@@ -1791,21 +1807,86 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                             value={item.description}
                             onChange={(e) => updateItem(index, "description", e.target.value)}
                             required
+                            placeholder="e.g., Opening a bank account"
                           />
                         </div>
 
-                        <div className="space-y-2">
-                          <Label>Amount ({selectedCurrency.symbol}) *</Label>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            value={item.amount || ""}
-                            onChange={(e) => updateItem(index, "amount", parseFloat(e.target.value) || 0)}
-                            required
-                            placeholder="0.00"
-                          />
-                        </div>
+                        {/* For HOURLY proposals, show person selector, quantity (hours) and rate fields */}
+                        {(formData.type === "HOURLY" || item.billingMethod === "HOURLY") ? (
+                          <>
+                            {users.length > 0 && (
+                              <div className="space-y-2">
+                                <Label>Person (Optional)</Label>
+                                <Select
+                                  value={item.personId || ""}
+                                  onChange={(e) => updateItem(index, "personId", e.target.value || undefined)}
+                                >
+                                  <option value="">Select person</option>
+                                  {users.map((user) => (
+                                    <option key={user.id} value={user.id}>
+                                      {user.name} {user.defaultHourlyRate ? `(${formatCurrency(user.defaultHourlyRate)}/hr)` : ""}
+                                    </option>
+                                  ))}
+                                </Select>
+                                <p className="text-xs text-gray-500">
+                                  Selecting a person will auto-fill their default hourly rate
+                                </p>
+                              </div>
+                            )}
+                            <div className="space-y-2">
+                              <Label>Estimated Hours *</Label>
+                              <Input
+                                type="number"
+                                step="0.25"
+                                min="0"
+                                value={item.quantity || ""}
+                                onChange={(e) => updateItem(index, "quantity", parseFloat(e.target.value) || 0)}
+                                required
+                                placeholder="e.g., 5"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Hourly Rate ({selectedCurrency.symbol}) *</Label>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={item.rate || ""}
+                                onChange={(e) => updateItem(index, "rate", parseFloat(e.target.value) || 0)}
+                                required
+                                placeholder="e.g., 180"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Total Amount ({selectedCurrency.symbol})</Label>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                value={item.amount || ""}
+                                onChange={(e) => updateItem(index, "amount", parseFloat(e.target.value) || 0)}
+                                readOnly
+                                className="bg-gray-50 cursor-not-allowed"
+                                required
+                              />
+                              <p className="text-xs text-gray-500">
+                                Auto-calculated: {item.quantity || 0} hours × {formatCurrency(item.rate || 0)} = {formatCurrency(item.amount || 0)}
+                              </p>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="space-y-2">
+                            <Label>Amount ({selectedCurrency.symbol}) *</Label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={item.amount || ""}
+                              onChange={(e) => updateItem(index, "amount", parseFloat(e.target.value) || 0)}
+                              required
+                              placeholder="0.00"
+                            />
+                          </div>
+                        )}
 
                         {/* Recurring Configuration - Show when billingMethod is RECURRING (only for MIXED_MODEL) */}
                         {item.billingMethod === "RECURRING" && formData.type === "MIXED_MODEL" && (

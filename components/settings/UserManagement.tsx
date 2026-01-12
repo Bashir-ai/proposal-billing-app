@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button"
 import { CreateUserForm } from "./CreateUserForm"
 import { EditUserForm } from "./EditUserForm"
 import { formatDate } from "@/lib/utils"
-import { Pencil } from "lucide-react"
+import { Pencil, DollarSign } from "lucide-react"
+import { useRouter } from "next/navigation"
 
 interface User {
   id: string
@@ -23,6 +24,7 @@ interface User {
 }
 
 export function UserManagement() {
+  const router = useRouter()
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreateForm, setShowCreateForm] = useState(false)
@@ -166,7 +168,15 @@ export function UserManagement() {
                       Created: {formatDate(new Date(user.createdAt))}
                     </p>
                   </div>
-                  <div className="ml-4">
+                  <div className="ml-4 flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => router.push(`/dashboard/settings/users/${user.id}/compensation`)}
+                    >
+                      <DollarSign className="h-4 w-4 mr-1" />
+                      Compensation
+                    </Button>
                     <Button
                       variant="outline"
                       size="sm"
