@@ -17,6 +17,15 @@ const nextConfig = {
         tls: false,
       }
     }
+    // Externalize puppeteer and chromium for serverless
+    if (isServer) {
+      config.externals = config.externals || []
+      config.externals.push({
+        'puppeteer-core': 'commonjs puppeteer-core',
+        'puppeteer': 'commonjs puppeteer',
+        '@sparticuz/chromium': 'commonjs @sparticuz/chromium',
+      })
+    }
     return config
   },
 }

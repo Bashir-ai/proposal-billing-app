@@ -21,15 +21,38 @@ export async function generatePdfFromHTML(html: string): Promise<Buffer> {
     }
 
     // Use @sparticuz/chromium for Vercel serverless
-    if (process.env.VERCEL) {
+    if (process.env.VERCEL || process.env.NODE_ENV === 'production') {
       try {
+        // Use require to ensure proper module resolution in serverless
         const chromium = require("@sparticuz/chromium")
-        launchOptions.executablePath = await chromium.executablePath()
-        launchOptions.args = chromium.args
+        // Disable font loading for faster startup
+        chromium.setGraphicsMode(false)
+        
+        // Get executable path - chromium handles extraction automatically to /tmp
+        // The executablePath() method should extract chromium to a temp directory
+        const executablePath = await chromium.executablePath()
+        
+        if (!executablePath) {
+          throw new Error("Failed to get chromium executable path")
+        }
+        
+        launchOptions.executablePath = executablePath
+        launchOptions.args = [
+          ...chromium.args,
+          '--disable-gpu',
+          '--disable-dev-shm-usage',
+          '--disable-software-rasterizer',
+          '--single-process', // Required for serverless
+        ]
         launchOptions.defaultViewport = chromium.defaultViewport
-      } catch (chromiumError) {
-        console.warn("Could not load @sparticuz/chromium, PDF generation may fail:", chromiumError)
-        throw new Error("PDF generation not available in serverless environment without chromium")
+      } catch (chromiumError: any) {
+        console.error("Could not load @sparticuz/chromium, PDF generation may fail:", chromiumError)
+        // In Vercel, we must have chromium
+        if (process.env.VERCEL) {
+          throw new Error(`PDF generation not available in serverless environment: ${chromiumError.message}`)
+        }
+        // In other production environments, try without chromium (may fail)
+        console.warn("Continuing without chromium - PDF generation may fail")
       }
     }
 
