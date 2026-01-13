@@ -20,6 +20,7 @@ interface BillItem {
   amount: number
   billedHours: number | null
   isManuallyEdited: boolean
+  isCredit: boolean
   personId: string | null
   date: Date | null
   person?: {
