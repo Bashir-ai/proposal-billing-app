@@ -40,6 +40,8 @@ export default function NewLeadPage() {
     areaOfLawId: string
     sectorOfActivityId: string
     leadManagerId: string
+    referrerName: string
+    referrerContactInfo: string
   }>({
     name: "",
     email: "",
@@ -55,6 +57,8 @@ export default function NewLeadPage() {
     areaOfLawId: "",
     sectorOfActivityId: "",
     leadManagerId: "",
+    referrerName: "",
+    referrerContactInfo: "",
   })
 
   useEffect(() => {
@@ -219,6 +223,8 @@ export default function NewLeadPage() {
           areaOfLawId: formData.areaOfLawId || null,
           sectorOfActivityId: formData.sectorOfActivityId || null,
           leadManagerId: formData.leadManagerId || null,
+          referrerName: formData.referrerName || null,
+          referrerContactInfo: formData.referrerContactInfo || null,
         }),
       })
 
@@ -588,6 +594,36 @@ export default function NewLeadPage() {
                     )}
                   </div>
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Referrer Information */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Referrer Information</CardTitle>
+              <CardDescription>Person or entity who recommended this lead</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="referrerName">Referrer Name</Label>
+                <Input
+                  id="referrerName"
+                  value={formData.referrerName}
+                  onChange={(e) => setFormData({ ...formData, referrerName: e.target.value })}
+                  placeholder="Name of person or entity who recommended this lead"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="referrerContactInfo">Referrer Contact Info</Label>
+                <Textarea
+                  id="referrerContactInfo"
+                  value={formData.referrerContactInfo}
+                  onChange={(e) => setFormData({ ...formData, referrerContactInfo: e.target.value })}
+                  rows={2}
+                  placeholder="Email, phone, or other contact information for the referrer"
+                />
               </div>
             </CardContent>
           </Card>

@@ -53,7 +53,13 @@ export async function PUT(
       updateData.notes = validatedData.notes || null
     }
     if (validatedData.date !== undefined) {
-      updateData.date = validatedData.date ? new Date(validatedData.date) : new Date()
+      // Parse date in local timezone to preserve the date as entered
+      if (validatedData.date) {
+        const [year, month, day] = validatedData.date.split('-').map(Number)
+        updateData.date = new Date(year, month - 1, day)
+      } else {
+        updateData.date = new Date()
+      }
     }
 
     const updatedInteraction = await prisma.leadInteraction.update({

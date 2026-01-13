@@ -35,6 +35,8 @@ const clientSchema = z.object({
   billingZipCode: z.string().optional().nullable(),
   billingCountry: z.string().optional().nullable(),
   clientManagerId: z.union([z.string().min(1), z.literal("")]).optional().nullable(),
+  referrerName: z.string().optional().nullable(),
+  referrerContactInfo: z.string().optional().nullable(),
   finders: z.array(clientFinderSchema).optional(),
   contacts: z.array(contactPersonSchema).optional(),
 })
@@ -244,6 +246,12 @@ export async function PUT(
     }
     if (validatedData.clientManagerId !== undefined) {
       updateData.clientManagerId = validatedData.clientManagerId || null
+    }
+    if (validatedData.referrerName !== undefined) {
+      updateData.referrerName = validatedData.referrerName || null
+    }
+    if (validatedData.referrerContactInfo !== undefined) {
+      updateData.referrerContactInfo = validatedData.referrerContactInfo || null
     }
 
     // Handle finders and contacts

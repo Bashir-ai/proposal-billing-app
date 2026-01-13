@@ -21,6 +21,8 @@ const leadSchema = z.object({
   areaOfLawId: z.union([z.string(), z.literal("")]).optional().nullable(),
   sectorOfActivityId: z.union([z.string(), z.literal("")]).optional().nullable(),
   leadManagerId: z.union([z.string(), z.literal("")]).optional().nullable(),
+  referrerName: z.string().optional().nullable(),
+  referrerContactInfo: z.string().optional().nullable(),
 })
 
 export async function GET(request: Request) {
@@ -149,6 +151,8 @@ export async function POST(request: Request) {
         areaOfLawId: validatedData.areaOfLawId || null,
         sectorOfActivityId: validatedData.sectorOfActivityId || null,
         leadManagerId: validatedData.leadManagerId || null,
+        referrerName: validatedData.referrerName || null,
+        referrerContactInfo: validatedData.referrerContactInfo || null,
         createdBy: session.user.id,
       },
       include: {

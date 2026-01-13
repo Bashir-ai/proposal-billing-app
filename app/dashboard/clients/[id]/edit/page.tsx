@@ -49,6 +49,8 @@ export default function EditClientPage() {
     billingZipCode: "",
     billingCountry: "",
     clientManagerId: "",
+    referrerName: "",
+    referrerContactInfo: "",
   })
   const [contacts, setContacts] = useState<ContactPerson[]>([])
   const [finders, setFinders] = useState<ClientFinder[]>([])
@@ -78,6 +80,8 @@ export default function EditClientPage() {
           billingZipCode: clientData.billingZipCode || "",
           billingCountry: clientData.billingCountry || "",
           clientManagerId: clientData.clientManagerId || "",
+          referrerName: clientData.referrerName || "",
+          referrerContactInfo: clientData.referrerContactInfo || "",
         })
         setContacts(clientData.contacts || [])
         setFinders(
@@ -357,6 +361,30 @@ export default function EditClientPage() {
                   </option>
                 ))}
               </Select>
+            </div>
+
+            <div className="space-y-4 border-t pt-4">
+              <Label className="text-base font-semibold">Referrer Information</Label>
+              <CardDescription>Person or entity who recommended this client</CardDescription>
+              <div className="space-y-2">
+                <Label htmlFor="referrerName">Referrer Name</Label>
+                <Input
+                  id="referrerName"
+                  value={formData.referrerName}
+                  onChange={(e) => setFormData({ ...formData, referrerName: e.target.value })}
+                  placeholder="Name of person or entity who recommended this client"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="referrerContactInfo">Referrer Contact Info</Label>
+                <Textarea
+                  id="referrerContactInfo"
+                  value={formData.referrerContactInfo}
+                  onChange={(e) => setFormData({ ...formData, referrerContactInfo: e.target.value })}
+                  rows={2}
+                  placeholder="Email, phone, or other contact information for the referrer"
+                />
+              </div>
             </div>
 
             <div className="space-y-4 border-t pt-4">

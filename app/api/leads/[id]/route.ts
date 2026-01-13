@@ -21,6 +21,8 @@ const leadUpdateSchema = z.object({
   areaOfLawId: z.string().optional().or(z.literal("")),
   sectorOfActivityId: z.string().optional().or(z.literal("")),
   leadManagerId: z.string().optional().or(z.literal("")),
+  referrerName: z.string().optional().nullable(),
+  referrerContactInfo: z.string().optional().nullable(),
 })
 
 export async function GET(
@@ -159,6 +161,8 @@ export async function PUT(
     if (validatedData.areaOfLawId !== undefined) updateData.areaOfLawId = validatedData.areaOfLawId || null
     if (validatedData.sectorOfActivityId !== undefined) updateData.sectorOfActivityId = validatedData.sectorOfActivityId || null
     if (validatedData.leadManagerId !== undefined) updateData.leadManagerId = validatedData.leadManagerId || null
+    if (validatedData.referrerName !== undefined) updateData.referrerName = validatedData.referrerName || null
+    if (validatedData.referrerContactInfo !== undefined) updateData.referrerContactInfo = validatedData.referrerContactInfo || null
 
     const lead = await prisma.lead.update({
       where: { id },

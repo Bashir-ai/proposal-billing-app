@@ -18,6 +18,7 @@ import { SendPaymentReminderButton } from "@/components/invoices/SendPaymentRemi
 import { getLogoPath } from "@/lib/settings"
 import Image from "next/image"
 import { CompensationEligibilityManager } from "@/components/accounts/CompensationEligibilityManager"
+import { BillItemsTable } from "@/components/invoices/BillItemsTable"
 
 export const dynamic = 'force-dynamic'
 
@@ -135,6 +136,19 @@ export default async function BillDetailPage({
       canEditAllInvoices: true,
     },
   }) : null
+
+  // Fetch users for person dropdown in editable items
+  const users = session?.user.role !== "CLIENT" ? await prisma.user.findMany({
+    where: {
+      role: { not: "CLIENT" },
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+    },
+    orderBy: { name: "asc" },
+  }) : []
 
   const getStatusColor = (status: BillStatus) => {
     switch (status) {
@@ -328,71 +342,18 @@ export default async function BillDetailPage({
       </div>
 
       {/* Invoice Line Items */}
-      {bill.items && bill.items.length > 0 && (
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle>Invoice Line Items</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left p-2">Type</th>
-                    <th className="text-left p-2">Date</th>
-                    <th className="text-left p-2">Person</th>
-                    <th className="text-left p-2">Description</th>
-                    <th className="text-right p-2">Quantity</th>
-                    <th className="text-right p-2">Rate/Price</th>
-                    <th className="text-right p-2">Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {bill.items.map((item) => (
-                    <tr key={item.id} className={`border-b ${item.isCredit ? "bg-red-50" : ""}`}>
-                      <td className="p-2">
-                        <span className={`px-2 py-1 rounded text-xs ${
-                          item.isCredit ? "bg-red-100 text-red-800" : "bg-gray-100"
-                        }`}>
-                          {item.isCredit ? "CREDIT" : item.type}
-                        </span>
-                      </td>
-                      <td className="p-2">
-                        {item.date ? formatDate(item.date) : "-"}
-                      </td>
-                      <td className="p-2">
-                        {item.person ? item.person.name : "-"}
-                      </td>
-                      <td className="p-2">{item.description}</td>
-                      <td className="p-2 text-right">
-                        {item.quantity !== null && item.quantity !== undefined ? item.quantity.toFixed(2) : "-"}
-                      </td>
-                      <td className="p-2 text-right">
-                        {item.rate !== null && item.rate !== undefined
-                          ? formatCurrency(item.rate, bill.project?.currency || "EUR")
-                          : item.unitPrice !== null && item.unitPrice !== undefined
-                          ? formatCurrency(Math.abs(item.unitPrice), bill.project?.currency || "EUR")
-                          : "-"}
-                      </td>
-                      <td className={`p-2 text-right font-semibold ${item.isCredit ? "text-red-600" : ""}`}>
-                        {item.isCredit ? "-" : ""}{formatCurrency(Math.abs(item.amount), bill.project?.currency || "EUR")}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t font-semibold">
-                    <td colSpan={6} className="p-2 text-right">Subtotal:</td>
-                    <td className="p-2 text-right">
-                      {formatCurrency(bill.subtotal || bill.amount, bill.project?.currency || "EUR")}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <BillItemsTable
+        items={bill.items.map((item) => ({
+          ...item,
+          billedHours: (item as any).billedHours || null,
+          isManuallyEdited: (item as any).isManuallyEdited || false,
+        }))}
+        billId={bill.id}
+        currency={bill.project?.currency || "EUR"}
+        canEdit={canEdit}
+        users={users}
+        subtotal={bill.subtotal || bill.amount}
+      />
 
       {/* Invoice Summary with Tax and Discount Breakdown */}
       <Card className="mb-8">

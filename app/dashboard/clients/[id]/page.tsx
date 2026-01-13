@@ -167,6 +167,15 @@ export default async function ClientDetailPage({
                 <span>{client.clientManager.name} ({client.clientManager.email})</span>
               </div>
             )}
+            {client.referrerName && (
+              <div>
+                <span className="text-sm text-gray-600">Referrer: </span>
+                <span>{client.referrerName}</span>
+                {client.referrerContactInfo && (
+                  <div className="mt-1 text-sm text-gray-500">{client.referrerContactInfo}</div>
+                )}
+              </div>
+            )}
             <div>
               <span className="text-sm text-gray-600">Created: </span>
               <span>{formatDate(client.createdAt)}</span>

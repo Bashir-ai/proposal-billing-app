@@ -102,9 +102,15 @@ export async function POST(
     const body = await request.json()
     const validatedData = interactionSchema.parse(body)
 
-    const interactionDate = validatedData.date
-      ? new Date(validatedData.date)
-      : new Date()
+    // Parse date in local timezone to preserve the date as entered
+    // This prevents timezone conversion issues (e.g., date showing as day before)
+    let interactionDate: Date
+    if (validatedData.date) {
+      const [year, month, day] = validatedData.date.split('-').map(Number)
+      interactionDate = new Date(year, month - 1, day)
+    } else {
+      interactionDate = new Date()
+    }
 
     const interaction = await prisma.leadInteraction.create({
       data: {

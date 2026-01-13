@@ -30,6 +30,7 @@ import {
   ChevronRight,
   Scale,
 } from "lucide-react"
+import { SidebarNotifications } from "./SidebarNotifications"
 
 interface SidebarProps {
   user: {
@@ -192,6 +193,11 @@ export function Sidebar({ user, isCollapsed, onToggle }: SidebarProps) {
             </div>
           ))}
         </nav>
+
+        {/* Notifications */}
+        <div className="border-t border-sidebar-border p-3">
+          <SidebarNotifications isCollapsed={isCollapsed} />
+        </div>
 
         {/* User section + Collapse toggle */}
         <div className="border-t border-sidebar-border p-3">

@@ -36,22 +36,26 @@ export function LeadSearch({
   const [sectorValue, setSectorValue] = useState(initialSectorOfActivityId || "")
   const [archivedValue, setArchivedValue] = useState(showArchived)
 
-  const debouncedSearch = useDebouncedCallback((value: string) => {
-    const params = new URLSearchParams(searchParams.toString())
-    if (value) {
-      params.set("search", value)
-    } else {
-      params.delete("search")
-    }
+  const handleFilterChange = useDebouncedCallback(() => {
+    const params = new URLSearchParams()
+    
+    if (searchValue) params.set("search", searchValue)
+    if (statusValue) params.set("status", statusValue)
+    if (areaOfLawValue) params.set("areaOfLawId", areaOfLawValue)
+    if (sectorValue) params.set("sectorOfActivityId", sectorValue)
+    if (archivedValue) params.set("archived", "true")
+
     router.push(`/dashboard/leads?${params.toString()}`)
   }, 300)
 
+  // Trigger filter change when search value changes (debounced)
   useEffect(() => {
-    debouncedSearch(searchValue)
+    handleFilterChange()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchValue])
 
-  const handleFilterChange = () => {
+  // Trigger filter change immediately for other filters
+  const handleImmediateFilterChange = () => {
     const params = new URLSearchParams()
     
     if (searchValue) params.set("search", searchValue)
@@ -92,7 +96,7 @@ export function LeadSearch({
             value={statusValue}
             onChange={(e) => {
               setStatusValue(e.target.value)
-              handleFilterChange()
+              handleImmediateFilterChange()
             }}
           >
             <option value="">All Statuses</option>
@@ -111,7 +115,7 @@ export function LeadSearch({
             value={areaOfLawValue}
             onChange={(e) => {
               setAreaOfLawValue(e.target.value)
-              handleFilterChange()
+              handleImmediateFilterChange()
             }}
           >
             <option value="">All Areas</option>
@@ -130,7 +134,7 @@ export function LeadSearch({
             value={sectorValue}
             onChange={(e) => {
               setSectorValue(e.target.value)
-              handleFilterChange()
+              handleImmediateFilterChange()
             }}
           >
             <option value="">All Sectors</option>
@@ -150,7 +154,7 @@ export function LeadSearch({
             checked={archivedValue}
             onChange={(e) => {
               setArchivedValue(e.target.checked)
-              handleFilterChange()
+              handleImmediateFilterChange()
             }}
             className="rounded"
           />

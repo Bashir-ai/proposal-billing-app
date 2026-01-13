@@ -278,6 +278,9 @@ model Client {
   billingCountry         String?
   // Client role assignments
   clientManagerId        String? // User ID - Client Manager (person managing the client relationship)
+  // Referrer fields - person/entity who recommended this client
+  referrerName           String? // Name of person/entity who recommended the client
+  referrerContactInfo    String? // Contact info for the referrer
   deletedAt              DateTime? // Soft delete
   archivedAt              DateTime? // Archive (different from delete - can be unarchived)
   createdAt              DateTime @default(now())
@@ -536,7 +539,7 @@ model Bill {
 model BillItem {
   id               String    @id @default(cuid())
   billId           String
-  type             String // "TIMESHEET" or "CHARGE"
+  type             String // "TIMESHEET" or "CHARGE" or "MANUAL"
   timesheetEntryId String? // Reference to TimesheetEntry if type is TIMESHEET
   chargeId         String? // Reference to ProjectCharge if type is CHARGE
   personId         String? // User ID for timesheet entries
@@ -549,6 +552,10 @@ model BillItem {
   amount           Float // Final amount for this item (after discount)
   isCredit         Boolean   @default(false) // Flag for credit line items (negative amounts)
   date             DateTime? // Date for timesheet entries
+  // Invoice editing fields - separate billed hours from timesheet hours
+  billedHours      Float? // Billed hours (may differ from timesheet hours if manually adjusted)
+  isManuallyEdited Boolean  @default(false) // Flag to indicate item was manually edited
+  originalTimesheetEntryId String? // Track original timesheet entry even if hours are adjusted
   createdAt        DateTime  @default(now())
 
   // Relations
@@ -863,6 +870,9 @@ model Lead {
   leadManagerId         String? // User ID - Lead Manager
   convertedToClientId    String? @unique // Client ID if converted (one-to-one)
   convertedAt            DateTime?
+  // Referrer fields - person/entity who recommended this lead
+  referrerName           String? // Name of person/entity who recommended the lead
+  referrerContactInfo    String? // Contact info for the referrer
   deletedAt              DateTime? // Soft delete
   archivedAt             DateTime? // Archive
   createdAt              DateTime @default(now())

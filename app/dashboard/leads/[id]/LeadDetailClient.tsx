@@ -282,6 +282,15 @@ export function LeadDetailClient({ lead, session }: LeadDetailClientProps) {
                   <p className="mt-1">{lead.leadManager.name}</p>
                 </div>
               )}
+              {lead.referrerName && (
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Referrer</p>
+                  <p className="mt-1">{lead.referrerName}</p>
+                  {lead.referrerContactInfo && (
+                    <p className="mt-1 text-sm text-gray-500">{lead.referrerContactInfo}</p>
+                  )}
+                </div>
+              )}
               <div>
                 <p className="text-sm font-medium text-gray-600">Created By</p>
                 <p className="mt-1">{lead.creator.name}</p>

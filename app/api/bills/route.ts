@@ -141,6 +141,9 @@ export async function POST(request: Request) {
       chargeId: string | null
       date: Date | null
       isCredit: boolean
+      billedHours: number | null
+      originalTimesheetEntryId: string | null
+      isManuallyEdited: boolean
     }> = []
 
     if (validatedData.timesheetEntryIds && validatedData.timesheetEntryIds.length > 0) {
@@ -173,6 +176,9 @@ export async function POST(request: Request) {
           chargeId: null,
           date: entry.date,
           isCredit: false,
+          billedHours: entry.hours, // Initially same as timesheet hours
+          originalTimesheetEntryId: entry.id, // Track original entry
+          isManuallyEdited: false, // Not edited yet
         })
       }
     }
@@ -199,6 +205,9 @@ export async function POST(request: Request) {
           chargeId: charge.id,
           date: null,
           isCredit: false,
+          billedHours: null, // Not applicable for charges
+          originalTimesheetEntryId: null, // Not applicable for charges
+          isManuallyEdited: false,
         })
       }
     }

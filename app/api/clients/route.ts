@@ -35,6 +35,8 @@ const clientSchema = z.object({
   billingZipCode: z.string().optional(),
   billingCountry: z.string().optional(),
   clientManagerId: z.string().optional().or(z.literal("")),
+  referrerName: z.string().optional().nullable(),
+  referrerContactInfo: z.string().optional().nullable(),
   finders: z.array(clientFinderSchema).optional(),
   contacts: z.array(contactPersonSchema).optional(),
 })
@@ -111,6 +113,8 @@ export async function POST(request: Request) {
         billingZipCode: validatedData.billingZipCode || null,
         billingCountry: validatedData.billingCountry || null,
         clientManagerId: validatedData.clientManagerId || null,
+        referrerName: validatedData.referrerName || null,
+        referrerContactInfo: validatedData.referrerContactInfo || null,
         createdBy: session.user.id,
         finders: validatedData.finders && validatedData.finders.length > 0
           ? {

@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { AlertCircle, RefreshCw } from "lucide-react"
 import Link from "next/link"
-import { formatDate } from "@/lib/utils"
+import { formatDate, cn } from "@/lib/utils"
+import { ChevronDown, ChevronUp } from "lucide-react"
 
 interface Notification {
   type: string
@@ -24,9 +25,10 @@ interface Notification {
 interface NotificationsBoxProps {
   initialCount: number
   initialNotifications: Notification[]
+  isCollapsed?: boolean
 }
 
-export function NotificationsBox({ initialCount, initialNotifications }: NotificationsBoxProps) {
+export function NotificationsBox({ initialCount, initialNotifications, isCollapsed = false }: NotificationsBoxProps) {
   const [notifications, setNotifications] = useState<Notification[]>(initialNotifications)
   const [count, setCount] = useState(initialCount)
   const [isOpen, setIsOpen] = useState(false)
@@ -102,6 +104,8 @@ export function NotificationsBox({ initialCount, initialNotifications }: Notific
     } else if (notification.type === "invoice_approval" || 
                notification.type === "invoice_pending") {
       return `/dashboard/bills/${notification.itemId}`
+    } else if (notification.type === "todo_assignment") {
+      return `/dashboard/todos`
     }
     return "#"
   }
@@ -118,6 +122,8 @@ export function NotificationsBox({ initialCount, initialNotifications }: Notific
         return "Invoice pending your approval"
       case "proposal_pending_client":
         return "Proposal pending client approval"
+      case "todo_assignment":
+        return "ToDo assigned to you"
       default:
         return "Action required"
     }
@@ -126,22 +132,31 @@ export function NotificationsBox({ initialCount, initialNotifications }: Notific
   return (
     <div className="relative">
       <Button
-        variant="outline"
+        variant={count > 0 ? "default" : "outline"}
         size="sm"
         onClick={() => setIsOpen(!isOpen)}
-        className="relative"
+        className={cn(
+          "relative",
+          count > 0 && "bg-red-600 hover:bg-red-700 text-white animate-pulse"
+        )}
       >
         <AlertCircle className="h-4 w-4 mr-2" />
-        Notifications
+        {!isCollapsed && "Notifications"}
         {count > 0 && (
-          <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+          <span className={cn(
+            "absolute bg-white text-red-600 text-xs font-bold rounded-full flex items-center justify-center",
+            isCollapsed ? "-top-1 -right-1 h-5 w-5" : "-top-2 -right-2 h-6 w-6"
+          )}>
             {count > 9 ? "9+" : count}
           </span>
         )}
       </Button>
 
       {isOpen && (
-        <Card className="absolute right-0 mt-2 w-96 z-50 max-h-96 overflow-y-auto">
+        <Card className={cn(
+          "absolute mt-2 w-96 z-50 max-h-96 overflow-y-auto",
+          isCollapsed ? "left-16" : "right-0"
+        )}>
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="text-lg">Notifications</CardTitle>
@@ -164,47 +179,99 @@ export function NotificationsBox({ initialCount, initialNotifications }: Notific
             ) : (
               <div className="divide-y">
                 {notifications.map((notification) => (
-                  <Link
+                  <NotificationItem
                     key={notification.id}
-                    href={getNotificationLink(notification)}
-                    onClick={() => setIsOpen(false)}
-                    className="block p-4 hover:bg-gray-50 transition-colors"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-gray-900">
-                          {getNotificationLabel(notification)}
-                        </p>
-                        <p className="text-sm text-gray-600 mt-1">
-                          {notification.title}
-                        </p>
-                        {notification.client && (
-                          <p className="text-xs text-gray-500 mt-1">
-                            {notification.client.name}
-                            {notification.client.company && ` • ${notification.client.company}`}
-                          </p>
-                        )}
-                        {notification.proposalNumber && (
-                          <p className="text-xs text-gray-500 mt-1">
-                            {notification.proposalNumber}
-                          </p>
-                        )}
-                        {notification.invoiceNumber && (
-                          <p className="text-xs text-gray-500 mt-1">
-                            {notification.invoiceNumber}
-                          </p>
-                        )}
-                        <p className="text-xs text-gray-400 mt-1">
-                          {formatDate(notification.createdAt)}
-                        </p>
-                      </div>
-                    </div>
-                  </Link>
+                    notification={notification}
+                    getNotificationLabel={getNotificationLabel}
+                    getNotificationLink={getNotificationLink}
+                    onClose={() => setIsOpen(false)}
+                  />
                 ))}
               </div>
             )}
           </CardContent>
         </Card>
+      )}
+    </div>
+  )
+}
+
+function NotificationItem({
+  notification,
+  getNotificationLabel,
+  getNotificationLink,
+  onClose,
+}: {
+  notification: Notification
+  getNotificationLabel: (notification: Notification) => string
+  getNotificationLink: (notification: Notification) => string
+  onClose: () => void
+}) {
+  const [isExpanded, setIsExpanded] = useState(false)
+  const link = getNotificationLink(notification)
+
+  return (
+    <div className="block">
+      <div
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="p-4 hover:bg-gray-50 transition-colors cursor-pointer"
+      >
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-medium text-gray-900">
+                {getNotificationLabel(notification)}
+              </p>
+              {isExpanded ? (
+                <ChevronUp className="h-4 w-4 text-gray-400" />
+              ) : (
+                <ChevronDown className="h-4 w-4 text-gray-400" />
+              )}
+            </div>
+            <p className="text-sm text-gray-600 mt-1">
+              {notification.title}
+            </p>
+            {isExpanded && (
+              <div className="mt-2 space-y-1">
+                {notification.client && (
+                  <p className="text-xs text-gray-500">
+                    <span className="font-medium">Client:</span> {notification.client.name}
+                    {notification.client.company && ` • ${notification.client.company}`}
+                  </p>
+                )}
+                {notification.proposalNumber && (
+                  <p className="text-xs text-gray-500">
+                    <span className="font-medium">Proposal:</span> {notification.proposalNumber}
+                  </p>
+                )}
+                {notification.invoiceNumber && (
+                  <p className="text-xs text-gray-500">
+                    <span className="font-medium">Invoice:</span> {notification.invoiceNumber}
+                  </p>
+                )}
+                <p className="text-xs text-gray-400">
+                  {formatDate(notification.createdAt)}
+                </p>
+              </div>
+            )}
+            {!isExpanded && (
+              <p className="text-xs text-gray-400 mt-1">
+                {formatDate(notification.createdAt)}
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+      {link !== "#" && (
+        <div className="px-4 pb-2">
+          <Link
+            href={link}
+            onClick={onClose}
+            className="text-xs text-blue-600 hover:text-blue-800 underline"
+          >
+            View Details →
+          </Link>
+        </div>
       )}
     </div>
   )
