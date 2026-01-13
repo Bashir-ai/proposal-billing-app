@@ -169,25 +169,16 @@ export async function POST(
     const billIdValue = validatedData.billId ?? null
 
     // Build where clause for finding existing record
+    // For nullable fields, we need to explicitly include them in the where clause
     const whereClause: any = {
       userId,
       compensationId: validatedData.compensationId,
     }
-    if (projectIdValue !== null) {
-      whereClause.projectId = projectIdValue
-    } else {
-      whereClause.projectId = null
-    }
-    if (clientIdValue !== null) {
-      whereClause.clientId = clientIdValue
-    } else {
-      whereClause.clientId = null
-    }
-    if (billIdValue !== null) {
-      whereClause.billId = billIdValue
-    } else {
-      whereClause.billId = null
-    }
+    
+    // Explicitly set nullable fields - Prisma requires this for unique constraint matching
+    whereClause.projectId = projectIdValue
+    whereClause.clientId = clientIdValue
+    whereClause.billId = billIdValue
 
     // Find existing record
     const existing = await prisma.compensationEligibility.findFirst({
