@@ -348,7 +348,7 @@ export async function sendProposalEmail(
   })
 }
 
-// Send Invoice Email with PDF
+// Send Invoice Email with PDF (or HTML fallback)
 export async function sendInvoiceEmail(
   clientEmail: string,
   clientName: string,
@@ -360,12 +360,15 @@ export async function sendInvoiceEmail(
     dueDate: Date | null
     currency?: string
   },
-  pdfBuffer: Buffer
+  pdfBuffer?: Buffer,
+  htmlInvoice?: string
 ) {
   const invoiceUrl = `${BASE_URL}/dashboard/bills/${invoice.id}`
   const currencySymbol = getCurrencySymbol(invoice.currency || "EUR")
 
-  const html = `
+  // If HTML invoice is provided, embed it in the email body
+  // Otherwise, use a simple summary
+  const emailHtml = htmlInvoice || `
     <!DOCTYPE html>
     <html>
       <head>
@@ -377,15 +380,17 @@ export async function sendInvoiceEmail(
         <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
           <h1 style="color: #2563eb; margin-top: 0;">Invoice</h1>
           <p>Hello ${clientName},</p>
-          <p>Please find attached your invoice:</p>
+          ${pdfBuffer ? "<p>Please find attached your invoice:</p>" : "<p>Please find your invoice below:</p>"}
         </div>
 
+        ${htmlInvoice ? htmlInvoice : `
         <div style="background-color: #ffffff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
           <h2 style="color: #111827; margin-top: 0;">Invoice ${invoice.invoiceNumber || invoice.id}</h2>
           <p><strong>Amount:</strong> ${currencySymbol}${invoice.amount.toFixed(2)}</p>
           ${invoice.dueDate ? `<p><strong>Due Date:</strong> ${new Date(invoice.dueDate).toLocaleDateString()}</p>` : ""}
           ${invoice.description ? `<div style="margin-top: 15px;"><strong>Description:</strong><p>${invoice.description}</p></div>` : ""}
         </div>
+        `}
 
         <div style="text-align: center; margin: 30px 0;">
           <a href="${invoiceUrl}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
@@ -394,7 +399,7 @@ export async function sendInvoiceEmail(
         </div>
 
         <p style="color: #6b7280; font-size: 14px; margin-top: 30px;">
-          The invoice PDF is attached to this email. Please remit payment by the due date.
+          ${pdfBuffer ? "The invoice PDF is attached to this email. " : ""}Please remit payment by the due date.
         </p>
       </body>
     </html>
@@ -407,11 +412,11 @@ export async function sendInvoiceEmail(
   return sendEmail({
     to: clientEmail,
     subject: `Invoice ${invoice.invoiceNumber || invoice.id}`,
-    html,
-    attachments: [{
+    html: emailHtml,
+    attachments: pdfBuffer ? [{
       filename,
       content: pdfBuffer,
-    }],
+    }] : undefined,
   })
 }
 

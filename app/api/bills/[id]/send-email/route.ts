@@ -364,12 +364,20 @@ export async function POST(
       )
     }
 
-    // Generate PDF
+    // Generate HTML invoice
     const logoBase64 = await getLogoBase64()
     const html = generateInvoiceHTML(bill, logoBase64)
-    const pdfBuffer = await generatePdfFromHTML(html)
+    
+    // Try to generate PDF, but fallback to HTML if it fails
+    let pdfBuffer: Buffer | undefined
+    try {
+      pdfBuffer = await generatePdfFromHTML(html)
+    } catch (pdfError: any) {
+      console.warn("PDF generation failed, sending invoice as HTML email:", pdfError.message)
+      // Continue without PDF - we'll send HTML invoice in email body
+    }
 
-    // Send email
+    // Send email with PDF if available, otherwise with HTML invoice embedded
     const result = await sendInvoiceEmail(
       bill.client.email,
       bill.client.name,
@@ -381,7 +389,8 @@ export async function POST(
         dueDate: bill.dueDate,
         currency: bill.project?.currency || bill.proposal?.currency || "EUR",
       },
-      pdfBuffer
+      pdfBuffer,
+      pdfBuffer ? undefined : html // If no PDF, embed HTML invoice in email
     )
 
     if (!result.success) {
