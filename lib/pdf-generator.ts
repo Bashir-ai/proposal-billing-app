@@ -25,8 +25,10 @@ export async function generatePdfFromHTML(html: string): Promise<Buffer> {
       try {
         // Use require to ensure proper module resolution in serverless
         const chromium = require("@sparticuz/chromium")
-        // Disable font loading for faster startup
-        chromium.setGraphicsMode(false)
+        // Disable font loading for faster startup (if method exists)
+        if (typeof chromium.setGraphicsMode === 'function') {
+          chromium.setGraphicsMode(false)
+        }
         
         // Get executable path - chromium handles extraction automatically to /tmp
         // The executablePath() method should extract chromium to a temp directory
