@@ -39,14 +39,17 @@ export async function generatePdfFromHTML(html: string): Promise<Buffer> {
         }
         
         launchOptions.executablePath = executablePath
-        launchOptions.args = [
-          ...chromium.args,
-          '--disable-gpu',
+        // Use chromium's args which should include necessary library paths
+        // The chromium.args already includes paths to bundled libraries
+        launchOptions.args = chromium.args || [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
           '--disable-dev-shm-usage',
-          '--disable-software-rasterizer',
-          '--single-process', // Required for serverless
+          '--disable-gpu',
+          '--single-process',
         ]
-        launchOptions.defaultViewport = chromium.defaultViewport
+        launchOptions.defaultViewport = chromium.defaultViewport || { width: 1920, height: 1080 }
+        launchOptions.headless = chromium.headless !== false
       } catch (chromiumError: any) {
         console.error("Could not load @sparticuz/chromium, PDF generation may fail:", chromiumError)
         // In Vercel, we must have chromium

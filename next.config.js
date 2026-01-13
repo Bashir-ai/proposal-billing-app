@@ -5,6 +5,8 @@ const nextConfig = {
   experimental: {
     // Reduce compilation time
     optimizePackageImports: ['lucide-react'],
+    // Externalize puppeteer and chromium for serverless
+    serverComponentsExternalPackages: ['puppeteer-core', '@sparticuz/chromium'],
   },
   // Reduce webpack compilation time
   webpack: (config, { isServer }) => {
