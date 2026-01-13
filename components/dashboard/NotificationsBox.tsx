@@ -26,9 +26,10 @@ interface NotificationsBoxProps {
   initialCount: number
   initialNotifications: Notification[]
   isCollapsed?: boolean
+  isFloating?: boolean
 }
 
-export function NotificationsBox({ initialCount, initialNotifications, isCollapsed = false }: NotificationsBoxProps) {
+export function NotificationsBox({ initialCount, initialNotifications, isCollapsed = false, isFloating = false }: NotificationsBoxProps) {
   const [notifications, setNotifications] = useState<Notification[]>(initialNotifications)
   const [count, setCount] = useState(initialCount)
   const [isOpen, setIsOpen] = useState(false)
@@ -133,19 +134,20 @@ export function NotificationsBox({ initialCount, initialNotifications, isCollaps
     <div className="relative">
       <Button
         variant={count > 0 ? "default" : "outline"}
-        size="sm"
+        size={isFloating ? "default" : "sm"}
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          "relative",
-          count > 0 && "bg-red-600 hover:bg-red-700 text-white animate-pulse"
+          "relative shadow-lg",
+          count > 0 && "bg-red-600 hover:bg-red-700 text-white animate-pulse",
+          isFloating && "h-12 px-4"
         )}
       >
-        <AlertCircle className="h-4 w-4 mr-2" />
-        {!isCollapsed && "Notifications"}
+        <AlertCircle className={cn("h-4 w-4", isFloating && "mr-2")} />
+        {(!isCollapsed || isFloating) && "Notifications"}
         {count > 0 && (
           <span className={cn(
             "absolute bg-white text-red-600 text-xs font-bold rounded-full flex items-center justify-center",
-            isCollapsed ? "-top-1 -right-1 h-5 w-5" : "-top-2 -right-2 h-6 w-6"
+            isFloating ? "-top-2 -right-2 h-7 w-7" : isCollapsed ? "-top-1 -right-1 h-5 w-5" : "-top-2 -right-2 h-6 w-6"
           )}>
             {count > 9 ? "9+" : count}
           </span>
@@ -154,8 +156,12 @@ export function NotificationsBox({ initialCount, initialNotifications, isCollaps
 
       {isOpen && (
         <Card className={cn(
-          "absolute mt-2 w-96 z-50 max-h-96 overflow-y-auto",
-          isCollapsed ? "left-16" : "right-0"
+          "absolute w-96 z-50 max-h-96 overflow-y-auto shadow-2xl",
+          isFloating 
+            ? "bottom-full mb-2 right-0" 
+            : isCollapsed 
+              ? "mt-2 left-16" 
+              : "mt-2 right-0"
         )}>
           <CardHeader>
             <div className="flex items-center justify-between">

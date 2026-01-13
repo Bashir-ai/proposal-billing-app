@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils"
 import { SidebarProvider, useSidebar } from "./SidebarContext"
 import { Sidebar } from "./Sidebar"
 import { MobileHeader } from "./MobileSidebar"
+import { FloatingNotifications } from "./FloatingNotifications"
 
 interface User {
   id: string
@@ -49,6 +50,9 @@ function DashboardShellContent({ user, children }: DashboardShellProps) {
           {children}
         </div>
       </main>
+
+      {/* Floating Notifications - Always visible on all pages */}
+      <FloatingNotifications userId={user.id} userRole={user.role} />
     </div>
   )
 }
