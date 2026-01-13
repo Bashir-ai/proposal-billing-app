@@ -107,7 +107,7 @@ export function BillItemsTable({
           <div className="text-center py-8 text-gray-500">
             <p>No line items yet.</p>
             {canEdit && (
-              <p className="text-sm mt-2">Click "Add Line Item" to create one.</p>
+              <p className="text-sm mt-2">Click &quot;Add Line Item&quot; to create one.</p>
             )}
           </div>
         )}
