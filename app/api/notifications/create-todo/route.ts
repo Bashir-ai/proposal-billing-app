@@ -47,7 +47,7 @@ export async function POST(request: Request) {
     let proposalId: string | undefined
     let invoiceId: string | undefined
     let clientId: string | undefined
-    let priority = TodoPriority.MEDIUM
+    let priority: TodoPriority = TodoPriority.MEDIUM
 
     switch (notification.type) {
       case "proposal_approval":
