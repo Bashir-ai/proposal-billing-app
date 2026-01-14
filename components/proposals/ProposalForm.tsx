@@ -2205,14 +2205,21 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                                   onChange={(e) => {
                                     const discountPercent = parseFloat(e.target.value) || undefined
                                     // Mark that we're editing percentage
-                                    setDiscountEditSource({ ...discountEditSource, [index]: "percent" })
-                                    updateItem(index, "discountPercent", discountPercent)
-                                    // Auto-calculate discount amount when editing percentage
-                                    if (discountPercent && item.amount) {
-                                      updateItem(index, "discountAmount", (item.amount * discountPercent / 100))
-                                    } else if (!discountPercent) {
-                                      updateItem(index, "discountAmount", undefined)
+                                    const newEditSource = { ...discountEditSource, [index]: "percent" }
+                                    setDiscountEditSource(newEditSource)
+                                    
+                                    // Update both fields in a single updateItem call to prevent race conditions
+                                    const discountAmount = discountPercent && item.amount 
+                                      ? (item.amount * discountPercent / 100) 
+                                      : undefined
+                                    
+                                    const updated = [...items]
+                                    updated[index] = {
+                                      ...updated[index],
+                                      discountPercent,
+                                      discountAmount,
                                     }
+                                    setItems(updated)
                                   }}
                                   placeholder="e.g., 10"
                                 />
@@ -2227,14 +2234,21 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                                   onChange={(e) => {
                                     const discountAmount = parseFloat(e.target.value) || undefined
                                     // Mark that we're editing amount
-                                    setDiscountEditSource({ ...discountEditSource, [index]: "amount" })
-                                    updateItem(index, "discountAmount", discountAmount)
-                                    // Auto-calculate discount percentage when editing amount
-                                    if (discountAmount && item.amount && item.amount > 0) {
-                                      updateItem(index, "discountPercent", (discountAmount / item.amount * 100))
-                                    } else if (!discountAmount) {
-                                      updateItem(index, "discountPercent", undefined)
+                                    const newEditSource = { ...discountEditSource, [index]: "amount" }
+                                    setDiscountEditSource(newEditSource)
+                                    
+                                    // Update both fields in a single updateItem call to prevent race conditions
+                                    const discountPercent = discountAmount && item.amount && item.amount > 0
+                                      ? (discountAmount / item.amount * 100)
+                                      : undefined
+                                    
+                                    const updated = [...items]
+                                    updated[index] = {
+                                      ...updated[index],
+                                      discountAmount,
+                                      discountPercent,
                                     }
+                                    setItems(updated)
                                   }}
                                   placeholder="e.g., 100"
                                 />
@@ -2410,7 +2424,8 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                         </span>
                       </p>
                     )}
-                    {proposalPaymentTerm.recurringEnabled && proposalPaymentTerm.recurringFrequency && formData.type !== "FIXED_FEE" && (
+                    {/* Only show recurring if explicitly enabled and not FIXED_FEE */}
+                    {proposalPaymentTerm.recurringEnabled === true && proposalPaymentTerm.recurringFrequency && formData.type !== "FIXED_FEE" && (
                       <p>
                         <span className="text-gray-500">Recurring:</span>{" "}
                         <span className="font-medium">{proposalPaymentTerm.recurringFrequency}</span>
@@ -2424,8 +2439,10 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                         </span>
                       </p>
                     )}
-                    {/* Show ONE_TIME payment details */}
-                    {!proposalPaymentTerm.upfrontType && !proposalPaymentTerm.installmentType && !proposalPaymentTerm.recurringEnabled && (
+                    {/* Show ONE_TIME payment details - only if no upfront, no installments, and recurring is explicitly false or null */}
+                    {!proposalPaymentTerm.upfrontType && 
+                     !proposalPaymentTerm.installmentType && 
+                     (proposalPaymentTerm.recurringEnabled === false || proposalPaymentTerm.recurringEnabled === null || proposalPaymentTerm.recurringEnabled === undefined) && (
                       <p>
                         <span className="text-gray-500">Payment Terms:</span>{" "}
                         <span className="font-medium">
@@ -2450,7 +2467,8 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                         </span>
                       </p>
                     )}
-                    {proposalPaymentTerm.recurringEnabled && proposalPaymentTerm.recurringFrequency && (
+                    {/* Only show recurring if explicitly enabled */}
+                    {proposalPaymentTerm.recurringEnabled === true && proposalPaymentTerm.recurringFrequency && (
                       <p>
                         <span className="text-gray-500">Recurring:</span>{" "}
                         <span className="font-medium">{proposalPaymentTerm.recurringFrequency}</span>
