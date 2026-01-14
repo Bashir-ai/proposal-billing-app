@@ -506,7 +506,11 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
   }
 
   const calculateSubtotal = (): number => {
-    return items.reduce((sum, item) => sum + (item.amount || 0), 0)
+    return items.reduce((sum, item) => {
+      const itemAmount = item.amount || 0
+      const itemDiscount = item.discountAmount || (item.discountPercent && itemAmount ? (itemAmount * item.discountPercent / 100) : 0) || 0
+      return sum + (itemAmount - itemDiscount)
+    }, 0)
   }
 
   const calculateClientDiscount = (): number => {
@@ -1138,7 +1142,14 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                   id="type"
                   value={formData.type}
                   onChange={(e) => {
-                    setFormData({ ...formData, type: e.target.value as ProposalType })
+                    const newType = e.target.value as ProposalType
+                    // Disable blended rate for Fixed Fee
+                    setFormData({ 
+                      ...formData, 
+                      type: newType,
+                      useBlendedRate: newType === "FIXED_FEE" ? false : formData.useBlendedRate,
+                      blendedRate: newType === "FIXED_FEE" ? 0 : formData.blendedRate
+                    })
                     setItems([])
                     setMilestones([])
                   }}
@@ -1708,7 +1719,7 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                           </div>
                         )}
 
-                        {formData.mixedModelMethods.includes("BLENDED_RATE") && (
+                        {formData.mixedModelMethods.includes("BLENDED_RATE") && formData.type !== "FIXED_FEE" && (
                           <div className="space-y-2 p-4 border rounded">
                             <Label className="font-semibold">Blended Rate Configuration</Label>
                             <Input
@@ -2164,18 +2175,73 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                             </div>
                           </>
                         ) : (
-                          <div className="space-y-2">
-                            <Label>Amount ({selectedCurrency.symbol}) *</Label>
-                            <Input
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              value={item.amount || ""}
-                              onChange={(e) => updateItem(index, "amount", parseFloat(e.target.value) || 0)}
-                              required
-                              placeholder="0.00"
-                            />
-                          </div>
+                          <>
+                            <div className="space-y-2">
+                              <Label>Amount ({selectedCurrency.symbol}) *</Label>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={item.amount || ""}
+                                onChange={(e) => updateItem(index, "amount", parseFloat(e.target.value) || 0)}
+                                required
+                                placeholder="0.00"
+                              />
+                            </div>
+                            
+                            {/* Discount fields for Fixed Fee and other non-hourly items */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label>Discount Percentage (%) (Optional)</Label>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  max="100"
+                                  value={item.discountPercent || ""}
+                                  onChange={(e) => {
+                                    const discountPercent = parseFloat(e.target.value) || undefined
+                                    updateItem(index, "discountPercent", discountPercent)
+                                    // Auto-calculate discount amount if percentage is set
+                                    if (discountPercent && item.amount) {
+                                      updateItem(index, "discountAmount", (item.amount * discountPercent / 100))
+                                    } else if (!discountPercent) {
+                                      updateItem(index, "discountAmount", undefined)
+                                    }
+                                  }}
+                                  placeholder="e.g., 10"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Discount Amount ({selectedCurrency.symbol}) (Optional)</Label>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={item.discountAmount || ""}
+                                  onChange={(e) => {
+                                    const discountAmount = parseFloat(e.target.value) || undefined
+                                    updateItem(index, "discountAmount", discountAmount)
+                                    // Auto-calculate discount percentage if amount is set
+                                    if (discountAmount && item.amount && item.amount > 0) {
+                                      updateItem(index, "discountPercent", (discountAmount / item.amount * 100))
+                                    } else if (!discountAmount) {
+                                      updateItem(index, "discountPercent", undefined)
+                                    }
+                                  }}
+                                  placeholder="e.g., 100"
+                                />
+                              </div>
+                            </div>
+                            {(item.discountPercent || item.discountAmount) && (
+                              <div className="text-sm text-gray-600">
+                                Discount: {item.discountPercent ? `${item.discountPercent}%` : ""} {item.discountAmount ? `(${selectedCurrency.symbol}${item.discountAmount.toFixed(2)})` : ""}
+                                {item.amount && item.discountAmount && (
+                                  <span className="ml-2">Final: {selectedCurrency.symbol}{(item.amount - item.discountAmount).toFixed(2)}</span>
+                                )}
+                              </div>
+                            )}
+                          </>
                         )}
 
                         {/* Milestone Assignment - Only show when milestones are enabled */}
@@ -2351,6 +2417,26 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                         </span>
                       </p>
                     )}
+                    {proposalPaymentTerm.balancePaymentType && (
+                      <p>
+                        <span className="text-gray-500">Balance Payment:</span>{" "}
+                        <span className="font-medium">
+                          {proposalPaymentTerm.balancePaymentType === "TIME_BASED" && proposalPaymentTerm.balanceDueDate
+                            ? `Due on ${new Date(proposalPaymentTerm.balanceDueDate).toLocaleDateString()}`
+                            : proposalPaymentTerm.balancePaymentType === "MILESTONE_BASED"
+                            ? "Milestone-based"
+                            : proposalPaymentTerm.balancePaymentType === "FULL_UPFRONT"
+                            ? "Full upfront (100%)"
+                            : proposalPaymentTerm.balancePaymentType}
+                        </span>
+                      </p>
+                    )}
+                    {proposalPaymentTerm.recurringEnabled && proposalPaymentTerm.recurringFrequency && (
+                      <p>
+                        <span className="text-gray-500">Recurring:</span>{" "}
+                        <span className="font-medium">{proposalPaymentTerm.recurringFrequency}</span>
+                      </p>
+                    )}
                   </div>
                 </div>
               )}
@@ -2376,12 +2462,29 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                 <h3 className="font-semibold text-lg">Line Items ({items.length})</h3>
                 {items.length > 0 ? (
                   <div className="space-y-2">
-                    {items.map((item, index) => (
-                      <div key={index} className="text-sm p-2 border rounded">
-                        <span className="font-medium">{item.description || `Item ${index + 1}`}</span>
-                        <span className="ml-2 text-gray-500">- {selectedCurrency.symbol}{item.amount?.toFixed(2) || "0.00"}</span>
-                      </div>
-                    ))}
+                    {items.map((item, index) => {
+                      const itemAmount = item.amount || 0
+                      const itemDiscount = item.discountAmount || (item.discountPercent && itemAmount ? (itemAmount * item.discountPercent / 100) : 0) || 0
+                      const finalAmount = itemAmount - itemDiscount
+                      return (
+                        <div key={index} className="text-sm p-2 border rounded">
+                          <span className="font-medium">{item.description || `Item ${index + 1}`}</span>
+                          <div className="ml-2 text-gray-500">
+                            {itemDiscount > 0 ? (
+                              <>
+                                <span className="line-through">{selectedCurrency.symbol}{itemAmount.toFixed(2)}</span>
+                                <span className="ml-2">- {selectedCurrency.symbol}{finalAmount.toFixed(2)}</span>
+                                <span className="ml-2 text-green-600">
+                                  ({item.discountPercent ? `${item.discountPercent}%` : `${selectedCurrency.symbol}${item.discountAmount?.toFixed(2)}`} discount)
+                                </span>
+                              </>
+                            ) : (
+                              <span>- {selectedCurrency.symbol}{itemAmount.toFixed(2)}</span>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
                   </div>
                 ) : (
                   <p className="text-sm text-gray-500">No line items defined</p>
