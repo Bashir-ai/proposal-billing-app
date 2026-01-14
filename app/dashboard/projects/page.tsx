@@ -10,6 +10,7 @@ import { Select } from "@/components/ui/select"
 import { Plus, X } from "lucide-react"
 import { formatDate, formatCurrency } from "@/lib/utils"
 import { ProjectStatus } from "@prisma/client"
+import { LoadingState } from "@/components/shared/LoadingState"
 
 interface Project {
   id: string
@@ -124,7 +125,17 @@ export default function ProjectsPage() {
   }
 
   if (loading) {
-    return <div>Loading projects...</div>
+    return (
+      <div>
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-3xl font-bold">Projects</h1>
+            <p className="text-gray-600 mt-2">Manage your active projects</p>
+          </div>
+        </div>
+        <LoadingState message="Loading projects..." variant="skeleton" />
+      </div>
+    )
   }
 
   return (

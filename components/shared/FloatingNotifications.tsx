@@ -13,10 +13,12 @@ export function FloatingNotifications({ userId, userRole }: FloatingNotification
     count: number
     notifications: any[]
   }>({ count: 0, notifications: [] })
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const fetchNotifications = async () => {
       try {
+        setLoading(true)
         const response = await fetch(`/api/notifications?t=${Date.now()}`, {
           cache: "no-store",
           headers: {
@@ -35,6 +37,8 @@ export function FloatingNotifications({ userId, userRole }: FloatingNotification
         }
       } catch (error) {
         console.error("Failed to fetch notifications:", error)
+      } finally {
+        setLoading(false)
       }
     }
 
@@ -52,6 +56,11 @@ export function FloatingNotifications({ userId, userRole }: FloatingNotification
       window.removeEventListener("notifications:refresh", handleRefresh)
     }
   }, [userId, userRole])
+
+  // Don't render anything while loading to avoid layout shift
+  if (loading) {
+    return null
+  }
 
   return (
     <div className="fixed bottom-6 right-6 z-50">

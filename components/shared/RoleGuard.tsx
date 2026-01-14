@@ -3,6 +3,7 @@
 import { useSession } from "next-auth/react"
 import { UserRole } from "@prisma/client"
 import { redirect } from "next/navigation"
+import { LoadingState } from "./LoadingState"
 
 interface RoleGuardProps {
   children: React.ReactNode
@@ -14,7 +15,7 @@ export function RoleGuard({ children, allowedRoles, fallback }: RoleGuardProps) 
   const { data: session, status } = useSession()
 
   if (status === "loading") {
-    return <div>Loading...</div>
+    return <LoadingState message="Checking permissions..." />
   }
 
   if (!session) {
