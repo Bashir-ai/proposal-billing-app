@@ -623,6 +623,13 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
       updated[index].amount = hours * rate
     }
     
+    // Auto-calculate amount for Fixed Fee items when quantity or unitPrice changes
+    if (formData.type === "FIXED_FEE" && (field === "quantity" || field === "unitPrice")) {
+      const quantity = field === "quantity" ? (value || 1) : (updated[index].quantity || 1)
+      const unitPrice = field === "unitPrice" ? (value || 0) : (updated[index].unitPrice || 0)
+      updated[index].amount = quantity * unitPrice
+    }
+    
     setItems(updated)
   }
 
@@ -2021,7 +2028,7 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                           </div>
                         )}
 
-                        <div className={`space-y-2 ${(formData.type === "MIXED_MODEL" || formData.type === "FIXED_FEE" || formData.type === "SUCCESS_FEE" || formData.type === "HOURLY" || formData.type === "CAPPED_FEE") ? "" : "md:col-span-2"}`}>
+                        <div className={`space-y-2 ${(formData.type === "MIXED_MODEL" || formData.type === "FIXED_FEE" || formData.type === "SUCCESS_FEE" || formData.type === "HOURLY" || formData.type === "CAPPED_FEE") ? "md:col-span-2 lg:col-span-2" : "md:col-span-2"}`}>
                           <div className="flex items-center gap-2">
                             <Label>Description *</Label>
                             {item.expenseId && (
@@ -2179,21 +2186,77 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                           </>
                         ) : (
                           <>
-                            <div className="space-y-2">
-                              <Label>Amount ({selectedCurrency.symbol}) *</Label>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                value={item.amount || ""}
-                                onChange={(e) => updateItem(index, "amount", parseFloat(e.target.value) || 0)}
-                                required
-                                placeholder="0.00"
-                              />
-                            </div>
+                            {/* For Fixed Fee items, show quantity and unit price */}
+                            {formData.type === "FIXED_FEE" && (
+                              <>
+                                <div className="space-y-2 md:col-span-1">
+                                  <Label>Quantity *</Label>
+                                  <Input
+                                    type="number"
+                                    step="1"
+                                    min="1"
+                                    value={item.quantity || 1}
+                                    onChange={(e) => {
+                                      const quantity = parseFloat(e.target.value) || 1
+                                      updateItem(index, "quantity", quantity)
+                                      // Auto-calculation happens in updateItem function
+                                    }}
+                                    required
+                                    placeholder="e.g., 1"
+                                  />
+                                </div>
+                                <div className="space-y-2 md:col-span-1">
+                                  <Label>Price per Item ({selectedCurrency.symbol}) *</Label>
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    value={item.unitPrice || ""}
+                                    onChange={(e) => {
+                                      const unitPrice = parseFloat(e.target.value) || 0
+                                      updateItem(index, "unitPrice", unitPrice)
+                                      // Auto-calculation happens in updateItem function
+                                    }}
+                                    required
+                                    placeholder="0.00"
+                                  />
+                                </div>
+                                <div className="space-y-2 md:col-span-1">
+                                  <Label>Total Amount ({selectedCurrency.symbol})</Label>
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    value={item.amount || ""}
+                                    onChange={(e) => updateItem(index, "amount", parseFloat(e.target.value) || 0)}
+                                    readOnly
+                                    className="bg-gray-50 cursor-not-allowed"
+                                    required
+                                  />
+                                  <p className="text-xs text-gray-500">
+                                    Auto-calculated: {item.quantity || 1} × {formatCurrency(item.unitPrice || 0)} = {formatCurrency(item.amount || 0)}
+                                  </p>
+                                </div>
+                              </>
+                            )}
                             
-                            {/* Discount fields for Fixed Fee and other non-hourly items */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* For non-Fixed Fee items, show direct amount input */}
+                            {formData.type !== "FIXED_FEE" && (
+                              <div className="space-y-2 md:col-span-1">
+                                <Label>Amount ({selectedCurrency.symbol}) *</Label>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={item.amount || ""}
+                                  onChange={(e) => updateItem(index, "amount", parseFloat(e.target.value) || 0)}
+                                  required
+                                  placeholder="0.00"
+                                />
+                              </div>
+                            )}
+                            
+                            {/* Discount fields for Fixed Fee and other non-hourly items - isolated (no auto-calculation) */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:col-span-2">
                               <div className="space-y-2">
                                 <Label>Discount Percentage (%) (Optional)</Label>
                                 <Input
@@ -2204,22 +2267,12 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                                   value={item.discountPercent || ""}
                                   onChange={(e) => {
                                     const discountPercent = parseFloat(e.target.value) || undefined
-                                    // Mark that we're editing percentage
-                                    const newEditSource: Record<number, "amount" | "percent" | null> = { ...discountEditSource, [index]: "percent" }
-                                    setDiscountEditSource(newEditSource)
-                                    
-                                    // Update both fields in a single updateItem call to prevent race conditions
-                                    const discountAmount = discountPercent && item.amount 
-                                      ? (item.amount * discountPercent / 100) 
-                                      : undefined
-                                    
-                                    const updated = [...items]
-                                    updated[index] = {
-                                      ...updated[index],
-                                      discountPercent,
-                                      discountAmount,
+                                    // Only update discountPercent, don't auto-calculate amount
+                                    updateItem(index, "discountPercent", discountPercent)
+                                    // Clear discountAmount when setting percentage
+                                    if (discountPercent !== undefined) {
+                                      updateItem(index, "discountAmount", undefined)
                                     }
-                                    setItems(updated)
                                   }}
                                   placeholder="e.g., 10"
                                 />
@@ -2233,22 +2286,12 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                                   value={item.discountAmount || ""}
                                   onChange={(e) => {
                                     const discountAmount = parseFloat(e.target.value) || undefined
-                                    // Mark that we're editing amount
-                                    const newEditSource: Record<number, "amount" | "percent" | null> = { ...discountEditSource, [index]: "amount" }
-                                    setDiscountEditSource(newEditSource)
-                                    
-                                    // Update both fields in a single updateItem call to prevent race conditions
-                                    const discountPercent = discountAmount && item.amount && item.amount > 0
-                                      ? (discountAmount / item.amount * 100)
-                                      : undefined
-                                    
-                                    const updated = [...items]
-                                    updated[index] = {
-                                      ...updated[index],
-                                      discountAmount,
-                                      discountPercent,
+                                    // Only update discountAmount, don't auto-calculate percentage
+                                    updateItem(index, "discountAmount", discountAmount)
+                                    // Clear discountPercent when setting amount
+                                    if (discountAmount !== undefined) {
+                                      updateItem(index, "discountPercent", undefined)
                                     }
-                                    setItems(updated)
                                   }}
                                   placeholder="e.g., 100"
                                 />
