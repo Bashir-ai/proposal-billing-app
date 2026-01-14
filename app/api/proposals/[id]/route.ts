@@ -9,7 +9,7 @@ import { canEditProposal } from "@/lib/permissions"
 
 const proposalItemSchema = z.object({
   id: z.string().optional(),
-  billingMethod: z.enum(["FIXED_FEE", "SUCCESS_FEE", "RECURRING", "HOURLY", "CAPPED_FEE"]).optional(),
+  billingMethod: z.enum(["FIXED_FEE", "SUCCESS_FEE", "RECURRING", "HOURLY", "CAPPED_FEE", "RETAINER"]).optional(),
   personId: z.string().optional(),
   expenseId: z.string().optional(), // Reference to ProjectExpense if this is an expense line item
   description: z.string(),
@@ -26,6 +26,13 @@ const proposalItemSchema = z.object({
   recurringFrequency: z.enum(["MONTHLY_1", "MONTHLY_3", "MONTHLY_6", "YEARLY_12", "CUSTOM"]).optional(),
   recurringCustomMonths: z.number().optional(),
   recurringStartDate: z.string().optional(),
+  // Estimate and capped flags
+  isEstimate: z.boolean().optional(),
+  isCapped: z.boolean().optional(),
+  cappedHours: z.number().optional(),
+  cappedAmount: z.number().optional(),
+  // Expense flag
+  isEstimated: z.boolean().optional(),
 })
 
 const milestoneSchema = z.object({
@@ -78,12 +85,24 @@ const proposalUpdateSchema = z.object({
   hourlyCapHours: z.number().optional(),
   cappedAmount: z.number().optional(),
   retainerMonthlyAmount: z.number().optional(),
-  retainerHourlyCap: z.number().optional(),
+  retainerHoursPerMonth: z.number().optional(),
+  retainerAdditionalHoursType: z.enum(["FIXED_RATE", "RATE_RANGE", "BLENDED_RATE"]).optional(),
+  retainerAdditionalHoursRate: z.number().optional(),
+  retainerAdditionalHoursRateMin: z.number().optional(),
+  retainerAdditionalHoursRateMax: z.number().optional(),
+  retainerAdditionalHoursBlendedRate: z.number().optional(),
   blendedRate: z.number().optional(),
   useBlendedRate: z.boolean().optional(),
   successFeePercent: z.number().optional(),
   successFeeAmount: z.number().optional(),
   successFeeValue: z.number().optional(),
+  successFeeBaseType: z.enum(["FIXED_AMOUNT", "HOURLY_RATE"]).optional(),
+  successFeeBaseAmount: z.number().optional(),
+  successFeeBaseHourlyRate: z.number().optional(),
+  successFeeBaseHourlyDescription: z.string().optional(),
+  successFeeType: z.enum(["PERCENTAGE", "FIXED_AMOUNT"]).optional(),
+  hourlyIsEstimate: z.boolean().optional(),
+  hourlyIsCapped: z.boolean().optional(),
   fixedAmount: z.number().optional(),
   outOfScopeHourlyRate: z.number().optional(),
   tagIds: z.array(z.string()).optional(),
@@ -360,12 +379,24 @@ export async function PUT(
       if (validatedData.hourlyCapHours !== undefined) updateData.hourlyCapHours = validatedData.hourlyCapHours || null
       if (validatedData.cappedAmount !== undefined) updateData.cappedAmount = validatedData.cappedAmount || null
       if (validatedData.retainerMonthlyAmount !== undefined) updateData.retainerMonthlyAmount = validatedData.retainerMonthlyAmount || null
-      if (validatedData.retainerHourlyCap !== undefined) updateData.retainerHourlyCap = validatedData.retainerHourlyCap || null
-    if (validatedData.blendedRate !== undefined) updateData.blendedRate = validatedData.blendedRate || null
-    if (validatedData.useBlendedRate !== undefined) updateData.useBlendedRate = validatedData.useBlendedRate
-    if (validatedData.successFeePercent !== undefined) updateData.successFeePercent = validatedData.successFeePercent || null
-    if (validatedData.successFeeAmount !== undefined) updateData.successFeeAmount = validatedData.successFeeAmount || null
+      if (validatedData.retainerHoursPerMonth !== undefined) updateData.retainerHoursPerMonth = validatedData.retainerHoursPerMonth || null
+      if (validatedData.retainerAdditionalHoursType !== undefined) updateData.retainerAdditionalHoursType = validatedData.retainerAdditionalHoursType || null
+      if (validatedData.retainerAdditionalHoursRate !== undefined) updateData.retainerAdditionalHoursRate = validatedData.retainerAdditionalHoursRate || null
+      if (validatedData.retainerAdditionalHoursRateMin !== undefined) updateData.retainerAdditionalHoursRateMin = validatedData.retainerAdditionalHoursRateMin || null
+      if (validatedData.retainerAdditionalHoursRateMax !== undefined) updateData.retainerAdditionalHoursRateMax = validatedData.retainerAdditionalHoursRateMax || null
+      if (validatedData.retainerAdditionalHoursBlendedRate !== undefined) updateData.retainerAdditionalHoursBlendedRate = validatedData.retainerAdditionalHoursBlendedRate || null
+      if (validatedData.blendedRate !== undefined) updateData.blendedRate = validatedData.blendedRate || null
+      if (validatedData.useBlendedRate !== undefined) updateData.useBlendedRate = validatedData.useBlendedRate
+      if (validatedData.successFeePercent !== undefined) updateData.successFeePercent = validatedData.successFeePercent || null
+      if (validatedData.successFeeAmount !== undefined) updateData.successFeeAmount = validatedData.successFeeAmount || null
       if (validatedData.successFeeValue !== undefined) updateData.successFeeValue = validatedData.successFeeValue || null
+      if (validatedData.successFeeBaseType !== undefined) updateData.successFeeBaseType = validatedData.successFeeBaseType || null
+      if (validatedData.successFeeBaseAmount !== undefined) updateData.successFeeBaseAmount = validatedData.successFeeBaseAmount || null
+      if (validatedData.successFeeBaseHourlyRate !== undefined) updateData.successFeeBaseHourlyRate = validatedData.successFeeBaseHourlyRate || null
+      if (validatedData.successFeeBaseHourlyDescription !== undefined) updateData.successFeeBaseHourlyDescription = validatedData.successFeeBaseHourlyDescription || null
+      if (validatedData.successFeeType !== undefined) updateData.successFeeType = validatedData.successFeeType || null
+      if (validatedData.hourlyIsEstimate !== undefined) updateData.hourlyIsEstimate = validatedData.hourlyIsEstimate
+      if (validatedData.hourlyIsCapped !== undefined) updateData.hourlyIsCapped = validatedData.hourlyIsCapped
       if (validatedData.fixedAmount !== undefined) updateData.fixedAmount = validatedData.fixedAmount || null
       if (validatedData.outOfScopeHourlyRate !== undefined) updateData.outOfScopeHourlyRate = validatedData.outOfScopeHourlyRate || null
       if (validatedData.status !== undefined) updateData.status = validatedData.status

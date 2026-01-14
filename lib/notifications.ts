@@ -42,6 +42,7 @@ export async function getNotifications(userId: string, userRole: string): Promis
         status: "SUBMITTED",
         internalApprovalRequired: true,
         internalApprovalsComplete: false,
+        deletedAt: null, // Exclude deleted proposals
       },
       select: {
         id: true,

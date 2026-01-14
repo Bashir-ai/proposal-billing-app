@@ -124,14 +124,17 @@ export function PaymentTermsWizard({
           newErrors.upfrontValue = "Percentage cannot exceed 100%"
         }
       } else if (paymentStructure === "RECURRING") {
-        if (!wizardData.recurringFrequency) {
-          newErrors.recurringFrequency = "Please select recurring frequency"
-        }
-        if (wizardData.recurringFrequency === "CUSTOM" && (!wizardData.recurringCustomMonths || wizardData.recurringCustomMonths < 1)) {
-          newErrors.recurringCustomMonths = "Please enter a valid number of months"
-        }
-        if (!wizardData.recurringStartDate) {
-          newErrors.recurringStartDate = "Please select a start date"
+        // Recurring is optional - only validate if enabled
+        if (wizardData.recurringEnabled) {
+          if (!wizardData.recurringFrequency || wizardData.recurringFrequency === "NONE") {
+            newErrors.recurringFrequency = "Please select recurring frequency or disable recurring payments"
+          }
+          if (wizardData.recurringFrequency === "CUSTOM" && (!wizardData.recurringCustomMonths || wizardData.recurringCustomMonths < 1)) {
+            newErrors.recurringCustomMonths = "Please enter a valid number of months"
+          }
+          if (!wizardData.recurringStartDate) {
+            newErrors.recurringStartDate = "Please select a start date"
+          }
         }
       } else if (paymentStructure === "INSTALLMENTS") {
         if (!wizardData.installmentType) {
@@ -177,9 +180,9 @@ export function PaymentTermsWizard({
       // Initialize wizard data based on structure
       if (paymentStructure === "RECURRING") {
         setWizardData({
-          recurringEnabled: true,
-          recurringFrequency: "MONTHLY_1" as const,
-          recurringStartDate: getDefaultStartDate(),
+          recurringEnabled: false, // Default to disabled, user can enable
+          recurringFrequency: null,
+          recurringStartDate: null,
           upfrontType: null,
           upfrontValue: null,
           balancePaymentType: null,
@@ -252,7 +255,11 @@ export function PaymentTermsWizard({
       return true
     }
     if (paymentStructure === "RECURRING") {
-      return !!(wizardData.recurringFrequency && wizardData.recurringStartDate)
+      // Recurring is optional - complete if disabled or if all required fields are filled
+      if (!wizardData.recurringEnabled) {
+        return true // Can complete without recurring
+      }
+      return !!(wizardData.recurringFrequency && wizardData.recurringFrequency !== "NONE" && wizardData.recurringStartDate)
     }
     if (paymentStructure === "INSTALLMENTS") {
       if (wizardData.installmentType === "TIME_BASED") {
@@ -441,55 +448,80 @@ export function PaymentTermsWizard({
           <div className="space-y-4">
             <Label className="text-base font-semibold">Recurring Payment Details</Label>
             
-            <div className="space-y-2">
-              <Label>Payment Frequency</Label>
-              <Select
-                value={wizardData.recurringFrequency || ""}
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="recurringEnabled"
+                checked={wizardData.recurringEnabled ?? false}
                 onChange={(e) => {
-                  const freq = e.target.value as PaymentTerm["recurringFrequency"]
-                  updateWizardData("recurringFrequency", freq || null)
-                  updateWizardData("recurringCustomMonths", null)
+                  updateWizardData("recurringEnabled", e.target.checked)
+                  if (!e.target.checked) {
+                    updateWizardData("recurringFrequency", null)
+                    updateWizardData("recurringCustomMonths", null)
+                    updateWizardData("recurringStartDate", null)
+                  }
                 }}
-              >
-                <option value="">Select frequency</option>
-                {RECURRING_FREQUENCIES.map((freq) => (
-                  <option key={freq.value} value={freq.value}>
-                    {freq.label}
-                  </option>
-                ))}
-              </Select>
-              {errors.recurringFrequency && (
-                <p className="text-sm text-red-600">{errors.recurringFrequency}</p>
-              )}
-            </div>
-
-            {wizardData.recurringFrequency === "CUSTOM" && (
-              <div className="space-y-2">
-                <Label>Custom Months</Label>
-                <Input
-                  type="number"
-                  min="1"
-                  value={wizardData.recurringCustomMonths || ""}
-                  onChange={(e) => updateWizardData("recurringCustomMonths", parseInt(e.target.value) || null)}
-                  placeholder="e.g., 2"
-                />
-                {errors.recurringCustomMonths && (
-                  <p className="text-sm text-red-600">{errors.recurringCustomMonths}</p>
-                )}
-              </div>
-            )}
-
-            <div className="space-y-2">
-              <Label>Start Date</Label>
-              <Input
-                type="date"
-                value={wizardData.recurringStartDate || getDefaultStartDate()}
-                onChange={(e) => updateWizardData("recurringStartDate", e.target.value || null)}
+                className="h-4 w-4 rounded border-gray-300"
               />
-              {errors.recurringStartDate && (
-                <p className="text-sm text-red-600">{errors.recurringStartDate}</p>
-              )}
+              <Label htmlFor="recurringEnabled" className="cursor-pointer">
+                Enable Recurring Payments
+              </Label>
             </div>
+            
+            {wizardData.recurringEnabled && (
+              <>
+                <div className="space-y-2">
+                  <Label>Payment Frequency</Label>
+                  <Select
+                    value={wizardData.recurringFrequency || ""}
+                    onChange={(e) => {
+                      const freq = e.target.value as PaymentTerm["recurringFrequency"]
+                      updateWizardData("recurringFrequency", freq === "NONE" ? null : (freq || null))
+                      updateWizardData("recurringCustomMonths", null)
+                    }}
+                  >
+                    <option value="">Select frequency</option>
+                    <option value="NONE">None (Disable Recurring)</option>
+                    {RECURRING_FREQUENCIES.map((freq) => (
+                      <option key={freq.value} value={freq.value}>
+                        {freq.label}
+                      </option>
+                    ))}
+                  </Select>
+                  {errors.recurringFrequency && (
+                    <p className="text-sm text-red-600">{errors.recurringFrequency}</p>
+                  )}
+                </div>
+
+                {wizardData.recurringFrequency === "CUSTOM" && (
+                  <div className="space-y-2">
+                    <Label>Custom Months</Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      value={wizardData.recurringCustomMonths || ""}
+                      onChange={(e) => updateWizardData("recurringCustomMonths", parseInt(e.target.value) || null)}
+                      placeholder="e.g., 2"
+                    />
+                    {errors.recurringCustomMonths && (
+                      <p className="text-sm text-red-600">{errors.recurringCustomMonths}</p>
+                    )}
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <Label>Start Date</Label>
+                  <Input
+                    type="date"
+                    value={wizardData.recurringStartDate || getDefaultStartDate()}
+                    onChange={(e) => updateWizardData("recurringStartDate", e.target.value || null)}
+                  />
+                  {errors.recurringStartDate && (
+                    <p className="text-sm text-red-600">{errors.recurringStartDate}</p>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         )}
 

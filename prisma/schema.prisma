@@ -364,12 +364,24 @@ model Proposal {
   hourlyCapHours            Float?
   cappedAmount              Float?
   retainerMonthlyAmount     Float?
-  retainerHourlyCap         Float?
+  retainerHoursPerMonth     Float?
+  retainerAdditionalHoursType String? // FIXED_RATE, RATE_RANGE, BLENDED_RATE
+  retainerAdditionalHoursRate Float?
+  retainerAdditionalHoursRateMin Float?
+  retainerAdditionalHoursRateMax Float?
+  retainerAdditionalHoursBlendedRate Float?
   blendedRate               Float?
   useBlendedRate            Boolean              @default(false)
   successFeePercent         Float?
   successFeeAmount          Float?
   successFeeValue           Float?
+  successFeeBaseType        String? // FIXED_AMOUNT, HOURLY_RATE
+  successFeeBaseAmount      Float?
+  successFeeBaseHourlyRate  Float?
+  successFeeBaseHourlyDescription String?
+  successFeeType            String? // PERCENTAGE, FIXED_AMOUNT
+  hourlyIsEstimate          Boolean              @default(false)
+  hourlyIsCapped            Boolean              @default(false)
   fixedAmount               Float?
   outOfScopeHourlyRate      Float?
   customTags                String[]             @default([])
@@ -459,6 +471,13 @@ model ProposalItem {
   recurringCustomMonths     Int? // For CUSTOM frequency
   recurringStartDate        DateTime?
   lastRecurringInvoiceDate   DateTime?
+  // Estimate and capped flags (for hourly items)
+  isEstimate                Boolean              @default(false)
+  isCapped                   Boolean              @default(false)
+  cappedHours                Float?
+  cappedAmount               Float?
+  // Expense flag
+  isEstimated                Boolean              @default(false)
 
   @@index([expenseId])
 

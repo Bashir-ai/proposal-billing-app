@@ -51,6 +51,13 @@ interface LineItem {
   recurringFrequency?: "MONTHLY_1" | "MONTHLY_3" | "MONTHLY_6" | "YEARLY_12" | "CUSTOM"
   recurringCustomMonths?: number
   recurringStartDate?: string
+  // Estimate and capped flags (for hourly items)
+  isEstimate?: boolean
+  isCapped?: boolean
+  cappedHours?: number
+  cappedAmount?: number
+  // Expense flag
+  isEstimated?: boolean // For expense items
 }
 
 interface Milestone {
@@ -105,17 +112,30 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
     hourlyCapHours: initialData?.hourlyCapHours || 0,
     cappedAmount: initialData?.cappedAmount || 0,
     retainerMonthlyAmount: initialData?.retainerMonthlyAmount || 0,
-    retainerHourlyCap: initialData?.retainerHourlyCap || 0,
+    retainerHoursPerMonth: initialData?.retainerHoursPerMonth || 0,
+    retainerAdditionalHoursType: initialData?.retainerAdditionalHoursType || "FIXED_RATE", // FIXED_RATE, RATE_RANGE, BLENDED_RATE
+    retainerAdditionalHoursRate: initialData?.retainerAdditionalHoursRate || 0,
+    retainerAdditionalHoursRateMin: initialData?.retainerAdditionalHoursRateMin || 0,
+    retainerAdditionalHoursRateMax: initialData?.retainerAdditionalHoursRateMax || 0,
+    retainerAdditionalHoursBlendedRate: initialData?.retainerAdditionalHoursBlendedRate || 0,
     blendedRate: initialData?.blendedRate || 0,
     useBlendedRate: initialData?.useBlendedRate ?? false,
     successFeePercent: initialData?.successFeePercent || 0,
     successFeeAmount: initialData?.successFeeAmount || 0,
     successFeeValue: initialData?.successFeeValue || 0,
+    successFeeBaseType: initialData?.successFeeBaseType || "FIXED_AMOUNT", // FIXED_AMOUNT or HOURLY_RATE
+    successFeeBaseAmount: initialData?.successFeeBaseAmount || 0,
+    successFeeBaseHourlyRate: initialData?.successFeeBaseHourlyRate || 0,
+    successFeeBaseHourlyDescription: initialData?.successFeeBaseHourlyDescription || "",
+    successFeeType: initialData?.successFeeType || "PERCENTAGE", // PERCENTAGE or FIXED_AMOUNT
     fixedAmount: initialData?.fixedAmount || 0,
     outOfScopeHourlyRate: initialData?.outOfScopeHourlyRate || 0,
     // Mixed model billing methods (array of selected methods)
     mixedModelMethods: initialData?.mixedModelMethods || [],
     useMilestones: initialData?.milestones && initialData.milestones.length > 0 ? true : false, // Enable if milestones exist
+    // Proposal-level defaults for hourly items
+    hourlyIsEstimate: initialData?.hourlyIsEstimate ?? false,
+    hourlyIsCapped: initialData?.hourlyIsCapped ?? false,
     // Recurring payment fields (for RECURRING proposal type)
     recurringEnabled: initialData?.recurringEnabled || false,
     recurringFrequency: initialData?.recurringFrequency || undefined,
@@ -140,6 +160,13 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
     recurringFrequency: item.recurringFrequency || undefined,
     recurringCustomMonths: item.recurringCustomMonths || undefined,
     recurringStartDate: item.recurringStartDate ? new Date(item.recurringStartDate).toISOString().split("T")[0] : undefined,
+    // Estimate and capped flags
+    isEstimate: item.isEstimate || false,
+    isCapped: item.isCapped || false,
+    cappedHours: item.cappedHours || undefined,
+    cappedAmount: item.cappedAmount || undefined,
+    // Expense flag
+    isEstimated: item.isEstimated || false,
   })) || [])
 
   // Initialize milestones with temporary IDs (using index for now, will be replaced with DB IDs on save)
@@ -179,9 +206,13 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
       if (step.id === "milestones" && !shouldShowMilestonesStep) {
         return false
       }
+      // Filter out line items step for RETAINER proposals
+      if (step.id === "items" && formData.type === "RETAINER") {
+        return false
+      }
       return true
     })
-  }, [shouldShowMilestonesStep])
+  }, [shouldShowMilestonesStep, formData.type])
   
   const [currentWizardStep, setCurrentWizardStep] = useState(0)
   const [completedSteps, setCompletedSteps] = useState<Set<string>>(new Set())
@@ -194,7 +225,8 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
       if (initialData.type) completed.add("billing")
       if (proposalPaymentTerm) completed.add("payment")
       if (shouldShowMilestonesStep && milestones.length > 0) completed.add("milestones")
-      if (items.length > 0 || milestones.length > 0) completed.add("items")
+      // For RETAINER, items step is skipped, so mark it as completed
+      if (initialData.type === "RETAINER" || items.length > 0 || milestones.length > 0) completed.add("items")
       setCompletedSteps(completed)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -241,6 +273,11 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
     
     if (currentStepId === "items") {
       // At least one line item OR milestone must exist
+      // Skip items validation for RETAINER proposals (they don't use line items)
+      if (formData.type === "RETAINER") {
+        setCompletedSteps(prev => new Set(prev).add("items"))
+        return true
+      }
       if (items.length === 0 && milestones.length === 0) {
         newErrors.items = "Please add at least one line item or milestone"
         setErrors(newErrors)
@@ -518,12 +555,21 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
     // Set default billing method for mixed model
     if (formData.type === "MIXED_MODEL" && formData.mixedModelMethods.length > 0) {
       newItem.billingMethod = formData.mixedModelMethods[0]
-    } else if (formData.type !== "MIXED_MODEL" && formData.type !== "RECURRING") {
-      // For non-mixed models (except RECURRING), set the billing method to match the proposal type
+    } else if (formData.type !== "MIXED_MODEL") {
+      // For non-mixed models, set the billing method to match the proposal type
       newItem.billingMethod = formData.type
-    } else if (formData.type === "RECURRING") {
-      // For RECURRING proposals, set billing method to RECURRING
-      newItem.billingMethod = "RECURRING"
+    }
+    
+    // Apply blended rate as default if enabled and item is hourly
+    if (formData.useBlendedRate && formData.blendedRate > 0 && 
+        (newItem.billingMethod === "HOURLY" || formData.type === "HOURLY" || formData.type === "MIXED_MODEL")) {
+      newItem.rate = formData.blendedRate
+    }
+    
+    // Apply proposal-level defaults for hourly items
+    if (newItem.billingMethod === "HOURLY" || formData.type === "HOURLY") {
+      newItem.isEstimate = formData.hourlyIsEstimate
+      newItem.isCapped = formData.hourlyIsCapped
     }
     
     setItems([...items, newItem])
@@ -538,11 +584,19 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
     const currentItem = updated[index]
     updated[index] = { ...currentItem, [field]: value }
     
-    // Auto-fill rate from person's default rate
+    // Apply blended rate when switching to hourly or when blended rate is enabled
+    if (field === "billingMethod" && value === "HOURLY" && formData.useBlendedRate && formData.blendedRate > 0) {
+      updated[index].rate = formData.blendedRate
+    }
+    
+    // Auto-fill rate from person's default rate (unless blended rate is enabled)
     if (field === "personId" && value) {
       const person = users.find(u => u.id === value)
       if (person?.defaultHourlyRate) {
-        updated[index].rate = person.defaultHourlyRate
+        // Use blended rate if enabled, otherwise use person's default rate
+        updated[index].rate = (formData.useBlendedRate && formData.blendedRate > 0) 
+          ? formData.blendedRate 
+          : person.defaultHourlyRate
         // Auto-calculate amount for hourly items
         if (formData.type === "HOURLY" || updated[index].billingMethod === "HOURLY") {
           const hours = updated[index].quantity || 0
@@ -642,23 +696,26 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
       clientDiscountAmount: formData.clientDiscountType === "amount" ? formData.clientDiscountAmount : undefined,
       tagIds: selectedTagIds,
       customTags: customTags.filter(t => t.trim() !== ""),
-      // Recurring payment fields (for RECURRING proposal type)
-      recurringEnabled: formData.type === "RECURRING" ? true : undefined,
-      recurringFrequency: formData.type === "RECURRING" ? (formData.recurringFrequency || undefined) : undefined,
-      recurringCustomMonths: formData.type === "RECURRING" && formData.recurringFrequency === "CUSTOM" ? (formData.recurringCustomMonths || undefined) : undefined,
-      recurringStartDate: formData.type === "RECURRING" ? (formData.recurringStartDate || undefined) : undefined,
+      // Recurring payment fields are now only in payment terms, not proposal type
       items: items.map(item => ({
         billingMethod: item.billingMethod || undefined,
         personId: item.personId || undefined,
         description: item.description,
         amount: item.amount || 0,
+        quantity: item.quantity || undefined,
+        rate: item.rate || undefined,
+        unitPrice: item.unitPrice || undefined,
+        expenseId: item.expenseId || undefined,
         // date field removed - dates are only for actual billing/timesheet entries
         milestoneIds: item.milestoneIds || [], // Include milestone IDs for this line item
-        // Recurring payment fields (when billingMethod is RECURRING)
-        recurringEnabled: item.billingMethod === "RECURRING" ? true : undefined,
-        recurringFrequency: item.billingMethod === "RECURRING" ? (item.recurringFrequency || undefined) : undefined,
-        recurringCustomMonths: item.billingMethod === "RECURRING" && item.recurringFrequency === "CUSTOM" ? (item.recurringCustomMonths || undefined) : undefined,
-        recurringStartDate: item.billingMethod === "RECURRING" ? (item.recurringStartDate || undefined) : undefined,
+        // Recurring payment fields are now only in payment terms, not as billing method
+        // Estimate and capped flags
+        isEstimate: item.isEstimate || undefined,
+        isCapped: item.isCapped || undefined,
+        cappedHours: item.cappedHours || undefined,
+        cappedAmount: item.cappedAmount || undefined,
+        // Expense flag
+        isEstimated: item.isEstimated || undefined,
       })),
       milestones: formData.useMilestones && milestones.length > 0 ? milestones.map(m => ({
         id: m.id, // Include ID for matching on server
@@ -1091,7 +1148,6 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                   <option value="HOURLY">Hourly (with estimate and range)</option>
                   <option value="RETAINER">Retainer (with drawdown rules)</option>
                   <option value="SUCCESS_FEE">Success Fee</option>
-                  <option value="RECURRING">Recurring</option>
                   <option value="MIXED_MODEL">Mixed Model (Fixed + Hourly)</option>
                 </Select>
                 {errors.type && (
@@ -1123,73 +1179,17 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                     </Card>
                   )}
 
-                  {formData.type === "HOURLY" && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>Hourly Rate Configuration</CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label htmlFor="estimatedHours">Estimated Hours</Label>
-                            <Input
-                              id="estimatedHours"
-                              type="number"
-                              step="0.25"
-                              min="0"
-                              value={formData.estimatedHours}
-                              onChange={(e) => setFormData({ ...formData, estimatedHours: parseFloat(e.target.value) || 0 })}
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="hourlyCapHours">Maximum Hours Cap (Optional)</Label>
-                            <Input
-                              id="hourlyCapHours"
-                              type="number"
-                              step="0.25"
-                              min="0"
-                              value={formData.hourlyCapHours}
-                              onChange={(e) => setFormData({ ...formData, hourlyCapHours: parseFloat(e.target.value) || 0 })}
-                              placeholder="Cap total billable hours at this amount"
-                            />
-                            <p className="text-xs text-gray-500">Optional: Cap total billable hours at this amount</p>
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="hourlyRateRangeMin">Minimum Rate ({selectedCurrency.symbol}/hr)</Label>
-                            <Input
-                              id="hourlyRateRangeMin"
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              value={formData.hourlyRateRangeMin}
-                              onChange={(e) => setFormData({ ...formData, hourlyRateRangeMin: parseFloat(e.target.value) || 0 })}
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="hourlyRateRangeMax">Maximum Rate ({selectedCurrency.symbol}/hr)</Label>
-                            <Input
-                              id="hourlyRateRangeMax"
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              value={formData.hourlyRateRangeMax}
-                              onChange={(e) => setFormData({ ...formData, hourlyRateRangeMax: parseFloat(e.target.value) || 0 })}
-                            />
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
 
                   {formData.type === "RETAINER" && (
                     <Card>
                       <CardHeader>
                         <CardTitle>Retainer Configuration</CardTitle>
+                        <CardDescription>Configure the retainer amount, included hours, and additional hours billing</CardDescription>
                       </CardHeader>
                       <CardContent className="space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div className="space-y-2">
-                            <Label htmlFor="retainerMonthlyAmount">Monthly Amount ({selectedCurrency.symbol})</Label>
+                            <Label htmlFor="retainerMonthlyAmount">Monthly Retainer Amount ({selectedCurrency.symbol}) *</Label>
                             <Input
                               id="retainerMonthlyAmount"
                               type="number"
@@ -1197,26 +1197,140 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                               min="0"
                               value={formData.retainerMonthlyAmount}
                               onChange={(e) => setFormData({ ...formData, retainerMonthlyAmount: parseFloat(e.target.value) || 0 })}
+                              required
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label htmlFor="retainerHourlyCap">Hourly Cap ({selectedCurrency.symbol})</Label>
+                            <Label htmlFor="retainerHoursPerMonth">Hours Per Month Included *</Label>
                             <Input
-                              id="retainerHourlyCap"
+                              id="retainerHoursPerMonth"
                               type="number"
-                              step="0.01"
+                              step="0.25"
                               min="0"
-                              value={formData.retainerHourlyCap}
-                              onChange={(e) => setFormData({ ...formData, retainerHourlyCap: parseFloat(e.target.value) || 0 })}
+                              value={formData.retainerHoursPerMonth}
+                              onChange={(e) => setFormData({ ...formData, retainerHoursPerMonth: parseFloat(e.target.value) || 0 })}
+                              required
                             />
+                            <p className="text-xs text-gray-500">Number of hours included in the monthly retainer</p>
                           </div>
+                        </div>
+                        
+                        <div className="pt-4 border-t">
+                          <Label className="text-base font-semibold mb-3 block">Additional Hours Configuration</Label>
+                          <p className="text-sm text-gray-600 mb-4">How will hours beyond the retainer package be billed?</p>
+                          
+                          <div className="space-y-3 mb-4">
+                            <label className="flex items-center space-x-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                              <input
+                                type="radio"
+                                name="retainerAdditionalHoursType"
+                                value="FIXED_RATE"
+                                checked={formData.retainerAdditionalHoursType === "FIXED_RATE"}
+                                onChange={(e) => setFormData({ ...formData, retainerAdditionalHoursType: e.target.value })}
+                                className="w-4 h-4"
+                              />
+                              <div className="flex-1">
+                                <div className="font-medium">Fixed Hourly Rate</div>
+                                <div className="text-sm text-gray-600">Charge a fixed rate per additional hour</div>
+                              </div>
+                            </label>
+                            
+                            <label className="flex items-center space-x-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                              <input
+                                type="radio"
+                                name="retainerAdditionalHoursType"
+                                value="RATE_RANGE"
+                                checked={formData.retainerAdditionalHoursType === "RATE_RANGE"}
+                                onChange={(e) => setFormData({ ...formData, retainerAdditionalHoursType: e.target.value })}
+                                className="w-4 h-4"
+                              />
+                              <div className="flex-1">
+                                <div className="font-medium">Rate Range (Min/Max)</div>
+                                <div className="text-sm text-gray-600">Charge within a rate range per additional hour</div>
+                              </div>
+                            </label>
+                            
+                            <label className="flex items-center space-x-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                              <input
+                                type="radio"
+                                name="retainerAdditionalHoursType"
+                                value="BLENDED_RATE"
+                                checked={formData.retainerAdditionalHoursType === "BLENDED_RATE"}
+                                onChange={(e) => setFormData({ ...formData, retainerAdditionalHoursType: e.target.value })}
+                                className="w-4 h-4"
+                              />
+                              <div className="flex-1">
+                                <div className="font-medium">Blended Rate</div>
+                                <div className="text-sm text-gray-600">Charge a single blended rate for all additional hours</div>
+                              </div>
+                            </label>
+                          </div>
+                          
+                          {formData.retainerAdditionalHoursType === "FIXED_RATE" && (
+                            <div className="space-y-2">
+                              <Label htmlFor="retainerAdditionalHoursRate">Fixed Hourly Rate ({selectedCurrency.symbol}/hr) *</Label>
+                              <Input
+                                id="retainerAdditionalHoursRate"
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={formData.retainerAdditionalHoursRate}
+                                onChange={(e) => setFormData({ ...formData, retainerAdditionalHoursRate: parseFloat(e.target.value) || 0 })}
+                                required
+                              />
+                            </div>
+                          )}
+                          
+                          {formData.retainerAdditionalHoursType === "RATE_RANGE" && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label htmlFor="retainerAdditionalHoursRateMin">Minimum Rate ({selectedCurrency.symbol}/hr) *</Label>
+                                <Input
+                                  id="retainerAdditionalHoursRateMin"
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={formData.retainerAdditionalHoursRateMin}
+                                  onChange={(e) => setFormData({ ...formData, retainerAdditionalHoursRateMin: parseFloat(e.target.value) || 0 })}
+                                  required
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="retainerAdditionalHoursRateMax">Maximum Rate ({selectedCurrency.symbol}/hr) *</Label>
+                                <Input
+                                  id="retainerAdditionalHoursRateMax"
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={formData.retainerAdditionalHoursRateMax}
+                                  onChange={(e) => setFormData({ ...formData, retainerAdditionalHoursRateMax: parseFloat(e.target.value) || 0 })}
+                                  required
+                                />
+                              </div>
+                            </div>
+                          )}
+                          
+                          {formData.retainerAdditionalHoursType === "BLENDED_RATE" && (
+                            <div className="space-y-2">
+                              <Label htmlFor="retainerAdditionalHoursBlendedRate">Blended Rate ({selectedCurrency.symbol}/hr) *</Label>
+                              <Input
+                                id="retainerAdditionalHoursBlendedRate"
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={formData.retainerAdditionalHoursBlendedRate}
+                                onChange={(e) => setFormData({ ...formData, retainerAdditionalHoursBlendedRate: parseFloat(e.target.value) || 0 })}
+                                required
+                              />
+                            </div>
+                          )}
                         </div>
                       </CardContent>
                     </Card>
                   )}
 
-                  {/* Blended Rate Option - Available for all billing methods */}
-                  {formData.type && (
+                  {/* Blended Rate Option - Only for HOURLY or MIXED_MODEL (not for FIXED_FEE) */}
+                  {formData.type && formData.type !== "FIXED_FEE" && (formData.type === "HOURLY" || formData.type === "MIXED_MODEL") && (
                     <Card>
                       <CardHeader>
                         <CardTitle>Blended Rate Option</CardTitle>
@@ -1254,109 +1368,201 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                     </Card>
                   )}
 
-                  {formData.type === "RECURRING" && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>Recurring Payment Configuration</CardTitle>
-                        <CardDescription>Configure how often invoices will be generated for this recurring proposal</CardDescription>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label htmlFor="recurringFrequency">Frequency</Label>
-                            <Select
-                              id="recurringFrequency"
-                              value={formData.recurringFrequency || ""}
-                              onChange={(e) => {
-                                setFormData({ 
-                                  ...formData, 
-                                  recurringFrequency: e.target.value || undefined,
-                                  recurringCustomMonths: e.target.value !== "CUSTOM" ? undefined : formData.recurringCustomMonths
-                                })
-                              }}
-                            >
-                              <option value="">Select frequency</option>
-                              <option value="MONTHLY_1">1 Month</option>
-                              <option value="MONTHLY_3">3 Months</option>
-                              <option value="MONTHLY_6">6 Months</option>
-                              <option value="YEARLY_12">12 Months</option>
-                              <option value="CUSTOM">Custom</option>
-                            </Select>
-                          </div>
-                          {formData.recurringFrequency === "CUSTOM" && (
-                            <div className="space-y-2">
-                              <Label htmlFor="recurringCustomMonths">Custom Months</Label>
-                              <Input
-                                id="recurringCustomMonths"
-                                type="number"
-                                min="1"
-                                value={formData.recurringCustomMonths || ""}
-                                onChange={(e) => setFormData({ ...formData, recurringCustomMonths: parseInt(e.target.value) || undefined })}
-                                placeholder="e.g., 2"
-                              />
-                            </div>
-                          )}
-                          <div className="space-y-2">
-                            <Label htmlFor="recurringStartDate">Start Date</Label>
-                            <Input
-                              id="recurringStartDate"
-                              type="date"
-                              value={formData.recurringStartDate || ""}
-                              onChange={(e) => setFormData({ ...formData, recurringStartDate: e.target.value || undefined })}
-                            />
-                          </div>
-                        </div>
-                        <div className="p-3 bg-blue-50 rounded">
-                          <p className="text-sm text-gray-600">
-                            This proposal will generate recurring invoices based on the selected frequency, starting from the specified start date.
-                          </p>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
-
                   {formData.type === "SUCCESS_FEE" && (
                     <Card>
                       <CardHeader>
                         <CardTitle>Success Fee Configuration</CardTitle>
+                        <CardDescription>Configure the base fee and success fee structure</CardDescription>
                       </CardHeader>
-                      <CardContent className="space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label htmlFor="successFeePercent">Success Fee Percentage (%)</Label>
-                            <Input
-                              id="successFeePercent"
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              max="100"
-                              value={formData.successFeePercent}
-                              onChange={(e) => setFormData({ ...formData, successFeePercent: parseFloat(e.target.value) || 0 })}
-                            />
+                      <CardContent className="space-y-6">
+                        <div className="space-y-4">
+                          <Label className="text-base font-semibold">Base Fee Type</Label>
+                          <div className="space-y-3">
+                            <label className="flex items-center space-x-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                              <input
+                                type="radio"
+                                name="successFeeBaseType"
+                                value="FIXED_AMOUNT"
+                                checked={formData.successFeeBaseType === "FIXED_AMOUNT"}
+                                onChange={(e) => {
+                                  setFormData({ 
+                                    ...formData, 
+                                    successFeeBaseType: e.target.value,
+                                    successFeeBaseAmount: formData.successFeeBaseAmount || 0,
+                                    successFeeBaseHourlyRate: 0,
+                                    successFeeBaseHourlyDescription: "",
+                                  })
+                                }}
+                                className="w-4 h-4"
+                              />
+                              <div className="flex-1">
+                                <div className="font-medium">Fixed Amount</div>
+                                <div className="text-sm text-gray-600">Charge a fixed base fee</div>
+                              </div>
+                            </label>
+                            
+                            <label className="flex items-center space-x-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                              <input
+                                type="radio"
+                                name="successFeeBaseType"
+                                value="HOURLY_RATE"
+                                checked={formData.successFeeBaseType === "HOURLY_RATE"}
+                                onChange={(e) => {
+                                  setFormData({ 
+                                    ...formData, 
+                                    successFeeBaseType: e.target.value,
+                                    successFeeBaseAmount: 0,
+                                    successFeeBaseHourlyRate: formData.successFeeBaseHourlyRate || 0,
+                                    successFeeBaseHourlyDescription: formData.successFeeBaseHourlyDescription || "",
+                                  })
+                                }}
+                                className="w-4 h-4"
+                              />
+                              <div className="flex-1">
+                                <div className="font-medium">Hourly Rate</div>
+                                <div className="text-sm text-gray-600">Charge an hourly rate as base fee</div>
+                              </div>
+                            </label>
                           </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="successFeeAmount">Fixed Success Fee ({selectedCurrency.symbol})</Label>
-                            <Input
-                              id="successFeeAmount"
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              value={formData.successFeeAmount}
-                              onChange={(e) => setFormData({ ...formData, successFeeAmount: parseFloat(e.target.value) || 0 })}
-                            />
+                          
+                          {formData.successFeeBaseType === "FIXED_AMOUNT" && (
+                            <div className="space-y-2">
+                              <Label htmlFor="successFeeBaseAmount">Base Fee Amount ({selectedCurrency.symbol}) *</Label>
+                              <Input
+                                id="successFeeBaseAmount"
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={formData.successFeeBaseAmount || 0}
+                                onChange={(e) => setFormData({ ...formData, successFeeBaseAmount: parseFloat(e.target.value) || 0 })}
+                                required
+                              />
+                            </div>
+                          )}
+                          
+                          {formData.successFeeBaseType === "HOURLY_RATE" && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label htmlFor="successFeeBaseHourlyRate">Hourly Rate ({selectedCurrency.symbol}/hr) *</Label>
+                                <Input
+                                  id="successFeeBaseHourlyRate"
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={formData.successFeeBaseHourlyRate || 0}
+                                  onChange={(e) => setFormData({ ...formData, successFeeBaseHourlyRate: parseFloat(e.target.value) || 0 })}
+                                  required
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="successFeeBaseHourlyDescription">Description *</Label>
+                                <Input
+                                  id="successFeeBaseHourlyDescription"
+                                  type="text"
+                                  value={formData.successFeeBaseHourlyDescription || ""}
+                                  onChange={(e) => setFormData({ ...formData, successFeeBaseHourlyDescription: e.target.value })}
+                                  placeholder="e.g., Legal services"
+                                  required
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div className="pt-4 border-t space-y-4">
+                          <Label className="text-base font-semibold">Success Fee Type</Label>
+                          <div className="space-y-3">
+                            <label className="flex items-center space-x-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                              <input
+                                type="radio"
+                                name="successFeeType"
+                                value="PERCENTAGE"
+                                checked={formData.successFeeType === "PERCENTAGE"}
+                                onChange={(e) => {
+                                  setFormData({ 
+                                    ...formData, 
+                                    successFeeType: e.target.value,
+                                    successFeePercent: formData.successFeePercent || 0,
+                                    successFeeAmount: 0,
+                                    successFeeValue: formData.successFeeValue || 0,
+                                  })
+                                }}
+                                className="w-4 h-4"
+                              />
+                              <div className="flex-1">
+                                <div className="font-medium">Percentage</div>
+                                <div className="text-sm text-gray-600">Success fee as a percentage of transaction value</div>
+                              </div>
+                            </label>
+                            
+                            <label className="flex items-center space-x-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                              <input
+                                type="radio"
+                                name="successFeeType"
+                                value="FIXED_AMOUNT"
+                                checked={formData.successFeeType === "FIXED_AMOUNT"}
+                                onChange={(e) => {
+                                  setFormData({ 
+                                    ...formData, 
+                                    successFeeType: e.target.value,
+                                    successFeePercent: 0,
+                                    successFeeAmount: formData.successFeeAmount || 0,
+                                    successFeeValue: 0,
+                                  })
+                                }}
+                                className="w-4 h-4"
+                              />
+                              <div className="flex-1">
+                                <div className="font-medium">Fixed Amount</div>
+                                <div className="text-sm text-gray-600">Success fee as a fixed amount</div>
+                              </div>
+                            </label>
                           </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="successFeeValue">Transaction/Deal Value ({selectedCurrency.symbol})</Label>
-                            <Input
-                              id="successFeeValue"
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              value={formData.successFeeValue}
-                              onChange={(e) => setFormData({ ...formData, successFeeValue: parseFloat(e.target.value) || 0 })}
-                              placeholder="For percentage calculation"
-                            />
-                          </div>
+                          
+                          {formData.successFeeType === "PERCENTAGE" && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label htmlFor="successFeePercent">Success Fee Percentage (%) *</Label>
+                                <Input
+                                  id="successFeePercent"
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  max="100"
+                                  value={formData.successFeePercent || 0}
+                                  onChange={(e) => setFormData({ ...formData, successFeePercent: parseFloat(e.target.value) || 0 })}
+                                  required
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="successFeeValue">Transaction/Deal Value ({selectedCurrency.symbol}) *</Label>
+                                <Input
+                                  id="successFeeValue"
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={formData.successFeeValue || 0}
+                                  onChange={(e) => setFormData({ ...formData, successFeeValue: parseFloat(e.target.value) || 0 })}
+                                  required
+                                />
+                              </div>
+                            </div>
+                          )}
+                          
+                          {formData.successFeeType === "FIXED_AMOUNT" && (
+                            <div className="space-y-2">
+                              <Label htmlFor="successFeeAmount">Fixed Success Fee ({selectedCurrency.symbol}) *</Label>
+                              <Input
+                                id="successFeeAmount"
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={formData.successFeeAmount || 0}
+                                onChange={(e) => setFormData({ ...formData, successFeeAmount: parseFloat(e.target.value) || 0 })}
+                                required
+                              />
+                            </div>
+                          )}
                         </div>
                       </CardContent>
                     </Card>
@@ -1492,11 +1698,11 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                               />
                               <Input
                                 type="number"
-                                step="0.01"
+                                step="0.25"
                                 min="0"
-                                placeholder="Hourly cap"
-                                value={formData.retainerHourlyCap}
-                                onChange={(e) => setFormData({ ...formData, retainerHourlyCap: parseFloat(e.target.value) || 0 })}
+                                placeholder="Hours per month"
+                                value={formData.retainerHoursPerMonth}
+                                onChange={(e) => setFormData({ ...formData, retainerHoursPerMonth: parseFloat(e.target.value) || 0 })}
                               />
                             </div>
                           </div>
@@ -1710,7 +1916,7 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle>Step 4: Configure Line Items</CardTitle>
+                  <CardTitle>Step {wizardSteps.findIndex(s => s.id === "items") + 1}: Configure Line Items</CardTitle>
                   <CardDescription>Add line items for this proposal</CardDescription>
                 </div>
                 <div className="flex gap-2">
@@ -1722,12 +1928,15 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                     <AddExpenseButton
                       clientId={formData.clientId}
                       currency={formData.currency}
-                      onExpenseAdded={(expense) => {
+                      onExpenseAdded={(expense: any) => {
                         const newItem: LineItem = {
                           description: expense.description,
                           amount: expense.amount,
-                          expenseId: expense.id,
+                          // Only set expenseId if it's a real project expense (not a direct/estimated expense)
+                          expenseId: expense.id && !expense.id.startsWith("direct-") ? expense.id : undefined,
                           billingMethod: "FIXED_FEE", // Expenses are typically fixed fee
+                          // Set isEstimated flag for direct expenses
+                          isEstimated: expense.isEstimated || false,
                         }
                         setItems([...items, newItem])
                       }}
@@ -1776,32 +1985,11 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                               value={item.billingMethod || ""}
                               onChange={(e) => {
                                 const newBillingMethod = e.target.value || undefined
-                                // If switching to RECURRING, enable recurring and set defaults
-                                if (newBillingMethod === "RECURRING") {
-                                  const updatedItem = { ...items[index] }
-                                  updatedItem.billingMethod = newBillingMethod
-                                  updatedItem.recurringEnabled = true
-                                  updatedItem.recurringFrequency = updatedItem.recurringFrequency || "MONTHLY_1"
-                                  if (!updatedItem.recurringStartDate) {
-                                    updatedItem.recurringStartDate = new Date().toISOString().split("T")[0]
-                                  }
-                                  const newItems = [...items]
-                                  newItems[index] = updatedItem
-                                  setItems(newItems)
-                                } else {
-                                  // If switching away from RECURRING, clear recurring fields
-                                  const updatedItem = { ...items[index] }
-                                  updatedItem.billingMethod = newBillingMethod
-                                  if (updatedItem.billingMethod !== "RECURRING") {
-                                    updatedItem.recurringEnabled = false
-                                    updatedItem.recurringFrequency = undefined
-                                    updatedItem.recurringCustomMonths = undefined
-                                    updatedItem.recurringStartDate = undefined
-                                  }
-                                  const newItems = [...items]
-                                  newItems[index] = updatedItem
-                                  setItems(newItems)
-                                }
+                                const updatedItem = { ...items[index] }
+                                updatedItem.billingMethod = newBillingMethod
+                                const newItems = [...items]
+                                newItems[index] = updatedItem
+                                setItems(newItems)
                               }}
                             >
                               <option value="">Select method</option>
@@ -1809,7 +1997,6 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                                 <>
                                   <option value="FIXED_FEE">Fixed Fee</option>
                                   <option value="SUCCESS_FEE">Success Fee</option>
-                                  <option value="RECURRING">Recurring</option>
                                   <option value="HOURLY">Hourly</option>
                                   <option value="CAPPED_FEE">Capped Fee</option>
                                 </>
@@ -1826,6 +2013,16 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                             {item.expenseId && (
                               <span className="px-2 py-0.5 rounded text-xs bg-purple-100 text-purple-800">
                                 Expense
+                              </span>
+                            )}
+                            {item.isEstimated && (
+                              <span className="px-2 py-0.5 rounded text-xs bg-yellow-100 text-yellow-800">
+                                Estimated
+                              </span>
+                            )}
+                            {!item.expenseId && !item.isEstimated && item.billingMethod === "FIXED_FEE" && (
+                              <span className="px-2 py-0.5 rounded text-xs bg-blue-100 text-blue-800">
+                                Accurate
                               </span>
                             )}
                           </div>
@@ -1903,6 +2100,68 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                                 Auto-calculated: {item.quantity || 0} hours × {formatCurrency(item.rate || 0)} = {formatCurrency(item.amount || 0)}
                               </p>
                             </div>
+                            
+                            {/* Estimate and Capped Options for Hourly Items */}
+                            <div className="space-y-3 md:col-span-2">
+                              <div className="flex items-center space-x-2">
+                                <input
+                                  type="checkbox"
+                                  id={`isEstimate-${index}`}
+                                  checked={item.isEstimate || false}
+                                  onChange={(e) => updateItem(index, "isEstimate", e.target.checked)}
+                                  className="h-4 w-4 rounded border-gray-300"
+                                />
+                                <Label htmlFor={`isEstimate-${index}`} className="cursor-pointer">
+                                  Mark as Estimate
+                                </Label>
+                              </div>
+                              
+                              <div className="flex items-center space-x-2">
+                                <input
+                                  type="checkbox"
+                                  id={`isCapped-${index}`}
+                                  checked={item.isCapped || false}
+                                  onChange={(e) => {
+                                    updateItem(index, "isCapped", e.target.checked)
+                                    if (!e.target.checked) {
+                                      updateItem(index, "cappedHours", undefined)
+                                      updateItem(index, "cappedAmount", undefined)
+                                    }
+                                  }}
+                                  className="h-4 w-4 rounded border-gray-300"
+                                />
+                                <Label htmlFor={`isCapped-${index}`} className="cursor-pointer">
+                                  Apply Cap
+                                </Label>
+                              </div>
+                              
+                              {item.isCapped && (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pl-6">
+                                  <div className="space-y-2">
+                                    <Label>Capped Hours (Optional)</Label>
+                                    <Input
+                                      type="number"
+                                      step="0.25"
+                                      min="0"
+                                      value={item.cappedHours || ""}
+                                      onChange={(e) => updateItem(index, "cappedHours", parseFloat(e.target.value) || undefined)}
+                                      placeholder="e.g., 100"
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label>Capped Amount ({selectedCurrency.symbol}) (Optional)</Label>
+                                    <Input
+                                      type="number"
+                                      step="0.01"
+                                      min="0"
+                                      value={item.cappedAmount || ""}
+                                      onChange={(e) => updateItem(index, "cappedAmount", parseFloat(e.target.value) || undefined)}
+                                      placeholder="e.g., 10000"
+                                    />
+                                  </div>
+                                </div>
+                              )}
+                            </div>
                           </>
                         ) : (
                           <div className="space-y-2">
@@ -1917,56 +2176,6 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                               placeholder="0.00"
                             />
                           </div>
-                        )}
-
-                        {/* Recurring Configuration - Show when billingMethod is RECURRING (only for MIXED_MODEL) */}
-                        {item.billingMethod === "RECURRING" && formData.type === "MIXED_MODEL" && (
-                          <>
-                            <div className="space-y-2 md:col-span-2 lg:col-span-3">
-                              <div className="p-4 border rounded-lg bg-blue-50 border-blue-200">
-                                <h4 className="font-semibold text-sm mb-3 text-blue-900">Recurring Payment Configuration</h4>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                  <div className="space-y-2">
-                                    <Label>Frequency</Label>
-                                    <Select
-                                      value={item.recurringFrequency || ""}
-                                      onChange={(e) => updateItem(index, "recurringFrequency", e.target.value || undefined)}
-                                    >
-                                      <option value="">Select frequency</option>
-                                      <option value="MONTHLY_1">1 Month</option>
-                                      <option value="MONTHLY_3">3 Months</option>
-                                      <option value="MONTHLY_6">6 Months</option>
-                                      <option value="YEARLY_12">12 Months</option>
-                                      <option value="CUSTOM">Custom</option>
-                                    </Select>
-                                  </div>
-                                  {item.recurringFrequency === "CUSTOM" && (
-                                    <div className="space-y-2">
-                                      <Label>Custom Months</Label>
-                                      <Input
-                                        type="number"
-                                        min="1"
-                                        value={item.recurringCustomMonths || ""}
-                                        onChange={(e) => updateItem(index, "recurringCustomMonths", parseInt(e.target.value) || undefined)}
-                                        placeholder="e.g., 2"
-                                      />
-                                    </div>
-                                  )}
-                                  <div className="space-y-2">
-                                    <Label>Start Date</Label>
-                                    <Input
-                                      type="date"
-                                      value={item.recurringStartDate || ""}
-                                      onChange={(e) => updateItem(index, "recurringStartDate", e.target.value || undefined)}
-                                    />
-                                  </div>
-                                </div>
-                                <p className="text-xs text-gray-600 mt-2">
-                                  This item will generate recurring invoices based on the selected frequency.
-                                </p>
-                              </div>
-                            </div>
-                          </>
                         )}
 
                         {/* Milestone Assignment - Only show when milestones are enabled */}
@@ -2128,7 +2337,7 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                         </span>
                       </p>
                     )}
-                    {proposalPaymentTerm.recurringEnabled && proposalPaymentTerm.recurringFrequency && (
+                    {proposalPaymentTerm.recurringEnabled && proposalPaymentTerm.recurringFrequency && formData.type !== "FIXED_FEE" && (
                       <p>
                         <span className="text-gray-500">Recurring:</span>{" "}
                         <span className="font-medium">{proposalPaymentTerm.recurringFrequency}</span>
