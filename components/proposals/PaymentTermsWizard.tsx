@@ -69,11 +69,16 @@ export function PaymentTermsWizard({
   }
 
   // Detect payment structure from existing proposalLevel
+  // Order matters: check most specific first, recurring last (only if explicitly enabled)
   const detectPaymentStructure = (term: PaymentTerm | null | undefined): PaymentStructure => {
     if (!term) return null
-    if (term.recurringEnabled && term.recurringFrequency) return "RECURRING"
+    // Check installments first (most specific)
     if (term.installmentType && term.installmentCount) return "INSTALLMENTS"
-    if (term.upfrontType && term.upfrontValue !== null) return "UPFRONT_BALANCE"
+    // Check upfront balance
+    if (term.upfrontType && term.upfrontValue !== null && term.upfrontValue !== undefined) return "UPFRONT_BALANCE"
+    // Check recurring only if explicitly enabled (not just truthy)
+    if (term.recurringEnabled === true && term.recurringFrequency) return "RECURRING"
+    // Default to ONE_TIME
     return "ONE_TIME"
   }
 
@@ -86,16 +91,20 @@ export function PaymentTermsWizard({
   // Pre-populate wizard data if editing existing proposal
   // Only reset if proposalLevel changes and we're not currently in the wizard
   const [isCompleting, setIsCompleting] = useState(false)
+  const [lastProposalLevel, setLastProposalLevel] = useState(proposalLevel)
   useEffect(() => {
-    if (proposalLevel && !isCompleting) {
+    // Only update if proposalLevel actually changed (not just a reference change)
+    // and we're not currently completing the wizard
+    if (proposalLevel && !isCompleting && proposalLevel !== lastProposalLevel) {
       setWizardData(proposalLevel)
       const structure = detectPaymentStructure(proposalLevel)
       setPaymentStructure(structure)
       // Don't auto-skip to step 2 - allow user to edit from step 1
       // Start at step 1 so user can change payment structure if needed
       setCurrentStep(1)
+      setLastProposalLevel(proposalLevel)
     }
-  }, [proposalLevel, isCompleting])
+  }, [proposalLevel, isCompleting, lastProposalLevel])
 
   const updateWizardData = (field: keyof PaymentTerm, value: any) => {
     setWizardData(prev => ({ ...prev, [field]: value }))
@@ -238,8 +247,11 @@ export function PaymentTermsWizard({
           recurringStartDate: null,
         }
         onProposalLevelChange(finalData)
-        // Reset flag after a short delay to allow state to update
-        setTimeout(() => setIsCompleting(false), 100)
+        // Reset flag after a delay to allow state to update and prevent useEffect from resetting
+        setTimeout(() => {
+          setIsCompleting(false)
+          setLastProposalLevel(finalData)
+        }, 500)
       } else if (paymentStructure === "RECURRING") {
         // Complete wizard for RECURRING structure
         // Only set recurringEnabled to true if explicitly enabled

@@ -2554,21 +2554,46 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                       const itemAmount = item.amount || 0
                       const itemDiscount = item.discountAmount || (item.discountPercent && itemAmount ? (itemAmount * item.discountPercent / 100) : 0) || 0
                       const finalAmount = itemAmount - itemDiscount
+                      const isHourly = formData.type === "HOURLY" || item.billingMethod === "HOURLY"
                       return (
                         <div key={index} className="text-sm p-2 border rounded">
-                          <span className="font-medium">{item.description || `Item ${index + 1}`}</span>
-                          <div className="ml-2 text-gray-500">
-                            {itemDiscount > 0 ? (
-                              <>
-                                <span className="line-through">{selectedCurrency.symbol}{itemAmount.toFixed(2)}</span>
-                                <span className="ml-2">- {selectedCurrency.symbol}{finalAmount.toFixed(2)}</span>
-                                <span className="ml-2 text-green-600">
-                                  ({item.discountPercent ? `${item.discountPercent}%` : `${selectedCurrency.symbol}${item.discountAmount?.toFixed(2)}`} discount)
-                                </span>
-                              </>
-                            ) : (
-                              <span>- {selectedCurrency.symbol}{itemAmount.toFixed(2)}</span>
-                            )}
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <span className="font-medium">{item.description || `Item ${index + 1}`}</span>
+                              {/* Show estimate and capped info for hourly items */}
+                              {isHourly && (item.isEstimate || item.isCapped) && (
+                                <div className="mt-1 space-y-1">
+                                  {item.isEstimate && (
+                                    <div className="text-xs text-yellow-700 bg-yellow-50 px-2 py-1 rounded inline-block">
+                                      Estimated: {item.quantity || 0} hours at {selectedCurrency.symbol}{item.rate?.toFixed(2) || "0.00"}/hr = {selectedCurrency.symbol}{itemAmount.toFixed(2)}
+                                    </div>
+                                  )}
+                                  {item.isCapped && item.cappedHours && (
+                                    <div className="text-xs text-blue-700 bg-blue-50 px-2 py-1 rounded inline-block ml-2">
+                                      Capped at {item.cappedHours} hours at {selectedCurrency.symbol}{item.rate?.toFixed(2) || "0.00"}/hr = {selectedCurrency.symbol}{(item.cappedHours * (item.rate || 0)).toFixed(2)}
+                                    </div>
+                                  )}
+                                  {item.isCapped && item.cappedAmount && (
+                                    <div className="text-xs text-blue-700 bg-blue-50 px-2 py-1 rounded inline-block ml-2">
+                                      Capped at {selectedCurrency.symbol}{item.cappedAmount.toFixed(2)}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                            <div className="ml-2 text-gray-500">
+                              {itemDiscount > 0 ? (
+                                <>
+                                  <span className="line-through">{selectedCurrency.symbol}{itemAmount.toFixed(2)}</span>
+                                  <span className="ml-2">- {selectedCurrency.symbol}{finalAmount.toFixed(2)}</span>
+                                  <span className="ml-2 text-green-600">
+                                    ({item.discountPercent ? `${item.discountPercent}%` : `${selectedCurrency.symbol}${item.discountAmount?.toFixed(2)}`} discount)
+                                  </span>
+                                </>
+                              ) : (
+                                <span>- {selectedCurrency.symbol}{itemAmount.toFixed(2)}</span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       )

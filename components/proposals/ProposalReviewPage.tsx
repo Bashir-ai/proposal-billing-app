@@ -44,6 +44,11 @@ interface ProposalReviewPageProps {
       quantity: number | null
       rate: number | null
       amount: number
+      isEstimate?: boolean | null
+      isCapped?: boolean | null
+      cappedHours?: number | null
+      cappedAmount?: number | null
+      billingMethod?: string | null
     }>
     milestones: Array<{
       id: string
@@ -251,22 +256,49 @@ export function ProposalReviewPage({ proposal, token }: ProposalReviewPageProps)
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
-                      {proposal.items.map((item) => (
-                        <tr key={item.id}>
-                          <td className="px-4 py-3 text-sm text-gray-900">{item.description}</td>
-                          {proposal.items.some(i => i.quantity) && (
-                            <td className="px-4 py-3 text-sm text-right text-gray-600">{item.quantity || "-"}</td>
-                          )}
-                          {proposal.items.some(i => i.rate) && (
-                            <td className="px-4 py-3 text-sm text-right text-gray-600">
-                              {item.rate ? `${proposal.currencySymbol}${item.rate.toFixed(2)}` : "-"}
+                      {proposal.items.map((item) => {
+                        const isHourly = item.billingMethod === "HOURLY" || (item.quantity && item.rate)
+                        return (
+                          <tr key={item.id}>
+                            <td className="px-4 py-3 text-sm text-gray-900">
+                              <div>
+                                <div>{item.description}</div>
+                                {/* Show estimate and capped info for hourly items */}
+                                {isHourly && (item.isEstimate || item.isCapped) && (
+                                  <div className="mt-1 space-y-1">
+                                    {item.isEstimate && (
+                                      <div className="text-xs text-yellow-700 bg-yellow-50 px-2 py-1 rounded inline-block">
+                                        Estimated: {item.quantity || 0} hours at {proposal.currencySymbol}{item.rate?.toFixed(2) || "0.00"}/hr = {formatCurrency(item.amount, proposal.currency)}
+                                      </div>
+                                    )}
+                                    {item.isCapped && item.cappedHours && item.rate && (
+                                      <div className="text-xs text-blue-700 bg-blue-50 px-2 py-1 rounded inline-block ml-2">
+                                        Capped at {item.cappedHours} hours at {proposal.currencySymbol}{item.rate.toFixed(2)}/hr = {formatCurrency(item.cappedHours * item.rate, proposal.currency)}
+                                      </div>
+                                    )}
+                                    {item.isCapped && item.cappedAmount && (
+                                      <div className="text-xs text-blue-700 bg-blue-50 px-2 py-1 rounded inline-block ml-2">
+                                        Capped at {formatCurrency(item.cappedAmount, proposal.currency)}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
                             </td>
-                          )}
-                          <td className="px-4 py-3 text-sm text-right font-medium text-gray-900">
-                            {formatCurrency(item.amount, proposal.currency)}
-                          </td>
-                        </tr>
-                      ))}
+                            {proposal.items.some(i => i.quantity) && (
+                              <td className="px-4 py-3 text-sm text-right text-gray-600">{item.quantity || "-"}</td>
+                            )}
+                            {proposal.items.some(i => i.rate) && (
+                              <td className="px-4 py-3 text-sm text-right text-gray-600">
+                                {item.rate ? `${proposal.currencySymbol}${item.rate.toFixed(2)}` : "-"}
+                              </td>
+                            )}
+                            <td className="px-4 py-3 text-sm text-right font-medium text-gray-900">
+                              {formatCurrency(item.amount, proposal.currency)}
+                            </td>
+                          </tr>
+                        )
+                      })}
                     </tbody>
                     {proposal.amount && (
                       <tfoot className="bg-gray-50">
@@ -416,8 +448,8 @@ export function ProposalReviewPage({ proposal, token }: ProposalReviewPageProps)
                       </div>
                     )}
 
-                    {/* Recurring Payment */}
-                    {recurringEnabled && recurringFrequency && (
+                    {/* Recurring Payment - only show if explicitly enabled */}
+                    {recurringEnabled === true && recurringFrequency && (
                       <div>
                         <p className="text-sm font-medium text-gray-700 mb-1">Recurring Payment:</p>
                         <p className="text-sm text-gray-900">
@@ -436,7 +468,7 @@ export function ProposalReviewPage({ proposal, token }: ProposalReviewPageProps)
                     )}
 
                     {/* Default: One-time payment if nothing else is set */}
-                    {!upfrontType && !installmentType && !recurringEnabled && (
+                    {!upfrontType && !installmentType && (recurringEnabled === false || recurringEnabled === null || recurringEnabled === undefined) && (
                       <div>
                         <p className="text-sm font-medium text-gray-700 mb-1">Payment Terms:</p>
                         <p className="text-sm text-gray-900">
