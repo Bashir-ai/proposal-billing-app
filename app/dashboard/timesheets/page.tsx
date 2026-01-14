@@ -4,8 +4,13 @@ import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { Button } from "@/components/ui/button"
+import { Plus, Clock, DollarSign } from "lucide-react"
 import { TimesheetTimeline } from "@/components/timesheets/TimesheetTimeline"
 import { TimesheetTimelineFilters, type TimesheetTimelineFilters as TimesheetTimelineFiltersType } from "@/components/timesheets/TimesheetTimelineFilters"
+import { TimesheetList } from "@/components/timesheets/TimesheetList"
+import { CreateTimesheetEntryForm } from "@/components/timesheets/CreateTimesheetEntryForm"
+import { CreateChargeForm } from "@/components/timesheets/CreateChargeForm"
 import { LoadingState } from "@/components/shared/LoadingState"
 
 interface Project {
@@ -23,15 +28,19 @@ interface User {
   id: string
   name: string
   email: string
+  defaultHourlyRate?: number | null
 }
 
 export default function TimesheetsPage() {
   const { data: session } = useSession()
-  const [activeTab, setActiveTab] = useState("timeline")
+  const [activeTab, setActiveTab] = useState("list")
   const [projects, setProjects] = useState<Project[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
+  const [showCreateTimesheet, setShowCreateTimesheet] = useState(false)
+  const [showCreateCharge, setShowCreateCharge] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
   const [timelineFilters, setTimelineFilters] = useState<TimesheetTimelineFiltersType>({
     userId: session?.user.role === "STAFF" ? session.user.id : undefined,
   })
@@ -66,7 +75,16 @@ export default function TimesheetsPage() {
       }
       if (usersRes.ok) {
         const data = await usersRes.json()
-        setUsers(data.filter((u: any) => u.role !== "CLIENT"))
+        setUsers(
+          data
+            .filter((u: any) => u.role !== "CLIENT")
+            .map((u: any) => ({
+              id: u.id,
+              name: u.name,
+              email: u.email,
+              defaultHourlyRate: u.defaultHourlyRate,
+            }))
+        )
       }
     } catch (error) {
       console.error("Failed to fetch data:", error)
@@ -92,8 +110,38 @@ export default function TimesheetsPage() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="mb-6">
+          <TabsTrigger value="list">List</TabsTrigger>
           <TabsTrigger value="timeline">Timeline</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="list">
+          <div className="mb-4 flex items-center justify-between">
+            <div className="flex gap-2">
+              <Button onClick={() => setShowCreateTimesheet(true)}>
+                <Clock className="h-4 w-4 mr-2" />
+                Create Timesheet Entry
+              </Button>
+              <Button onClick={() => setShowCreateCharge(true)} variant="outline">
+                <DollarSign className="h-4 w-4 mr-2" />
+                Create Charge
+              </Button>
+            </div>
+          </div>
+          <TimesheetTimelineFilters
+            users={users}
+            projects={projects}
+            clients={clients}
+            onFilterChange={setTimelineFilters}
+            currentUserId={session.user.id}
+            userRole={session.user.role}
+          />
+          <TimesheetList
+            key={refreshKey}
+            initialFilters={timelineFilters}
+            currentUserId={session.user.id}
+            userRole={session.user.role}
+          />
+        </TabsContent>
 
         <TabsContent value="timeline">
           <TimesheetTimelineFilters
@@ -105,12 +153,34 @@ export default function TimesheetsPage() {
             userRole={session.user.role}
           />
           <TimesheetTimeline
+            key={refreshKey}
             initialFilters={timelineFilters}
             currentUserId={session.user.id}
             userRole={session.user.role}
           />
         </TabsContent>
       </Tabs>
+
+      <CreateTimesheetEntryForm
+        projects={projects}
+        users={users}
+        isOpen={showCreateTimesheet}
+        onClose={() => setShowCreateTimesheet(false)}
+        onSuccess={() => {
+          setRefreshKey((prev) => prev + 1)
+          setShowCreateTimesheet(false)
+        }}
+      />
+
+      <CreateChargeForm
+        projects={projects}
+        isOpen={showCreateCharge}
+        onClose={() => setShowCreateCharge(false)}
+        onSuccess={() => {
+          setRefreshKey((prev) => prev + 1)
+          setShowCreateCharge(false)
+        }}
+      />
     </div>
   )
 }
