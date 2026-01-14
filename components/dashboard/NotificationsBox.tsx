@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { AlertCircle, RefreshCw } from "lucide-react"
+import { AlertCircle, RefreshCw, Check } from "lucide-react"
 import Link from "next/link"
 import { formatDate, cn } from "@/lib/utils"
 import { ChevronDown, ChevronUp } from "lucide-react"
@@ -34,6 +34,7 @@ export function NotificationsBox({ initialCount, initialNotifications, isCollaps
   const [count, setCount] = useState(initialCount)
   const [isOpen, setIsOpen] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [viewedNotifications, setViewedNotifications] = useState<Set<string>>(new Set())
 
   const refreshNotifications = useCallback(async () => {
     setIsRefreshing(true)
@@ -56,8 +57,7 @@ export function NotificationsBox({ initialCount, initialNotifications, isCollaps
       if (data && typeof data === "object") {
         if (Array.isArray(data.notifications)) {
           setNotifications(data.notifications)
-        }
-        if (typeof data.count === "number") {
+        } else if (typeof data.count === "number") {
           setCount(data.count)
         }
       }
@@ -100,7 +100,8 @@ export function NotificationsBox({ initialCount, initialNotifications, isCollaps
   const getNotificationLink = (notification: Notification): string => {
     if (notification.type === "proposal_approval" || 
         notification.type === "proposal_pending" || 
-        notification.type === "proposal_pending_client") {
+        notification.type === "proposal_pending_client" ||
+        notification.type === "proposal_pending_client_overdue") {
       return `/dashboard/proposals/${notification.itemId}`
     } else if (notification.type === "invoice_approval" || 
                notification.type === "invoice_pending") {
@@ -123,6 +124,8 @@ export function NotificationsBox({ initialCount, initialNotifications, isCollaps
         return "Invoice pending your approval"
       case "proposal_pending_client":
         return "Proposal pending client approval"
+      case "proposal_pending_client_overdue":
+        return "Proposal pending client approval (over 5 days)"
       case "todo_assignment":
         return "ToDo assigned to you"
       default:
@@ -130,26 +133,43 @@ export function NotificationsBox({ initialCount, initialNotifications, isCollaps
     }
   }
 
+  const handleMarkAsViewed = useCallback((notificationId: string) => {
+    setViewedNotifications(prev => {
+      const newSet = new Set(prev)
+      newSet.add(notificationId)
+      return newSet
+    })
+  }, [])
+
+  const handleMarkAllAsViewed = useCallback(() => {
+    const allIds = new Set(notifications.map(n => n.id))
+    setViewedNotifications(allIds)
+  }, [notifications])
+
+  // Filter out viewed notifications and calculate count
+  const unviewedNotifications = notifications.filter(n => !viewedNotifications.has(n.id))
+  const displayCount = unviewedNotifications.length
+
   return (
     <div className="relative">
       <Button
-        variant={count > 0 ? "default" : "outline"}
+        variant={displayCount > 0 ? "default" : "outline"}
         size={isFloating ? "default" : "sm"}
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
           "relative shadow-lg",
-          count > 0 && "bg-red-600 hover:bg-red-700 text-white animate-pulse",
+          displayCount > 0 && "bg-red-600 hover:bg-red-700 text-white",
           isFloating && "h-12 px-4"
         )}
       >
         <AlertCircle className={cn("h-4 w-4", isFloating && "mr-2")} />
         {(!isCollapsed || isFloating) && "Notifications"}
-        {count > 0 && (
+        {displayCount > 0 && (
           <span className={cn(
             "absolute bg-white text-red-600 text-xs font-bold rounded-full flex items-center justify-center",
             isFloating ? "-top-2 -right-2 h-7 w-7" : isCollapsed ? "-top-1 -right-1 h-5 w-5" : "-top-2 -right-2 h-6 w-6"
           )}>
-            {count > 9 ? "9+" : count}
+            {displayCount > 9 ? "9+" : displayCount}
           </span>
         )}
       </Button>
@@ -166,31 +186,45 @@ export function NotificationsBox({ initialCount, initialNotifications, isCollaps
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="text-lg">Notifications</CardTitle>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={refreshNotifications}
-                disabled={isRefreshing}
-                className="h-8 w-8 p-0"
-              >
-                <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
-              </Button>
+              <div className="flex items-center gap-2">
+                {unviewedNotifications.length > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleMarkAllAsViewed}
+                    className="h-8 px-2 text-xs"
+                  >
+                    Mark all viewed
+                  </Button>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={refreshNotifications}
+                  disabled={isRefreshing}
+                  className="h-8 w-8 p-0"
+                >
+                  <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent className="p-0">
-            {notifications.length === 0 ? (
+            {unviewedNotifications.length === 0 ? (
               <div className="p-4 text-center text-gray-500 text-sm">
                 No pending notifications
               </div>
             ) : (
               <div className="divide-y">
-                {notifications.map((notification) => (
+                {unviewedNotifications.map((notification) => (
                   <NotificationItem
                     key={notification.id}
                     notification={notification}
                     getNotificationLabel={getNotificationLabel}
                     getNotificationLink={getNotificationLink}
                     onClose={() => setIsOpen(false)}
+                    onMarkAsViewed={() => handleMarkAsViewed(notification.id)}
+                    isViewed={viewedNotifications.has(notification.id)}
                   />
                 ))}
               </div>
@@ -207,22 +241,34 @@ function NotificationItem({
   getNotificationLabel,
   getNotificationLink,
   onClose,
+  onMarkAsViewed,
+  isViewed,
 }: {
   notification: Notification
   getNotificationLabel: (notification: Notification) => string
   getNotificationLink: (notification: Notification) => string
   onClose: () => void
+  onMarkAsViewed?: () => void
+  isViewed?: boolean
 }) {
   const [isExpanded, setIsExpanded] = useState(false)
   const link = getNotificationLink(notification)
 
+  const handleMarkAsViewed = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    onMarkAsViewed?.()
+  }
+
   return (
-    <div className="block">
+    <div className={cn("block", isViewed && "opacity-60")}>
       <div
         onClick={() => setIsExpanded(!isExpanded)}
-        className="p-4 hover:bg-gray-50 transition-colors cursor-pointer"
+        className={cn(
+          "p-4 hover:bg-gray-50 transition-colors cursor-pointer",
+          isViewed && "bg-gray-50"
+        )}
       >
-        <div className="flex items-start justify-between">
+        <div className="flex items-start justify-between gap-2">
           <div className="flex-1">
             <div className="flex items-center gap-2">
               <p className="text-sm font-medium text-gray-900">
@@ -266,6 +312,17 @@ function NotificationItem({
               </p>
             )}
           </div>
+          {onMarkAsViewed && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleMarkAsViewed}
+              className="h-7 w-7 p-0 flex-shrink-0"
+              title="Mark as viewed"
+            >
+              <Check className="h-4 w-4 text-gray-500" />
+            </Button>
+          )}
         </div>
       </div>
       {link !== "#" && (

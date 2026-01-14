@@ -523,6 +523,7 @@ export async function POST(
       where: { id },
       data: {
         clientApprovalEmailSent: true,
+        clientApprovalEmailSentAt: new Date(), // Track when email was sent
         clientApprovalEmailSentBy: session.user.id, // Track who sent the email
         // Token and expiry already saved above before sending email
       },

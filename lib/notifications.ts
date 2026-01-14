@@ -157,20 +157,31 @@ export async function getNotifications(userId: string, userRole: string): Promis
 
     // 3. Proposals pending client approval (for Admins/Managers to override)
     if (userRole === "ADMIN" || userRole === "MANAGER") {
+      const fiveDaysAgo = new Date()
+      fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5)
+
       const proposalsPendingClientApproval = await prisma.proposal.findMany({
         where: {
           status: "APPROVED", // Internally approved
           clientApprovalStatus: "PENDING",
+          clientApprovalEmailSent: true, // Only show if email was actually sent
+          clientApprovalEmailSentAt: {
+            not: null, // Must have a sent date
+          },
         },
         include: {
           client: { select: { name: true, company: true } },
         },
-        take: 10,
+        take: 20,
       })
 
       proposalsPendingClientApproval.forEach(proposal => {
+        // Check if email was sent more than 5 days ago
+        const isOverdue = proposal.clientApprovalEmailSentAt && 
+                         new Date(proposal.clientApprovalEmailSentAt) < fiveDaysAgo
+
         notifications.push({
-          type: "proposal_pending_client",
+          type: isOverdue ? "proposal_pending_client_overdue" : "proposal_pending_client",
           id: `proposal-client-${proposal.id}`,
           itemId: proposal.id,
           title: proposal.title,

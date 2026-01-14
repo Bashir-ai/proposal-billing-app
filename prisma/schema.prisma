@@ -389,6 +389,7 @@ model Proposal {
   internalApprovalsComplete Boolean              @default(false)
   // Client email approval fields
   clientApprovalEmailSent   Boolean              @default(false)
+  clientApprovalEmailSentAt DateTime? // When the approval email was sent to client
   clientApprovalEmailSentBy String? // User ID who sent the approval email
   clientApprovalToken       String?              @unique // Token for email approval links
   clientApprovalTokenExpiry DateTime? // Token expiry date
