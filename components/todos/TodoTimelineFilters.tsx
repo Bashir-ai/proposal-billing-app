@@ -7,7 +7,7 @@ import { Select } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
-import { X } from "lucide-react"
+import { X, Filter } from "lucide-react"
 import { TodoStatus, TodoPriority } from "@prisma/client"
 
 interface TodoTimelineFiltersProps {
@@ -16,6 +16,7 @@ interface TodoTimelineFiltersProps {
   clients?: Array<{ id: string; name: string; company?: string | null }>
   onFilterChange: (filters: TodoTimelineFilters) => void
   defaultAssignedTo?: string
+  initialFilters?: TodoTimelineFilters
 }
 
 export interface TodoTimelineFilters {
@@ -36,33 +37,41 @@ export function TodoTimelineFilters({
   clients = [],
   onFilterChange,
   defaultAssignedTo = "",
+  initialFilters,
 }: TodoTimelineFiltersProps) {
-  const [filters, setFilters] = useState<TodoTimelineFilters>({
+  const [localFilters, setLocalFilters] = useState<TodoTimelineFilters>(initialFilters || {
     assignedTo: defaultAssignedTo,
     includeCompleted: false,
   })
 
   useEffect(() => {
-    onFilterChange(filters)
-  }, [filters, onFilterChange])
+    if (initialFilters) {
+      setLocalFilters(initialFilters)
+    }
+  }, [initialFilters])
 
   const handleFilterChange = (key: keyof TodoTimelineFilters, value: string | boolean | undefined) => {
     const newFilters = {
-      ...filters,
+      ...localFilters,
       [key]: value === "" ? undefined : value,
     }
-    setFilters(newFilters)
-    onFilterChange(newFilters)
+    setLocalFilters(newFilters)
+  }
+
+  const applyFilters = () => {
+    onFilterChange(localFilters)
   }
 
   const clearFilters = () => {
-    setFilters({
+    const cleared = {
       assignedTo: defaultAssignedTo,
       includeCompleted: false,
-    })
+    }
+    setLocalFilters(cleared)
+    onFilterChange(cleared)
   }
 
-  const hasActiveFilters = Object.entries(filters).some(([key, value]) => {
+  const hasActiveFilters = Object.entries(localFilters).some(([key, value]) => {
     if (key === "includeCompleted") return value === true
     if (key === "assignedTo") return value !== defaultAssignedTo && value !== ""
     return value !== undefined && value !== ""
@@ -73,24 +82,35 @@ export function TodoTimelineFilters({
       <CardContent className="p-4">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-semibold">Timeline Filters</h3>
-          {hasActiveFilters && (
+          <div className="flex items-center gap-2">
             <Button
-              variant="outline"
+              variant="default"
               size="sm"
-              onClick={clearFilters}
+              onClick={applyFilters}
               className="text-xs h-7"
             >
-              <X className="h-3 w-3 mr-1" />
-              Clear
+              <Filter className="h-3 w-3 mr-1" />
+              Apply
             </Button>
-          )}
+            {hasActiveFilters && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={clearFilters}
+                className="text-xs h-7"
+              >
+                <X className="h-3 w-3 mr-1" />
+                Clear
+              </Button>
+            )}
+          </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
           <div className="space-y-1">
             <Label htmlFor="timeline-assigned" className="text-xs">Assigned To</Label>
             <Select
               id="timeline-assigned"
-              value={filters.assignedTo || ""}
+              value={localFilters.assignedTo || ""}
               onChange={(e) => handleFilterChange("assignedTo", e.target.value)}
             >
               <option value="">All Users</option>
@@ -106,7 +126,7 @@ export function TodoTimelineFilters({
             <Label htmlFor="timeline-created" className="text-xs">Created By</Label>
             <Select
               id="timeline-created"
-              value={filters.createdBy || ""}
+              value={localFilters.createdBy || ""}
               onChange={(e) => handleFilterChange("createdBy", e.target.value)}
             >
               <option value="">All Creators</option>
@@ -122,7 +142,7 @@ export function TodoTimelineFilters({
             <Label htmlFor="timeline-project" className="text-xs">Project</Label>
             <Select
               id="timeline-project"
-              value={filters.projectId || ""}
+              value={localFilters.projectId || ""}
               onChange={(e) => handleFilterChange("projectId", e.target.value)}
             >
               <option value="">All Projects</option>
@@ -139,7 +159,7 @@ export function TodoTimelineFilters({
               <Label htmlFor="timeline-client" className="text-xs">Client</Label>
               <Select
                 id="timeline-client"
-                value={filters.clientId || ""}
+                value={localFilters.clientId || ""}
                 onChange={(e) => handleFilterChange("clientId", e.target.value)}
               >
                 <option value="">All Clients</option>
@@ -156,7 +176,7 @@ export function TodoTimelineFilters({
             <Label htmlFor="timeline-status" className="text-xs">Status</Label>
             <Select
               id="timeline-status"
-              value={filters.status || ""}
+              value={localFilters.status || ""}
               onChange={(e) => handleFilterChange("status", e.target.value)}
             >
               <option value="">All Statuses</option>
@@ -171,7 +191,7 @@ export function TodoTimelineFilters({
             <Label htmlFor="timeline-priority" className="text-xs">Priority</Label>
             <Select
               id="timeline-priority"
-              value={filters.priority || ""}
+              value={localFilters.priority || ""}
               onChange={(e) => handleFilterChange("priority", e.target.value)}
             >
               <option value="">All Priorities</option>
@@ -186,7 +206,7 @@ export function TodoTimelineFilters({
             <Input
               id="timeline-start-date"
               type="date"
-              value={filters.startDate || ""}
+              value={localFilters.startDate || ""}
               onChange={(e) => handleFilterChange("startDate", e.target.value)}
             />
           </div>
@@ -196,7 +216,7 @@ export function TodoTimelineFilters({
             <Input
               id="timeline-end-date"
               type="date"
-              value={filters.endDate || ""}
+              value={localFilters.endDate || ""}
               onChange={(e) => handleFilterChange("endDate", e.target.value)}
             />
           </div>
@@ -204,7 +224,7 @@ export function TodoTimelineFilters({
           <div className="flex items-center space-x-2 pt-6">
             <Checkbox
               id="timeline-include-completed"
-              checked={filters.includeCompleted || false}
+              checked={localFilters.includeCompleted || false}
               onCheckedChange={(checked) => handleFilterChange("includeCompleted", checked as boolean)}
             />
             <Label htmlFor="timeline-include-completed" className="text-xs cursor-pointer">

@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label"
 import { Select } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { X } from "lucide-react"
+import { X, Filter } from "lucide-react"
 
 interface TimesheetTimelineFiltersProps {
   users: Array<{ id: string; name: string }>
@@ -15,6 +15,7 @@ interface TimesheetTimelineFiltersProps {
   onFilterChange: (filters: TimesheetTimelineFilters) => void
   currentUserId: string
   userRole: string
+  initialFilters?: TimesheetTimelineFilters
 }
 
 export interface TimesheetTimelineFilters {
@@ -34,31 +35,39 @@ export function TimesheetTimelineFilters({
   onFilterChange,
   currentUserId,
   userRole,
+  initialFilters,
 }: TimesheetTimelineFiltersProps) {
-  const [filters, setFilters] = useState<TimesheetTimelineFilters>({
+  const [localFilters, setLocalFilters] = useState<TimesheetTimelineFilters>(initialFilters || {
     userId: userRole === "STAFF" ? currentUserId : undefined,
   })
 
   useEffect(() => {
-    onFilterChange(filters)
-  }, [filters, onFilterChange])
+    if (initialFilters) {
+      setLocalFilters(initialFilters)
+    }
+  }, [initialFilters])
 
   const handleFilterChange = (key: keyof TimesheetTimelineFilters, value: string | undefined) => {
     const newFilters = {
-      ...filters,
+      ...localFilters,
       [key]: value === "" ? undefined : value,
     }
-    setFilters(newFilters)
-    onFilterChange(newFilters)
+    setLocalFilters(newFilters)
+  }
+
+  const applyFilters = () => {
+    onFilterChange(localFilters)
   }
 
   const clearFilters = () => {
-    setFilters({
+    const cleared = {
       userId: userRole === "STAFF" ? currentUserId : undefined,
-    })
+    }
+    setLocalFilters(cleared)
+    onFilterChange(cleared)
   }
 
-  const hasActiveFilters = Object.entries(filters).some(([key, value]) => {
+  const hasActiveFilters = Object.entries(localFilters).some(([key, value]) => {
     if (key === "userId") {
       const defaultUserId = userRole === "STAFF" ? currentUserId : undefined
       return value !== defaultUserId && value !== undefined
@@ -71,17 +80,28 @@ export function TimesheetTimelineFilters({
       <CardContent className="p-4">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-semibold">Timeline Filters</h3>
-          {hasActiveFilters && (
+          <div className="flex items-center gap-2">
             <Button
-              variant="outline"
+              variant="default"
               size="sm"
-              onClick={clearFilters}
+              onClick={applyFilters}
               className="text-xs h-7"
             >
-              <X className="h-3 w-3 mr-1" />
-              Clear
+              <Filter className="h-3 w-3 mr-1" />
+              Apply
             </Button>
-          )}
+            {hasActiveFilters && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={clearFilters}
+                className="text-xs h-7"
+              >
+                <X className="h-3 w-3 mr-1" />
+                Clear
+              </Button>
+            )}
+          </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
           {(userRole === "ADMIN" || userRole === "MANAGER") && (
@@ -89,7 +109,7 @@ export function TimesheetTimelineFilters({
               <Label htmlFor="timeline-user" className="text-xs">User</Label>
               <Select
                 id="timeline-user"
-                value={filters.userId || ""}
+                value={localFilters.userId || ""}
                 onChange={(e) => handleFilterChange("userId", e.target.value)}
               >
                 <option value="">All Users</option>
@@ -107,7 +127,7 @@ export function TimesheetTimelineFilters({
               <Label htmlFor="timeline-client" className="text-xs">Client</Label>
               <Select
                 id="timeline-client"
-                value={filters.clientId || ""}
+                value={localFilters.clientId || ""}
                 onChange={(e) => handleFilterChange("clientId", e.target.value)}
               >
                 <option value="">All Clients</option>
@@ -125,7 +145,7 @@ export function TimesheetTimelineFilters({
               <Label htmlFor="timeline-project" className="text-xs">Project</Label>
               <Select
                 id="timeline-project"
-                value={filters.projectId || ""}
+                value={localFilters.projectId || ""}
                 onChange={(e) => handleFilterChange("projectId", e.target.value)}
               >
                 <option value="">All Projects</option>
@@ -142,7 +162,7 @@ export function TimesheetTimelineFilters({
             <Label htmlFor="timeline-billed" className="text-xs">Billed Status</Label>
             <Select
               id="timeline-billed"
-              value={filters.billed || ""}
+              value={localFilters.billed || ""}
               onChange={(e) => handleFilterChange("billed", e.target.value)}
             >
               <option value="">All</option>
@@ -155,7 +175,7 @@ export function TimesheetTimelineFilters({
             <Label htmlFor="timeline-type" className="text-xs">Type</Label>
             <Select
               id="timeline-type"
-              value={filters.type || ""}
+              value={localFilters.type || ""}
               onChange={(e) => handleFilterChange("type", e.target.value)}
             >
               <option value="">Both</option>
@@ -169,7 +189,7 @@ export function TimesheetTimelineFilters({
             <Input
               id="timeline-start-date"
               type="date"
-              value={filters.startDate || ""}
+              value={localFilters.startDate || ""}
               onChange={(e) => handleFilterChange("startDate", e.target.value)}
             />
           </div>
@@ -179,7 +199,7 @@ export function TimesheetTimelineFilters({
             <Input
               id="timeline-end-date"
               type="date"
-              value={filters.endDate || ""}
+              value={localFilters.endDate || ""}
               onChange={(e) => handleFilterChange("endDate", e.target.value)}
             />
           </div>

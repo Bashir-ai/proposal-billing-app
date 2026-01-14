@@ -134,6 +134,7 @@ export default function TimesheetsPage() {
             onFilterChange={setTimelineFilters}
             currentUserId={session.user.id}
             userRole={session.user.role}
+            initialFilters={timelineFilters}
           />
           <TimesheetList
             key={refreshKey}
@@ -151,6 +152,7 @@ export default function TimesheetsPage() {
             onFilterChange={setTimelineFilters}
             currentUserId={session.user.id}
             userRole={session.user.role}
+            initialFilters={timelineFilters}
           />
           <TimesheetTimeline
             key={refreshKey}

@@ -193,6 +193,7 @@ export function TodoKanban({ initialFilters, currentUserId, users, defaultAssign
         onFilterChange={setFilters}
         currentUserId={currentUserId}
         defaultAssignedTo={defaultAssignedTo}
+        initialFilters={filters}
       />
       <div className="overflow-x-auto">
         <div className="flex gap-4 min-w-max pb-4">

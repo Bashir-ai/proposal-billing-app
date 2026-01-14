@@ -79,6 +79,12 @@ export function TimesheetTimeline({ initialFilters, currentUserId, userRole }: T
   const [currentDate, setCurrentDate] = useState(new Date())
   const [filters, setFilters] = useState(initialFilters || {})
 
+  useEffect(() => {
+    if (initialFilters) {
+      setFilters(initialFilters)
+    }
+  }, [initialFilters])
+
   // Calculate date range based on view mode
   const { startDate, endDate, dateHeaders } = useMemo(() => {
     const start = new Date(currentDate)
@@ -129,7 +135,9 @@ export function TimesheetTimeline({ initialFilters, currentUserId, userRole }: T
   }, [currentDate, viewMode])
 
   useEffect(() => {
-    fetchData()
+    if (filters) {
+      fetchData()
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters, startDate, endDate])
 

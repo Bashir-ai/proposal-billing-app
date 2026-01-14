@@ -187,6 +187,7 @@ export default function TodosPage() {
             users={users}
             onFilterChange={setFilters}
             defaultAssignedTo={defaultAssignedTo}
+            initialFilters={filters}
           />
           <TodoList
             currentUserId={session.user.id}
@@ -202,6 +203,7 @@ export default function TodosPage() {
             clients={clients}
             onFilterChange={setTimelineFilters}
             defaultAssignedTo={defaultAssignedTo}
+            initialFilters={timelineFilters}
           />
           <TodoTimeline
             initialFilters={timelineFilters}

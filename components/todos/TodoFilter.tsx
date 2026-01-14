@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Select } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
-import { X } from "lucide-react"
+import { X, Filter } from "lucide-react"
 
 interface TodoFilterProps {
   projects: Array<{ id: string; name: string }>
@@ -14,6 +14,7 @@ interface TodoFilterProps {
   users: Array<{ id: string; name: string }>
   onFilterChange: (filters: TodoFilters) => void
   defaultAssignedTo?: string
+  initialFilters?: TodoFilters
 }
 
 export interface TodoFilters {
@@ -36,8 +37,9 @@ export function TodoFilter({
   users,
   onFilterChange,
   defaultAssignedTo = "",
+  initialFilters,
 }: TodoFilterProps) {
-  const [filters, setFilters] = useState<TodoFilters>({
+  const [localFilters, setLocalFilters] = useState<TodoFilters>(initialFilters || {
     projectId: "",
     proposalId: "",
     invoiceId: "",
@@ -51,20 +53,25 @@ export function TodoFilter({
   })
 
   useEffect(() => {
-    onFilterChange(filters)
-  }, [filters, onFilterChange])
+    if (initialFilters) {
+      setLocalFilters(initialFilters)
+    }
+  }, [initialFilters])
 
   const handleFilterChange = (key: keyof TodoFilters, value: string | boolean) => {
     const newFilters = {
-      ...filters,
+      ...localFilters,
       [key]: typeof value === "boolean" ? value : value,
     }
-    setFilters(newFilters)
-    onFilterChange(newFilters)
+    setLocalFilters(newFilters)
+  }
+
+  const applyFilters = () => {
+    onFilterChange(localFilters)
   }
 
   const clearFilters = () => {
-    setFilters({
+    const cleared = {
       projectId: "",
       proposalId: "",
       invoiceId: "",
@@ -75,10 +82,12 @@ export function TodoFilter({
       read: "",
       hidePersonal: false,
       deadlineFilter: "",
-    })
+    }
+    setLocalFilters(cleared)
+    onFilterChange(cleared)
   }
 
-  const hasActiveFilters = Object.entries(filters).some(([key, value]) => {
+  const hasActiveFilters = Object.entries(localFilters).some(([key, value]) => {
     if (key === "hidePersonal") return value === true
     return value !== ""
   })
@@ -88,24 +97,35 @@ export function TodoFilter({
       <CardContent className="p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold">Filters</h2>
-          {hasActiveFilters && (
+          <div className="flex items-center gap-2">
             <Button
-              variant="outline"
+              variant="default"
               size="sm"
-              onClick={clearFilters}
+              onClick={applyFilters}
               className="text-sm"
             >
-              <X className="h-4 w-4 mr-1" />
-              Clear Filters
+              <Filter className="h-4 w-4 mr-1" />
+              Apply
             </Button>
-          )}
+            {hasActiveFilters && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={clearFilters}
+                className="text-sm"
+              >
+                <X className="h-4 w-4 mr-1" />
+                Clear Filters
+              </Button>
+            )}
+          </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="space-y-2">
             <Label htmlFor="filter-project">Project</Label>
             <Select
               id="filter-project"
-              value={filters.projectId}
+              value={localFilters.projectId}
               onChange={(e) => handleFilterChange("projectId", e.target.value)}
             >
               <option value="">All Projects</option>
@@ -121,7 +141,7 @@ export function TodoFilter({
             <Label htmlFor="filter-proposal">Proposal</Label>
             <Select
               id="filter-proposal"
-              value={filters.proposalId}
+              value={localFilters.proposalId}
               onChange={(e) => handleFilterChange("proposalId", e.target.value)}
             >
               <option value="">All Proposals</option>
@@ -137,7 +157,7 @@ export function TodoFilter({
             <Label htmlFor="filter-invoice">Invoice</Label>
             <Select
               id="filter-invoice"
-              value={filters.invoiceId}
+              value={localFilters.invoiceId}
               onChange={(e) => handleFilterChange("invoiceId", e.target.value)}
             >
               <option value="">All Invoices</option>
@@ -153,7 +173,7 @@ export function TodoFilter({
             <Label htmlFor="filter-assigned">Assigned To</Label>
             <Select
               id="filter-assigned"
-              value={filters.assignedTo}
+              value={localFilters.assignedTo}
               onChange={(e) => handleFilterChange("assignedTo", e.target.value)}
             >
               <option value="">All Users</option>
@@ -169,7 +189,7 @@ export function TodoFilter({
             <Label htmlFor="filter-created">Created By</Label>
             <Select
               id="filter-created"
-              value={filters.createdBy}
+              value={localFilters.createdBy}
               onChange={(e) => handleFilterChange("createdBy", e.target.value)}
             >
               <option value="">All Creators</option>
@@ -185,7 +205,7 @@ export function TodoFilter({
             <Label htmlFor="filter-status">Status</Label>
             <Select
               id="filter-status"
-              value={filters.status}
+              value={localFilters.status}
               onChange={(e) => handleFilterChange("status", e.target.value)}
             >
               <option value="">All Statuses</option>
@@ -200,7 +220,7 @@ export function TodoFilter({
             <Label htmlFor="filter-priority">Priority</Label>
             <Select
               id="filter-priority"
-              value={filters.priority}
+              value={localFilters.priority}
               onChange={(e) => handleFilterChange("priority", e.target.value)}
             >
               <option value="">All Priorities</option>
@@ -214,7 +234,7 @@ export function TodoFilter({
             <Label htmlFor="filter-read">Read Status</Label>
             <Select
               id="filter-read"
-              value={filters.read}
+              value={localFilters.read}
               onChange={(e) => handleFilterChange("read", e.target.value)}
             >
               <option value="">All</option>
@@ -227,7 +247,7 @@ export function TodoFilter({
             <Label htmlFor="filter-deadlineFilter">Deadline Status</Label>
             <Select
               id="filter-deadlineFilter"
-              value={filters.deadlineFilter}
+              value={localFilters.deadlineFilter}
               onChange={(e) => handleFilterChange("deadlineFilter", e.target.value)}
             >
               <option value="">All</option>
@@ -241,7 +261,7 @@ export function TodoFilter({
             <input
               type="checkbox"
               id="filter-hidePersonal"
-              checked={filters.hidePersonal}
+              checked={localFilters.hidePersonal}
               onChange={(e) => handleFilterChange("hidePersonal", e.target.checked)}
               className="h-4 w-4 rounded border-gray-300"
             />

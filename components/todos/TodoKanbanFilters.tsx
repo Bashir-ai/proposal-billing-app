@@ -5,13 +5,14 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Select } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
-import { X } from "lucide-react"
+import { X, Filter } from "lucide-react"
 
 interface TodoKanbanFiltersProps {
   users: Array<{ id: string; name: string }>
   onFilterChange: (filters: TodoKanbanFilters) => void
   currentUserId: string
   defaultAssignedTo?: string
+  initialFilters?: TodoKanbanFilters
 }
 
 export interface TodoKanbanFilters {
@@ -30,16 +31,19 @@ export function TodoKanbanFilters({
   onFilterChange,
   currentUserId,
   defaultAssignedTo = "",
+  initialFilters,
 }: TodoKanbanFiltersProps) {
-  const [filters, setFilters] = useState<TodoKanbanFilters>({
+  const [localFilters, setLocalFilters] = useState<TodoKanbanFilters>(initialFilters || {
     assignedFilter: defaultAssignedTo ? "me" : "everyone",
     assignedTo: defaultAssignedTo,
     includeCompleted: false,
   })
 
   useEffect(() => {
-    onFilterChange(filters)
-  }, [filters, onFilterChange])
+    if (initialFilters) {
+      setLocalFilters(initialFilters)
+    }
+  }, [initialFilters])
 
   const handleAssignedFilterChange = (value: "me" | "others" | "everyone") => {
     let assignedTo: string | undefined
@@ -51,8 +55,8 @@ export function TodoKanbanFilters({
       assignedTo = undefined // Everyone
     }
 
-    setFilters({
-      ...filters,
+    setLocalFilters({
+      ...localFilters,
       assignedFilter: value,
       assignedTo,
     })
@@ -60,10 +64,14 @@ export function TodoKanbanFilters({
 
   const handleFilterChange = (key: keyof TodoKanbanFilters, value: string | boolean | undefined) => {
     const newFilters = {
-      ...filters,
+      ...localFilters,
       [key]: value === "" ? undefined : value,
     }
-    setFilters(newFilters)
+    setLocalFilters(newFilters)
+  }
+
+  const applyFilters = () => {
+    onFilterChange(localFilters)
   }
 
   const clearFilters = () => {
@@ -72,11 +80,11 @@ export function TodoKanbanFilters({
       assignedTo: defaultAssignedTo,
       includeCompleted: false,
     }
-    setFilters(cleared)
+    setLocalFilters(cleared)
     onFilterChange(cleared)
   }
 
-  const hasActiveFilters = Object.entries(filters).some(([key, value]) => {
+  const hasActiveFilters = Object.entries(localFilters).some(([key, value]) => {
     if (key === "includeCompleted") return value === true
     if (key === "assignedFilter") return value !== (defaultAssignedTo ? "me" : "everyone")
     if (key === "assignedTo") return value !== defaultAssignedTo && value !== ""
@@ -88,24 +96,35 @@ export function TodoKanbanFilters({
       <CardContent className="p-4">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-semibold">Kanban Filters</h3>
-          {hasActiveFilters && (
+          <div className="flex items-center gap-2">
             <Button
-              variant="outline"
+              variant="default"
               size="sm"
-              onClick={clearFilters}
+              onClick={applyFilters}
               className="text-xs h-7"
             >
-              <X className="h-3 w-3 mr-1" />
-              Clear
+              <Filter className="h-3 w-3 mr-1" />
+              Apply
             </Button>
-          )}
+            {hasActiveFilters && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={clearFilters}
+                className="text-xs h-7"
+              >
+                <X className="h-3 w-3 mr-1" />
+                Clear
+              </Button>
+            )}
+          </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
           <div className="space-y-1">
             <Label htmlFor="kanban-assigned-filter" className="text-xs">Assigned To</Label>
             <Select
               id="kanban-assigned-filter"
-              value={filters.assignedFilter || "everyone"}
+              value={localFilters.assignedFilter || "everyone"}
               onChange={(e) => handleAssignedFilterChange(e.target.value as "me" | "others" | "everyone")}
             >
               <option value="me">Assigned to Me</option>
@@ -118,7 +137,7 @@ export function TodoKanbanFilters({
             <Label htmlFor="kanban-created" className="text-xs">Created By</Label>
             <Select
               id="kanban-created"
-              value={filters.createdBy || ""}
+              value={localFilters.createdBy || ""}
               onChange={(e) => handleFilterChange("createdBy", e.target.value)}
             >
               <option value="">All Creators</option>
@@ -134,7 +153,7 @@ export function TodoKanbanFilters({
             <Label htmlFor="kanban-priority" className="text-xs">Priority</Label>
             <Select
               id="kanban-priority"
-              value={filters.priority || ""}
+              value={localFilters.priority || ""}
               onChange={(e) => handleFilterChange("priority", e.target.value)}
             >
               <option value="">All Priorities</option>
