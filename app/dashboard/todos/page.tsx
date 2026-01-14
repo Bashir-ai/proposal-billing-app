@@ -9,7 +9,7 @@ import { TodoList } from "@/components/todos/TodoList"
 import { TodoFilter, TodoFilters } from "@/components/todos/TodoFilter"
 import { TodoForm } from "@/components/todos/TodoForm"
 import { TodoTimeline } from "@/components/todos/TodoTimeline"
-import { TodoTimelineFilters } from "@/components/todos/TodoTimelineFilters"
+import { TodoTimelineFilters, type TodoTimelineFilters as TodoTimelineFiltersType } from "@/components/todos/TodoTimelineFilters"
 import { TodoKanban } from "@/components/todos/TodoKanban"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { useRouter } from "next/navigation"
@@ -63,7 +63,7 @@ export default function TodosPage() {
     deadlineFilter: "",
   })
 
-  const [timelineFilters, setTimelineFilters] = useState({
+  const [timelineFilters, setTimelineFilters] = useState<TodoTimelineFiltersType>({
     assignedTo: defaultAssignedTo,
     includeCompleted: false,
   })
