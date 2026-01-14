@@ -1719,7 +1719,7 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                           </div>
                         )}
 
-                        {formData.mixedModelMethods.includes("BLENDED_RATE") && formData.type !== "FIXED_FEE" && (
+                        {formData.type === "MIXED_MODEL" && formData.mixedModelMethods.includes("BLENDED_RATE") && (
                           <div className="space-y-2 p-4 border rounded">
                             <Label className="font-semibold">Blended Rate Configuration</Label>
                             <Input
