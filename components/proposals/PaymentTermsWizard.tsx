@@ -84,8 +84,10 @@ export function PaymentTermsWizard({
   const [oneTimeInitialized, setOneTimeInitialized] = useState(false)
 
   // Pre-populate wizard data if editing existing proposal
+  // Only reset if proposalLevel changes and we're not currently in the wizard
+  const [isCompleting, setIsCompleting] = useState(false)
   useEffect(() => {
-    if (proposalLevel) {
+    if (proposalLevel && !isCompleting) {
       setWizardData(proposalLevel)
       const structure = detectPaymentStructure(proposalLevel)
       setPaymentStructure(structure)
@@ -93,7 +95,7 @@ export function PaymentTermsWizard({
       // Start at step 1 so user can change payment structure if needed
       setCurrentStep(1)
     }
-  }, [proposalLevel])
+  }, [proposalLevel, isCompleting])
 
   const updateWizardData = (field: keyof PaymentTerm, value: any) => {
     setWizardData(prev => ({ ...prev, [field]: value }))
@@ -228,6 +230,7 @@ export function PaymentTermsWizard({
       } else if (paymentStructure === "ONE_TIME") {
         // Complete wizard for one-time payment
         // Ensure recurringEnabled is explicitly false for ONE_TIME
+        setIsCompleting(true)
         const finalData = {
           ...wizardData,
           recurringEnabled: false,
@@ -235,17 +238,22 @@ export function PaymentTermsWizard({
           recurringStartDate: null,
         }
         onProposalLevelChange(finalData)
+        // Reset flag after a short delay to allow state to update
+        setTimeout(() => setIsCompleting(false), 100)
       } else if (paymentStructure === "RECURRING") {
         // Complete wizard for RECURRING structure
         // Only set recurringEnabled to true if explicitly enabled
+        setIsCompleting(true)
         const finalData = {
           ...wizardData,
           recurringEnabled: wizardData.recurringEnabled === true ? true : false,
         }
         onProposalLevelChange(finalData)
+        setTimeout(() => setIsCompleting(false), 100)
       } else {
         // Complete wizard for other structures (INSTALLMENTS)
         // Ensure recurringEnabled is explicitly false
+        setIsCompleting(true)
         const finalData = {
           ...wizardData,
           recurringEnabled: false,
@@ -253,10 +261,12 @@ export function PaymentTermsWizard({
           recurringStartDate: null,
         }
         onProposalLevelChange(finalData)
+        setTimeout(() => setIsCompleting(false), 100)
       }
     } else if (currentStep === 3) {
       // Final step for UPFRONT_BALANCE
       // Ensure recurringEnabled is explicitly false for UPFRONT_BALANCE
+      setIsCompleting(true)
       const finalData = {
         ...wizardData,
         recurringEnabled: false,
@@ -264,6 +274,7 @@ export function PaymentTermsWizard({
         recurringStartDate: null,
       }
       onProposalLevelChange(finalData)
+      setTimeout(() => setIsCompleting(false), 100)
     }
   }
 

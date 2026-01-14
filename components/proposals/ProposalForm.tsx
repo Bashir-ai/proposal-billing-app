@@ -2266,13 +2266,17 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                                   max="100"
                                   value={item.discountPercent || ""}
                                   onChange={(e) => {
-                                    const discountPercent = parseFloat(e.target.value) || undefined
+                                    const value = e.target.value
+                                    const discountPercent = value === "" ? undefined : (parseFloat(value) || undefined)
                                     // Only update discountPercent, don't auto-calculate amount
-                                    updateItem(index, "discountPercent", discountPercent)
-                                    // Clear discountAmount when setting percentage
-                                    if (discountPercent !== undefined) {
-                                      updateItem(index, "discountAmount", undefined)
+                                    const updated = [...items]
+                                    updated[index] = {
+                                      ...updated[index],
+                                      discountPercent,
+                                      // Clear discountAmount when setting percentage
+                                      discountAmount: discountPercent !== undefined ? undefined : updated[index].discountAmount,
                                     }
+                                    setItems(updated)
                                   }}
                                   placeholder="e.g., 10"
                                 />
@@ -2285,13 +2289,17 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                                   min="0"
                                   value={item.discountAmount || ""}
                                   onChange={(e) => {
-                                    const discountAmount = parseFloat(e.target.value) || undefined
+                                    const value = e.target.value
+                                    const discountAmount = value === "" ? undefined : (parseFloat(value) || undefined)
                                     // Only update discountAmount, don't auto-calculate percentage
-                                    updateItem(index, "discountAmount", discountAmount)
-                                    // Clear discountPercent when setting amount
-                                    if (discountAmount !== undefined) {
-                                      updateItem(index, "discountPercent", undefined)
+                                    const updated = [...items]
+                                    updated[index] = {
+                                      ...updated[index],
+                                      discountAmount,
+                                      // Clear discountPercent when setting amount
+                                      discountPercent: discountAmount !== undefined ? undefined : updated[index].discountPercent,
                                     }
+                                    setItems(updated)
                                   }}
                                   placeholder="e.g., 100"
                                 />
