@@ -61,6 +61,7 @@ export function TodoKanban({ initialFilters, currentUserId }: TodoKanbanProps) {
 
   useEffect(() => {
     fetchTodos()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters])
 
   const fetchTodos = async () => {

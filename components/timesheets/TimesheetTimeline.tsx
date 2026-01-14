@@ -130,6 +130,7 @@ export function TimesheetTimeline({ initialFilters, currentUserId, userRole }: T
 
   useEffect(() => {
     fetchData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters, startDate, endDate])
 
   const fetchData = async () => {

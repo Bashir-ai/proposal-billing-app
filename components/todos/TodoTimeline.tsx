@@ -111,6 +111,7 @@ export function TodoTimeline({ initialFilters, currentUserId }: TodoTimelineProp
 
   useEffect(() => {
     fetchTodos()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters, startDate, endDate])
 
   const fetchTodos = async () => {

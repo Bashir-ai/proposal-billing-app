@@ -438,7 +438,14 @@ export default async function BillDetailPage({
               </div>
             </CardContent>
           </Card>
-          <InvoiceInteractionTimeline interactions={bill.interactions} />
+          <InvoiceInteractionTimeline 
+            interactions={bill.interactions.map(interaction => ({
+              ...interaction,
+              date: interaction.date.toISOString(),
+              createdAt: interaction.createdAt.toISOString(),
+              extensionDate: interaction.extensionDate?.toISOString() || null,
+            }))} 
+          />
         </div>
       )}
 
