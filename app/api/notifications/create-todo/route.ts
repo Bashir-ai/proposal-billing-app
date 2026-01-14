@@ -112,11 +112,19 @@ export async function POST(request: Request) {
     if (proposalId) {
       const proposal = await prisma.proposal.findUnique({
         where: { id: proposalId },
-        select: { projectId: true, clientId: true },
+        select: { clientId: true },
       })
       if (proposal) {
-        projectId = proposal.projectId || undefined
         clientId = proposal.clientId || undefined
+      }
+      
+      // Find project that references this proposal
+      const project = await prisma.project.findFirst({
+        where: { proposalId: proposalId },
+        select: { id: true },
+      })
+      if (project) {
+        projectId = project.id
       }
     }
 
