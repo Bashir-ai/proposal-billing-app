@@ -19,6 +19,11 @@ import { getLogoPath } from "@/lib/settings"
 import Image from "next/image"
 import { CompensationEligibilityManager } from "@/components/accounts/CompensationEligibilityManager"
 import { BillItemsTable } from "@/components/invoices/BillItemsTable"
+import { InvoiceInteractionTimeline } from "@/components/invoices/InvoiceInteractionTimeline"
+import { QuickInvoiceInteractionButton } from "@/components/invoices/QuickInvoiceInteractionButton"
+import { WriteOffInvoiceButton } from "@/components/invoices/WriteOffInvoiceButton"
+import { CancelInvoiceButton } from "@/components/invoices/CancelInvoiceButton"
+import { InteractionType } from "@prisma/client"
 
 export const dynamic = 'force-dynamic'
 
@@ -109,6 +114,25 @@ export default async function BillDetailPage({
         },
         orderBy: { createdAt: "desc" },
       },
+      interactions: {
+        orderBy: { date: "desc" },
+        include: {
+          creator: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
+      },
+      writtenOffByUser: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
     },
   })
 
@@ -160,6 +184,10 @@ export default async function BillDetailPage({
         return "bg-green-100 text-green-800"
       case "PAID":
         return "bg-emerald-100 text-emerald-800"
+      case "CANCELLED":
+        return "bg-red-100 text-red-800"
+      case "WRITTEN_OFF":
+        return "bg-orange-100 text-orange-800"
       default:
         return "bg-gray-100 text-gray-800"
     }
@@ -183,6 +211,16 @@ export default async function BillDetailPage({
 
   const canMarkPaid = (session?.user.role === "ADMIN" || session?.user.role === "MANAGER") &&
     bill.status === BillStatus.APPROVED
+
+  const canWriteOff = (session?.user.role === "ADMIN" || session?.user.role === "MANAGER") &&
+    bill.status !== BillStatus.PAID &&
+    bill.status !== BillStatus.WRITTEN_OFF
+
+  const canCancel = (session?.user.role === "ADMIN" || session?.user.role === "MANAGER" ||
+    (bill.createdBy === session?.user.id && bill.status === BillStatus.DRAFT)) &&
+    bill.status !== BillStatus.PAID &&
+    bill.status !== BillStatus.CANCELLED &&
+    bill.status !== BillStatus.WRITTEN_OFF
 
   return (
     <div>
@@ -311,6 +349,21 @@ export default async function BillDetailPage({
               <span className="text-sm text-gray-600">Total Amount: </span>
               <span className="font-semibold text-lg">{formatCurrency(bill.amount, bill.project?.currency || "EUR")}</span>
             </div>
+            {bill.status === BillStatus.WRITTEN_OFF && bill.originalAmount && (
+              <div>
+                <span className="text-sm text-gray-600">Original Amount: </span>
+                <span className="font-semibold">{formatCurrency(bill.originalAmount, bill.project?.currency || "EUR")}</span>
+              </div>
+            )}
+            {bill.status === BillStatus.WRITTEN_OFF && bill.writtenOffAt && (
+              <div>
+                <span className="text-sm text-gray-600">Written Off: </span>
+                <span>{formatDate(bill.writtenOffAt)}</span>
+                {bill.writtenOffByUser && (
+                  <span className="text-sm text-gray-500 ml-2">by {bill.writtenOffByUser.name}</span>
+                )}
+              </div>
+            )}
             {bill.dueDate && (
               <div>
                 <span className="text-sm text-gray-600">Due Date: </span>
@@ -354,6 +407,40 @@ export default async function BillDetailPage({
         users={users}
         subtotal={bill.subtotal || bill.amount}
       />
+
+      {/* Follow-up Interactions */}
+      {session?.user.role !== "CLIENT" && (
+        <div className="mb-8">
+          <Card className="mb-4">
+            <CardHeader>
+              <CardTitle>Follow-up Actions</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <QuickInvoiceInteractionButton
+                  billId={bill.id}
+                  interactionType={InteractionType.EMAIL_SENT}
+                  label="Log Email Follow-up"
+                  onInteractionCreated={() => {
+                    // Refresh the page to show new interaction
+                    window.location.reload()
+                  }}
+                />
+                <QuickInvoiceInteractionButton
+                  billId={bill.id}
+                  interactionType={InteractionType.PHONE_CALL}
+                  label="Log Phone Call"
+                  onInteractionCreated={() => {
+                    // Refresh the page to show new interaction
+                    window.location.reload()
+                  }}
+                />
+              </div>
+            </CardContent>
+          </Card>
+          <InvoiceInteractionTimeline interactions={bill.interactions} />
+        </div>
+      )}
 
       {/* Invoice Summary with Tax and Discount Breakdown */}
       <Card className="mb-8">

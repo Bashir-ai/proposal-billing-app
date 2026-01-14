@@ -31,6 +31,8 @@ export function InvoiceStatusFilter() {
       <option value="SUBMITTED">Submitted</option>
       <option value="APPROVED">Approved</option>
       <option value="PAID">Paid</option>
+      <option value="CANCELLED">Cancelled</option>
+      <option value="WRITTEN_OFF">Written Off</option>
       <option value="OUTSTANDING">Outstanding</option>
     </Select>
   )

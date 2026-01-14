@@ -44,6 +44,8 @@ enum BillStatus {
   SUBMITTED
   APPROVED
   PAID
+  CANCELLED
+  WRITTEN_OFF
 }
 
 enum ApprovalStatus {
@@ -238,6 +240,8 @@ model User {
   createdLeads            Lead[]              @relation("LeadCreator")
   managedLeads            Lead[]              @relation("LeadManager")
   leadInteractions        LeadInteraction[]  @relation("LeadInteractionCreator")
+  invoiceInteractions     InvoiceInteraction[] @relation("InvoiceInteractionCreator")
+  writtenOffBills         Bill[]            @relation("BillWrittenOffBy")
   notifications           Notification[]
   createdEmailTemplates   EmailTemplate[]    @relation("EmailTemplateCreator")
   sentProposalEmails      Proposal[]         @relation("ProposalEmailSender")
@@ -510,6 +514,10 @@ model Bill {
   becameOutstandingAt       DateTime? // When invoice first became outstanding
   lastReminderSentAt        DateTime? // Last time a reminder was sent
   reminderCount             Int        @default(0) // Number of reminders sent
+  // Write-off tracking
+  writtenOffAt              DateTime? // When invoice was written off
+  writtenOffBy              String?    // User who wrote it off
+  originalAmount            Float?     // Original amount before write-off (for reporting)
   deletedAt                 DateTime?
 
   @@index([clientId])
@@ -527,8 +535,10 @@ model Bill {
   client         Client          @relation(fields: [clientId], references: [id])
   creator        User            @relation("BillCreator", fields: [createdBy], references: [id])
   resubmitter    User?           @relation("BillResubmitter", fields: [resubmittedBy], references: [id])
+  writtenOffByUser User?         @relation("BillWrittenOffBy", fields: [writtenOffBy], references: [id])
   paymentDetails PaymentDetails? @relation(fields: [paymentDetailsId], references: [id])
   approvals      Approval[]
+  interactions   InvoiceInteraction[]
   items          BillItem[]
   todos          Todo[]
   finderFees     FinderFee[] // Finder fees generated when invoice is paid
@@ -903,6 +913,23 @@ model LeadInteraction {
   // Relations
   lead    Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
   creator User @relation("LeadInteractionCreator", fields: [createdBy], references: [id])
+}
+
+model InvoiceInteraction {
+  id             String          @id @default(cuid())
+  billId         String
+  interactionType InteractionType
+  notes          String?         // General notes/remarks
+  paymentRemarks String?         // Specific remarks about payment discussion
+  extensionDate  DateTime?       // New due date if extension was granted
+  date           DateTime        @default(now())
+  createdBy      String
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  // Relations
+  bill    Bill @relation(fields: [billId], references: [id], onDelete: Cascade)
+  creator User @relation("InvoiceInteractionCreator", fields: [createdBy], references: [id])
 }
 
 model AreaOfLaw {

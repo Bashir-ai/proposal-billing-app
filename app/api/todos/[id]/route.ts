@@ -449,6 +449,107 @@ export async function PUT(
   }
 }
 
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params
+    const session = await getServerSession(authOptions)
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    if (session.user.role === "CLIENT") {
+      return NextResponse.json(
+        { error: "Forbidden" },
+        { status: 403 }
+      )
+    }
+
+    const todo = await prisma.todo.findUnique({
+      where: { id },
+    })
+
+    if (!todo) {
+      return NextResponse.json({ error: "Todo not found" }, { status: 404 })
+    }
+
+    // Check permissions: user can update if they're assigned, creator, or admin
+    if (
+      session.user.role !== "ADMIN" &&
+      todo.assignedTo !== session.user.id &&
+      todo.createdBy !== session.user.id
+    ) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
+
+    const body = await request.json()
+    const { status } = body
+
+    if (!status) {
+      return NextResponse.json(
+        { error: "Status is required" },
+        { status: 400 }
+      )
+    }
+
+    const updateData: any = {
+      status: status as TodoStatus,
+    }
+
+    // Handle completion status
+    if (status === TodoStatus.COMPLETED && todo.status !== TodoStatus.COMPLETED) {
+      updateData.completedAt = new Date()
+      updateData.completedBy = session.user.id
+    } else if (status !== TodoStatus.COMPLETED) {
+      updateData.completedAt = null
+      updateData.completedBy = null
+    }
+
+    const updatedTodo = await prisma.todo.update({
+      where: { id },
+      data: updateData,
+      include: {
+        project: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        assignee: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        creator: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+    })
+
+    return NextResponse.json(updatedTodo)
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: "Invalid input", details: error.errors },
+        { status: 400 }
+      )
+    }
+    console.error("Error updating todo status:", error)
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    )
+  }
+}
+
 export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> }

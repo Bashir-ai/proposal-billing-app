@@ -370,8 +370,130 @@ export async function POST(
     const body = await request.json()
     const action = body.action
 
+    // Get current bill
+    const bill = await prisma.bill.findUnique({
+      where: { id },
+    })
+
+    if (!bill) {
+      return NextResponse.json({ error: "Invoice not found" }, { status: 404 })
+    }
+
+    // Check permissions for write-off and cancel
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: {
+        id: true,
+        role: true,
+      },
+    })
+
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 })
+    }
+
+    if (action === "writeOff") {
+      // Only ADMIN and MANAGER can write off invoices
+      if (user.role !== "ADMIN" && user.role !== "MANAGER") {
+        return NextResponse.json(
+          { error: "Only administrators and managers can write off invoices" },
+          { status: 403 }
+        )
+      }
+
+      // Cannot write off PAID invoices
+      if (bill.status === BillStatus.PAID) {
+        return NextResponse.json(
+          { error: "Cannot write off a paid invoice" },
+          { status: 400 }
+        )
+      }
+
+      // Cannot write off already written off invoices
+      if (bill.status === BillStatus.WRITTEN_OFF) {
+        return NextResponse.json(
+          { error: "Invoice is already written off" },
+          { status: 400 }
+        )
+      }
+
+      const notes = body.notes || null
+
+      const updatedBill = await prisma.bill.update({
+        where: { id },
+        data: {
+          status: BillStatus.WRITTEN_OFF,
+          originalAmount: bill.amount, // Store original amount
+          writtenOffAt: new Date(),
+          writtenOffBy: user.id,
+        },
+      })
+
+      // Create an interaction to record the write-off
+      if (notes) {
+        await prisma.invoiceInteraction.create({
+          data: {
+            billId: id,
+            interactionType: "OTHER",
+            notes: `Invoice written off. ${notes}`,
+            date: new Date(),
+            createdBy: user.id,
+          },
+        })
+      }
+
+      return NextResponse.json(updatedBill)
+    }
+
+    if (action === "cancel") {
+      // Only ADMIN and MANAGER can cancel invoices (or creator can cancel drafts)
+      const canCancel = user.role === "ADMIN" || 
+                       user.role === "MANAGER" || 
+                       (bill.createdBy === user.id && bill.status === BillStatus.DRAFT)
+
+      if (!canCancel) {
+        return NextResponse.json(
+          { error: "You don't have permission to cancel this invoice" },
+          { status: 403 }
+        )
+      }
+
+      // Cannot cancel PAID invoices
+      if (bill.status === BillStatus.PAID) {
+        return NextResponse.json(
+          { error: "Cannot cancel a paid invoice" },
+          { status: 400 }
+        )
+      }
+
+      // Cannot cancel already cancelled invoices
+      if (bill.status === BillStatus.CANCELLED) {
+        return NextResponse.json(
+          { error: "Invoice is already cancelled" },
+          { status: 400 }
+        )
+      }
+
+      // Cannot cancel already written off invoices
+      if (bill.status === BillStatus.WRITTEN_OFF) {
+        return NextResponse.json(
+          { error: "Cannot cancel a written-off invoice" },
+          { status: 400 }
+        )
+      }
+
+      const updatedBill = await prisma.bill.update({
+        where: { id },
+        data: {
+          status: BillStatus.CANCELLED,
+        },
+      })
+
+      return NextResponse.json(updatedBill)
+    }
+
     if (action === "submit") {
-      const bill = await prisma.bill.update({
+      const updatedBill = await prisma.bill.update({
         where: { id },
         data: {
           status: BillStatus.SUBMITTED,
@@ -379,7 +501,7 @@ export async function POST(
         },
       })
 
-      return NextResponse.json(bill)
+      return NextResponse.json(updatedBill)
     } else if (action === "markPaid") {
       if (session.user.role !== "ADMIN" && session.user.role !== "MANAGER") {
         return NextResponse.json(

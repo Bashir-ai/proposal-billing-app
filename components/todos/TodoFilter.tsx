@@ -13,6 +13,7 @@ interface TodoFilterProps {
   invoices: Array<{ id: string; invoiceNumber?: string | null }>
   users: Array<{ id: string; name: string }>
   onFilterChange: (filters: TodoFilters) => void
+  defaultAssignedTo?: string
 }
 
 export interface TodoFilters {
@@ -34,12 +35,13 @@ export function TodoFilter({
   invoices,
   users,
   onFilterChange,
+  defaultAssignedTo = "",
 }: TodoFilterProps) {
   const [filters, setFilters] = useState<TodoFilters>({
     projectId: "",
     proposalId: "",
     invoiceId: "",
-    assignedTo: "",
+    assignedTo: defaultAssignedTo,
     createdBy: "",
     status: "",
     priority: "",
@@ -66,7 +68,7 @@ export function TodoFilter({
       projectId: "",
       proposalId: "",
       invoiceId: "",
-      assignedTo: "",
+      assignedTo: defaultAssignedTo, // Reset to default, not empty
       createdBy: "",
       status: "",
       priority: "",

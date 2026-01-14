@@ -8,6 +8,10 @@ import { Plus } from "lucide-react"
 import { TodoList } from "@/components/todos/TodoList"
 import { TodoFilter, TodoFilters } from "@/components/todos/TodoFilter"
 import { TodoForm } from "@/components/todos/TodoForm"
+import { TodoTimeline } from "@/components/todos/TodoTimeline"
+import { TodoTimelineFilters } from "@/components/todos/TodoTimelineFilters"
+import { TodoKanban } from "@/components/todos/TodoKanban"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { useRouter } from "next/navigation"
 
 interface Project {
@@ -36,23 +40,32 @@ export default function TodosPage() {
   const { data: session } = useSession()
   const router = useRouter()
   const [showCreateForm, setShowCreateForm] = useState(false)
+  const [activeTab, setActiveTab] = useState("list")
   const [projects, setProjects] = useState<Project[]>([])
   const [proposals, setProposals] = useState<Proposal[]>([])
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [users, setUsers] = useState<User[]>([])
   const [clients, setClients] = useState<Array<{ id: string; name: string; company?: string | null }>>([])
   const [leads, setLeads] = useState<Array<{ id: string; name: string; company?: string | null }>>([])
+  // Default filter: staff see only their assigned todos, admins/managers see all
+  const defaultAssignedTo = session?.user.role === "STAFF" ? session.user.id : ""
+
   const [filters, setFilters] = useState<TodoFilters>({
     projectId: "",
     proposalId: "",
     invoiceId: "",
-    assignedTo: "",
+    assignedTo: defaultAssignedTo,
     createdBy: "",
     status: "",
     priority: "",
     read: "",
     hidePersonal: false,
     deadlineFilter: "",
+  })
+
+  const [timelineFilters, setTimelineFilters] = useState({
+    assignedTo: defaultAssignedTo,
+    includeCompleted: false,
   })
 
   useEffect(() => {
@@ -159,19 +172,50 @@ export default function TodosPage() {
         </div>
       )}
 
-      <TodoFilter
-        projects={projects}
-        proposals={proposals}
-        invoices={invoices}
-        users={users}
-        onFilterChange={setFilters}
-      />
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="mb-6">
+          <TabsTrigger value="list">List</TabsTrigger>
+          <TabsTrigger value="timeline">Timeline</TabsTrigger>
+          <TabsTrigger value="kanban">Kanban</TabsTrigger>
+        </TabsList>
 
-      <TodoList
-        currentUserId={session.user.id}
-        initialFilters={filters}
-        onCreateNew={() => setShowCreateForm(true)}
-      />
+        <TabsContent value="list">
+          <TodoFilter
+            projects={projects}
+            proposals={proposals}
+            invoices={invoices}
+            users={users}
+            onFilterChange={setFilters}
+            defaultAssignedTo={defaultAssignedTo}
+          />
+          <TodoList
+            currentUserId={session.user.id}
+            initialFilters={filters}
+            onCreateNew={() => setShowCreateForm(true)}
+          />
+        </TabsContent>
+
+        <TabsContent value="timeline">
+          <TodoTimelineFilters
+            projects={projects}
+            users={users}
+            clients={clients}
+            onFilterChange={setTimelineFilters}
+            defaultAssignedTo={defaultAssignedTo}
+          />
+          <TodoTimeline
+            initialFilters={timelineFilters}
+            currentUserId={session.user.id}
+          />
+        </TabsContent>
+
+        <TabsContent value="kanban">
+          <TodoKanban
+            initialFilters={timelineFilters}
+            currentUserId={session.user.id}
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }
