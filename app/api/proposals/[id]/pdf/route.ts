@@ -52,6 +52,12 @@ export async function GET(
           orderBy: { dueDate: "asc" },
         },
         tags: true,
+        paymentTerms: {
+          where: {
+            proposalItemId: null, // Only get proposal-level payment terms
+          },
+          orderBy: { createdAt: "asc" },
+        },
       },
     })
 
@@ -194,14 +200,37 @@ export async function GET(
                 </tr>
               </thead>
               <tbody>
-                ${proposal.items.map(item => `
+                ${proposal.items.map(item => {
+                  const isHourly = item.billingMethod === "HOURLY" || (item.quantity && item.rate)
+                  const estimateInfo = item.isEstimate && isHourly 
+                    ? `<div style="font-size: 11px; color: #92400e; background-color: #fef3c7; padding: 4px 8px; border-radius: 4px; margin-top: 4px; display: inline-block;">
+                        Estimated: ${item.quantity || 0} hours at ${currencySymbol}${item.rate?.toFixed(2) || "0.00"}/hr = ${currencySymbol}${item.amount.toFixed(2)}
+                      </div>`
+                    : ""
+                  const cappedInfo = item.isCapped && isHourly
+                    ? (item.cappedHours && item.rate
+                        ? `<div style="font-size: 11px; color: #1e40af; background-color: #dbeafe; padding: 4px 8px; border-radius: 4px; margin-top: 4px; display: inline-block; margin-left: 8px;">
+                            Capped at ${item.cappedHours} hours at ${currencySymbol}${item.rate.toFixed(2)}/hr = ${currencySymbol}${(item.cappedHours * item.rate).toFixed(2)}
+                          </div>`
+                        : item.cappedAmount
+                          ? `<div style="font-size: 11px; color: #1e40af; background-color: #dbeafe; padding: 4px 8px; border-radius: 4px; margin-top: 4px; display: inline-block; margin-left: 8px;">
+                              Capped at ${currencySymbol}${item.cappedAmount.toFixed(2)}
+                            </div>`
+                          : "")
+                    : ""
+                  return `
                   <tr>
-                    <td>${item.description}</td>
+                    <td>
+                      <div>${item.description}</div>
+                      ${estimateInfo}
+                      ${cappedInfo}
+                    </td>
                     ${proposal.items.some(i => i.quantity) ? `<td style="text-align: right;">${item.quantity || "-"}</td>` : ""}
                     ${proposal.items.some(i => i.rate) ? `<td style="text-align: right;">${item.rate ? `${currencySymbol}${item.rate.toFixed(2)}` : "-"}</td>` : ""}
                     <td style="text-align: right;">${currencySymbol}${item.amount.toFixed(2)}</td>
                   </tr>
-                `).join("")}
+                `
+                }).join("")}
               </tbody>
               ${proposal.amount ? `
                 <tfoot>
@@ -221,6 +250,65 @@ export async function GET(
               <strong>Total: ${currencySymbol}${proposal.amount.toFixed(2)}</strong>
             </div>
           ` : ""}
+
+          ${proposal.paymentTerms && proposal.paymentTerms.length > 0 ? (() => {
+            const paymentTerm = proposal.paymentTerms[0]
+            const { upfrontType, upfrontValue, balancePaymentType, balanceDueDate, installmentType, installmentCount, installmentFrequency, recurringEnabled, recurringFrequency, recurringCustomMonths, recurringStartDate } = paymentTerm
+            
+            let paymentTermsHtml = '<div style="margin: 30px 0; padding: 20px; background-color: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb;">'
+            paymentTermsHtml += '<h3 style="color: #374151; margin-bottom: 15px; font-size: 16px;">Payment Terms</h3>'
+            
+            // Upfront Payment
+            if (upfrontType && upfrontValue !== null && upfrontValue !== undefined) {
+              paymentTermsHtml += `<p style="margin: 8px 0; color: #111827;"><strong>Upfront Payment:</strong> ${upfrontType === "PERCENT" ? `${upfrontValue}%` : `${currencySymbol}${upfrontValue.toFixed(2)}`}</p>`
+            } else {
+              paymentTermsHtml += `<p style="margin: 8px 0; color: #111827;"><strong>Upfront Payment:</strong> No upfront payment</p>`
+            }
+            
+            // Balance Payment (if upfront exists)
+            if (upfrontType && upfrontValue !== null && upfrontValue !== undefined && balancePaymentType) {
+              if (balancePaymentType === "TIME_BASED" && balanceDueDate) {
+                paymentTermsHtml += `<p style="margin: 8px 0; color: #111827;"><strong>Balance Payment:</strong> Due on ${new Date(balanceDueDate).toLocaleDateString()}</p>`
+              } else if (balancePaymentType === "MILESTONE_BASED") {
+                paymentTermsHtml += `<p style="margin: 8px 0; color: #111827;"><strong>Balance Payment:</strong> Milestone-based</p>`
+              } else if (balancePaymentType === "FULL_UPFRONT") {
+                paymentTermsHtml += `<p style="margin: 8px 0; color: #111827;"><strong>Balance Payment:</strong> Full upfront (100%)</p>`
+              }
+            }
+            
+            // Installments (if no upfront)
+            if ((!upfrontType || upfrontValue === null || upfrontValue === undefined) && installmentType && installmentCount) {
+              paymentTermsHtml += `<p style="margin: 8px 0; color: #111827;"><strong>Payment Schedule:</strong> ${installmentCount} payment${installmentCount > 1 ? 's' : ''}${installmentFrequency ? ` (${installmentFrequency.toLowerCase()})` : ''}${installmentType === "MILESTONE_BASED" ? " - Based on milestones" : " - Time-based"}</p>`
+            }
+            
+            // Recurring Payment - only show if explicitly enabled
+            if (recurringEnabled === true && recurringFrequency) {
+              let recurringText = ""
+              if (recurringFrequency === "MONTHLY_1") recurringText = "Monthly"
+              else if (recurringFrequency === "MONTHLY_3") recurringText = "Every 3 months"
+              else if (recurringFrequency === "MONTHLY_6") recurringText = "Every 6 months"
+              else if (recurringFrequency === "YEARLY_12") recurringText = "Yearly"
+              else if (recurringFrequency === "CUSTOM" && recurringCustomMonths) {
+                recurringText = `Every ${recurringCustomMonths} month${recurringCustomMonths > 1 ? 's' : ''}`
+              }
+              if (recurringStartDate) {
+                recurringText += ` - Starting ${new Date(recurringStartDate).toLocaleDateString()}`
+              }
+              paymentTermsHtml += `<p style="margin: 8px 0; color: #111827;"><strong>Recurring Payment:</strong> ${recurringText}</p>`
+            }
+            
+            // Default: One-time payment if nothing else is set
+            if (!upfrontType && !installmentType && (recurringEnabled === false || recurringEnabled === null || recurringEnabled === undefined)) {
+              if (balanceDueDate) {
+                paymentTermsHtml += `<p style="margin: 8px 0; color: #111827;"><strong>Payment Terms:</strong> Due on ${new Date(balanceDueDate).toLocaleDateString()}</p>`
+              } else {
+                paymentTermsHtml += `<p style="margin: 8px 0; color: #111827;"><strong>Payment Terms:</strong> Paid on completion</p>`
+              }
+            }
+            
+            paymentTermsHtml += '</div>'
+            return paymentTermsHtml
+          })() : ""}
 
           <div class="footer">
             <p>Generated on ${new Date().toLocaleDateString()}</p>

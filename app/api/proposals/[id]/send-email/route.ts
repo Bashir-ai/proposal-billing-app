@@ -180,15 +180,38 @@ function generateProposalHTML(proposal: any, logoBase64: string | null): string 
               </tr>
             </thead>
             <tbody>
-              ${proposal.items.map((item: any) => `
+              ${proposal.items.map((item: any) => {
+                const isHourly = item.billingMethod === "HOURLY" || (item.quantity && item.rate)
+                const estimateInfo = item.isEstimate && isHourly 
+                  ? `<div style="font-size: 11px; color: #92400e; background-color: #fef3c7; padding: 4px 8px; border-radius: 4px; margin-top: 4px; display: inline-block;">
+                      Estimated: ${item.quantity || 0} hours at ${currencySymbol}${item.rate?.toFixed(2) || "0.00"}/hr = ${currencySymbol}${item.amount.toFixed(2)}
+                    </div>`
+                  : ""
+                const cappedInfo = item.isCapped && isHourly
+                  ? (item.cappedHours && item.rate
+                      ? `<div style="font-size: 11px; color: #1e40af; background-color: #dbeafe; padding: 4px 8px; border-radius: 4px; margin-top: 4px; display: inline-block; margin-left: 8px;">
+                          Capped at ${item.cappedHours} hours at ${currencySymbol}${item.rate.toFixed(2)}/hr = ${currencySymbol}${(item.cappedHours * item.rate).toFixed(2)}
+                        </div>`
+                      : item.cappedAmount
+                        ? `<div style="font-size: 11px; color: #1e40af; background-color: #dbeafe; padding: 4px 8px; border-radius: 4px; margin-top: 4px; display: inline-block; margin-left: 8px;">
+                            Capped at ${currencySymbol}${item.cappedAmount.toFixed(2)}
+                          </div>`
+                        : "")
+                  : ""
+                return `
                 <tr>
-                  <td>${item.description}</td>
+                  <td>
+                    <div>${item.description}</div>
+                    ${estimateInfo}
+                    ${cappedInfo}
+                  </td>
                   <td>${item.person ? item.person.name : '-'}</td>
                   <td>${item.quantity || '-'}</td>
                   <td>${item.rate || item.unitPrice ? `${currencySymbol}${(item.rate || item.unitPrice || 0).toFixed(2)}` : '-'}</td>
                   <td class="text-right">${currencySymbol}${item.amount.toFixed(2)}</td>
                 </tr>
-              `).join('')}
+              `
+              }).join('')}
             </tbody>
           </table>
         </div>
@@ -223,25 +246,66 @@ function generateProposalHTML(proposal: any, logoBase64: string | null): string 
         </div>
         ` : ''}
 
-        ${proposal.paymentTerms && proposal.paymentTerms.length > 0 ? `
-        <div class="section">
-          <h2>Payment Terms</h2>
-          ${proposal.paymentTerms.map((term: any, index: number) => `
-            <div style="margin-bottom: 20px;">
-              <h3>Payment Term ${index + 1}</h3>
-              ${term.upfrontType && term.upfrontValue ? `
-                <p><strong>Upfront Payment:</strong> ${term.upfrontType === 'PERCENT' ? `${term.upfrontValue}%` : `${currencySymbol}${term.upfrontValue.toFixed(2)}`}</p>
-              ` : ''}
-              ${term.installmentType ? `
-                <p><strong>Installment Type:</strong> ${term.installmentType}</p>
-              ` : ''}
-              ${term.installmentCount && term.installmentFrequency ? `
-                <p><strong>Installments:</strong> ${term.installmentCount} payments, ${term.installmentFrequency}</p>
-              ` : ''}
-            </div>
-          `).join('')}
-        </div>
-        ` : ''}
+        ${proposal.paymentTerms && proposal.paymentTerms.length > 0 ? (() => {
+          // Get proposal-level payment term (where proposalItemId is null)
+          const proposalPaymentTerm = proposal.paymentTerms.find((term: any) => !term.proposalItemId) || proposal.paymentTerms[0]
+          if (!proposalPaymentTerm) return ''
+          
+          const { upfrontType, upfrontValue, balancePaymentType, balanceDueDate, installmentType, installmentCount, installmentFrequency, recurringEnabled, recurringFrequency, recurringCustomMonths, recurringStartDate } = proposalPaymentTerm
+          
+          let paymentTermsHtml = '<div class="section"><h2>Payment Terms</h2>'
+          
+          // Upfront Payment
+          if (upfrontType && upfrontValue !== null && upfrontValue !== undefined) {
+            paymentTermsHtml += `<p><strong>Upfront Payment:</strong> ${upfrontType === "PERCENT" ? `${upfrontValue}%` : `${currencySymbol}${upfrontValue.toFixed(2)}`}</p>`
+          } else {
+            paymentTermsHtml += `<p><strong>Upfront Payment:</strong> No upfront payment</p>`
+          }
+          
+          // Balance Payment (if upfront exists)
+          if (upfrontType && upfrontValue !== null && upfrontValue !== undefined && balancePaymentType) {
+            if (balancePaymentType === "TIME_BASED" && balanceDueDate) {
+              paymentTermsHtml += `<p><strong>Balance Payment:</strong> Due on ${new Date(balanceDueDate).toLocaleDateString()}</p>`
+            } else if (balancePaymentType === "MILESTONE_BASED") {
+              paymentTermsHtml += `<p><strong>Balance Payment:</strong> Milestone-based</p>`
+            } else if (balancePaymentType === "FULL_UPFRONT") {
+              paymentTermsHtml += `<p><strong>Balance Payment:</strong> Full upfront (100%)</p>`
+            }
+          }
+          
+          // Installments (if no upfront)
+          if ((!upfrontType || upfrontValue === null || upfrontValue === undefined) && installmentType && installmentCount) {
+            paymentTermsHtml += `<p><strong>Payment Schedule:</strong> ${installmentCount} payment${installmentCount > 1 ? 's' : ''}${installmentFrequency ? ` (${installmentFrequency.toLowerCase()})` : ''}${installmentType === "MILESTONE_BASED" ? " - Based on milestones" : " - Time-based"}</p>`
+          }
+          
+          // Recurring Payment - only show if explicitly enabled
+          if (recurringEnabled === true && recurringFrequency) {
+            let recurringText = ""
+            if (recurringFrequency === "MONTHLY_1") recurringText = "Monthly"
+            else if (recurringFrequency === "MONTHLY_3") recurringText = "Every 3 months"
+            else if (recurringFrequency === "MONTHLY_6") recurringText = "Every 6 months"
+            else if (recurringFrequency === "YEARLY_12") recurringText = "Yearly"
+            else if (recurringFrequency === "CUSTOM" && recurringCustomMonths) {
+              recurringText = `Every ${recurringCustomMonths} month${recurringCustomMonths > 1 ? 's' : ''}`
+            }
+            if (recurringStartDate) {
+              recurringText += ` - Starting ${new Date(recurringStartDate).toLocaleDateString()}`
+            }
+            paymentTermsHtml += `<p><strong>Recurring Payment:</strong> ${recurringText}</p>`
+          }
+          
+          // Default: One-time payment if nothing else is set
+          if (!upfrontType && !installmentType && (recurringEnabled === false || recurringEnabled === null || recurringEnabled === undefined)) {
+            if (balanceDueDate) {
+              paymentTermsHtml += `<p><strong>Payment Terms:</strong> Due on ${new Date(balanceDueDate).toLocaleDateString()}</p>`
+            } else {
+              paymentTermsHtml += `<p><strong>Payment Terms:</strong> Paid on completion</p>`
+            }
+          }
+          
+          paymentTermsHtml += '</div>'
+          return paymentTermsHtml
+        })() : ''}
       </body>
     </html>
   `
