@@ -88,10 +88,9 @@ export function PaymentTermsWizard({
       setWizardData(proposalLevel)
       const structure = detectPaymentStructure(proposalLevel)
       setPaymentStructure(structure)
-      // If structure is detected, skip to step 2 (configuration)
-      if (structure) {
-        setCurrentStep(2)
-      }
+      // Don't auto-skip to step 2 - allow user to edit from step 1
+      // Start at step 1 so user can change payment structure if needed
+      setCurrentStep(1)
     }
   }, [proposalLevel])
 
@@ -633,12 +632,9 @@ export function PaymentTermsWizard({
                 onChange={(e) => {
                   const dueDate = e.target.value || null
                   updateWizardData("balanceDueDate", dueDate)
-                  // If a due date is set, set balancePaymentType to TIME_BASED
-                  if (dueDate) {
-                    updateWizardData("balancePaymentType", "TIME_BASED")
-                  } else {
-                    updateWizardData("balancePaymentType", null)
-                  }
+                  // For ONE_TIME payments, don't set balancePaymentType
+                  // balancePaymentType is only for UPFRONT_BALANCE structure
+                  updateWizardData("balancePaymentType", null)
                 }}
               />
               <p className="text-xs text-gray-500">

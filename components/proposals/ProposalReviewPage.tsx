@@ -435,11 +435,15 @@ export function ProposalReviewPage({ proposal, token }: ProposalReviewPageProps)
                       </div>
                     )}
 
-                    {/* Default: Monthly billing if nothing else is set */}
+                    {/* Default: One-time payment if nothing else is set */}
                     {!upfrontType && !installmentType && !recurringEnabled && (
                       <div>
                         <p className="text-sm font-medium text-gray-700 mb-1">Payment Terms:</p>
-                        <p className="text-sm text-gray-900">Billed monthly at the beginning of each month</p>
+                        <p className="text-sm text-gray-900">
+                          {balanceDueDate
+                            ? `Due on ${formatDate(balanceDueDate)}`
+                            : "Paid on completion"}
+                        </p>
                       </div>
                     )}
                   </div>

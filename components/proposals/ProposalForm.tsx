@@ -2417,7 +2417,19 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                         </span>
                       </p>
                     )}
-                    {proposalPaymentTerm.balancePaymentType && (
+                    {/* Show ONE_TIME payment details */}
+                    {!proposalPaymentTerm.upfrontType && !proposalPaymentTerm.installmentType && !proposalPaymentTerm.recurringEnabled && (
+                      <p>
+                        <span className="text-gray-500">Payment Terms:</span>{" "}
+                        <span className="font-medium">
+                          {proposalPaymentTerm.balanceDueDate
+                            ? `Due on ${new Date(proposalPaymentTerm.balanceDueDate).toLocaleDateString()}`
+                            : "Paid on completion"}
+                        </span>
+                      </p>
+                    )}
+                    {/* Show balance payment only for UPFRONT_BALANCE structure */}
+                    {proposalPaymentTerm.upfrontType && proposalPaymentTerm.balancePaymentType && (
                       <p>
                         <span className="text-gray-500">Balance Payment:</span>{" "}
                         <span className="font-medium">
