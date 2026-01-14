@@ -145,6 +145,10 @@ export default async function ProposalDetailPage({
             discountAmount: true,
             billingMethod: true,
             recurringEnabled: true,
+            isEstimate: true,
+            isCapped: true,
+            cappedHours: true,
+            cappedAmount: true,
             person: {
               select: {
                 id: true,
@@ -742,8 +746,8 @@ export default async function ProposalDetailPage({
                   </div>
                 )}
 
-                {/* Recurring Payment */}
-                {recurringEnabled && recurringFrequency && (
+                {/* Recurring Payment - only show if explicitly enabled */}
+                {recurringEnabled === true && recurringFrequency && (
                   <div className="p-4 bg-gray-50 border border-gray-200 rounded">
                     <h4 className="font-semibold text-gray-900 mb-2">Recurring Payment</h4>
                     <p className="text-lg">
@@ -761,11 +765,15 @@ export default async function ProposalDetailPage({
                   </div>
                 )}
 
-                {/* Default: Monthly billing if nothing else is set */}
-                {!upfrontType && !installmentType && !recurringEnabled && (
+                {/* Default: One-time payment if nothing else is set */}
+                {!upfrontType && !installmentType && (recurringEnabled === false || recurringEnabled === null || recurringEnabled === undefined) && (
                   <div className="p-4 bg-gray-50 border border-gray-200 rounded">
                     <h4 className="font-semibold text-gray-900 mb-2">Payment Terms</h4>
-                    <p className="text-lg">Billed monthly at the beginning of each month</p>
+                    <p className="text-lg">
+                      {balanceDueDate
+                        ? `Due on ${formatDate(balanceDueDate)}`
+                        : "Paid on completion"}
+                    </p>
                   </div>
                 )}
               </div>
@@ -924,16 +932,16 @@ export default async function ProposalDetailPage({
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full border-collapse">
                 <thead>
-                  <tr className="border-b">
-                    {proposal.type === "MIXED_MODEL" && <th className="text-left p-2">Billing Method</th>}
-                    {(proposal.type === "HOURLY" || proposal.type === "MIXED_MODEL") && <th className="text-left p-2">Person</th>}
-                    <th className="text-left p-2">Description</th>
-                    <th className="text-right p-2">Quantity</th>
-                    <th className="text-right p-2">Unit Price</th>
-                    <th className="text-right p-2">Discount</th>
-                    <th className="text-right p-2">Amount</th>
+                  <tr className="border-b bg-gray-50">
+                    {proposal.type === "MIXED_MODEL" && <th className="text-left p-3 font-medium text-gray-700">Billing Method</th>}
+                    {(proposal.type === "HOURLY" || proposal.type === "MIXED_MODEL") && <th className="text-left p-3 font-medium text-gray-700">Person</th>}
+                    <th className="text-left p-3 font-medium text-gray-700 min-w-[200px]">Description</th>
+                    <th className="text-right p-3 font-medium text-gray-700">Quantity</th>
+                    <th className="text-right p-3 font-medium text-gray-700">Unit Price</th>
+                    <th className="text-right p-3 font-medium text-gray-700">Discount</th>
+                    <th className="text-right p-3 font-medium text-gray-700">Amount</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -942,12 +950,13 @@ export default async function ProposalDetailPage({
                       ? (item.amount / (1 - item.discountPercent / 100)) * (item.discountPercent / 100)
                       : item.discountAmount || 0
                     const lineSubtotal = item.amount + lineDiscount
+                    const isHourly = item.billingMethod === "HOURLY" || (item.quantity && item.rate)
                     
                     return (
                       <>
-                    <tr key={item.id} className="border-b">
+                    <tr key={item.id} className="border-b hover:bg-gray-50">
                           {proposal.type === "MIXED_MODEL" && (
-                            <td className="p-2">
+                            <td className="p-3 align-top">
                               <span className="px-2 py-1 rounded text-xs bg-gray-100">
                                 {item.billingMethod === "HOURLY" ? "Hourly" :
                                  item.billingMethod === "FIXED_FEE" ? "Fixed Fee" :
@@ -958,18 +967,42 @@ export default async function ProposalDetailPage({
                               </span>
                             </td>
                           )}
-                          {(proposal.type === "HOURLY" || proposal.type === "MIXED_MODEL") && item.person && (
-                            <td className="p-2">{item.person.name}</td>
-                      )}
-                      <td className="p-2">{item.description}</td>
-                          <td className="p-2 text-right">{item.quantity || "-"}</td>
-                          <td className="p-2 text-right">
+                          {(proposal.type === "HOURLY" || proposal.type === "MIXED_MODEL") && (
+                            <td className="p-3 align-top">{item.person?.name || "-"}</td>
+                          )}
+                      <td className="p-3 align-top">
+                        <div className="space-y-2">
+                          <div className="font-medium">{item.description || "-"}</div>
+                          {/* Show estimate and capped info for hourly items */}
+                          {isHourly && (item.isEstimate || item.isCapped) && (
+                            <div className="flex flex-wrap gap-2">
+                              {item.isEstimate && (
+                                <span className="text-xs text-yellow-700 bg-yellow-50 px-2 py-1 rounded border border-yellow-200">
+                                  Estimated: {item.quantity || 0} hours at {currencySymbol}{item.rate?.toFixed(2) || "0.00"}/hr = {currencySymbol}{item.amount.toFixed(2)}
+                                </span>
+                              )}
+                              {item.isCapped && item.cappedHours && item.rate && (
+                                <span className="text-xs text-blue-700 bg-blue-50 px-2 py-1 rounded border border-blue-200">
+                                  Capped at {item.cappedHours} hours at {currencySymbol}{item.rate.toFixed(2)}/hr = {currencySymbol}{(item.cappedHours * item.rate).toFixed(2)}
+                                </span>
+                              )}
+                              {item.isCapped && item.cappedAmount && (
+                                <span className="text-xs text-blue-700 bg-blue-50 px-2 py-1 rounded border border-blue-200">
+                                  Capped at {currencySymbol}{item.cappedAmount.toFixed(2)}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                          <td className="p-3 text-right align-top">{item.quantity || "-"}</td>
+                          <td className="p-3 text-right align-top">
                             {item.rate ? `${currencySymbol}${item.rate.toFixed(2)}/hr` : item.unitPrice ? `${currencySymbol}${item.unitPrice.toFixed(2)}` : "-"}
                           </td>
-                          <td className="p-2 text-right text-sm text-gray-600">
+                          <td className="p-3 text-right text-sm text-gray-600 align-top">
                             {item.discountPercent ? `${item.discountPercent}%` : item.discountAmount ? `${currencySymbol}${item.discountAmount.toFixed(2)}` : "-"}
                           </td>
-                          <td className="p-2 text-right font-semibold">{currencySymbol}{item.amount.toFixed(2)}</td>
+                          <td className="p-3 text-right font-semibold align-top">{currencySymbol}{item.amount.toFixed(2)}</td>
                     </tr>
                         {/* Display milestones for this line item */}
                         {item.milestones && item.milestones.length > 0 && (
