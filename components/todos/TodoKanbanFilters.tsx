@@ -67,8 +67,8 @@ export function TodoKanbanFilters({
   }
 
   const clearFilters = () => {
-    const cleared = {
-      assignedFilter: defaultAssignedTo ? "me" : "everyone" as const,
+    const cleared: TodoKanbanFilters = {
+      assignedFilter: (defaultAssignedTo ? "me" : "everyone") as "me" | "others" | "everyone",
       assignedTo: defaultAssignedTo,
       includeCompleted: false,
     }
