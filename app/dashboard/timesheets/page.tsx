@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { TimesheetTimeline } from "@/components/timesheets/TimesheetTimeline"
-import { TimesheetTimelineFilters } from "@/components/timesheets/TimesheetTimelineFilters"
+import { TimesheetTimelineFilters, type TimesheetTimelineFilters as TimesheetTimelineFiltersType } from "@/components/timesheets/TimesheetTimelineFilters"
 import { LoadingState } from "@/components/shared/LoadingState"
 
 interface Project {
@@ -32,7 +32,7 @@ export default function TimesheetsPage() {
   const [clients, setClients] = useState<Client[]>([])
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
-  const [timelineFilters, setTimelineFilters] = useState({
+  const [timelineFilters, setTimelineFilters] = useState<TimesheetTimelineFiltersType>({
     userId: session?.user.role === "STAFF" ? session.user.id : undefined,
   })
 
