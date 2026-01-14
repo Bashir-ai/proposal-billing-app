@@ -126,7 +126,7 @@ export function PaymentTermsWizard({
       } else if (paymentStructure === "RECURRING") {
         // Recurring is optional - only validate if enabled
         if (wizardData.recurringEnabled) {
-          if (!wizardData.recurringFrequency || wizardData.recurringFrequency === "NONE") {
+          if (!wizardData.recurringFrequency) {
             newErrors.recurringFrequency = "Please select recurring frequency or disable recurring payments"
           }
           if (wizardData.recurringFrequency === "CUSTOM" && (!wizardData.recurringCustomMonths || wizardData.recurringCustomMonths < 1)) {
@@ -259,7 +259,7 @@ export function PaymentTermsWizard({
       if (!wizardData.recurringEnabled) {
         return true // Can complete without recurring
       }
-      return !!(wizardData.recurringFrequency && wizardData.recurringFrequency !== "NONE" && wizardData.recurringStartDate)
+      return !!(wizardData.recurringFrequency && wizardData.recurringStartDate)
     }
     if (paymentStructure === "INSTALLMENTS") {
       if (wizardData.installmentType === "TIME_BASED") {
@@ -476,12 +476,11 @@ export function PaymentTermsWizard({
                     value={wizardData.recurringFrequency || ""}
                     onChange={(e) => {
                       const freq = e.target.value as PaymentTerm["recurringFrequency"]
-                      updateWizardData("recurringFrequency", freq === "NONE" ? null : (freq || null))
+                      updateWizardData("recurringFrequency", freq || null)
                       updateWizardData("recurringCustomMonths", null)
                     }}
                   >
                     <option value="">Select frequency</option>
-                    <option value="NONE">None (Disable Recurring)</option>
                     {RECURRING_FREQUENCIES.map((freq) => (
                       <option key={freq.value} value={freq.value}>
                         {freq.label}
