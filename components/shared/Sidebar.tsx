@@ -29,8 +29,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Scale,
+  Clock,
 } from "lucide-react"
-import { SidebarNotifications } from "./SidebarNotifications"
 
 interface SidebarProps {
   user: {
@@ -57,6 +57,7 @@ const navigationGroups = [
       { name: "Proposals", href: "/dashboard/proposals", icon: FileText, roles: ["ADMIN", "MANAGER", "STAFF"] },
       { name: "Projects", href: "/dashboard/projects", icon: FolderKanban, roles: ["ADMIN", "MANAGER", "STAFF"] },
       { name: "ToDos", href: "/dashboard/todos", icon: CheckSquare, roles: ["ADMIN", "MANAGER", "STAFF"] },
+      { name: "Timesheets", href: "/dashboard/timesheets", icon: Clock, roles: ["ADMIN", "MANAGER", "STAFF"] },
       { name: "Invoices", href: "/dashboard/bills", icon: Receipt, roles: ["ADMIN", "MANAGER", "STAFF", "CLIENT"] },
     ],
   },
@@ -193,11 +194,6 @@ export function Sidebar({ user, isCollapsed, onToggle }: SidebarProps) {
             </div>
           ))}
         </nav>
-
-        {/* Notifications */}
-        <div className="border-t border-sidebar-border p-3">
-          <SidebarNotifications isCollapsed={isCollapsed} />
-        </div>
 
         {/* User section + Collapse toggle */}
         <div className="border-t border-sidebar-border p-3">

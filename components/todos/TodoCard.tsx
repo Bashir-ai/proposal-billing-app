@@ -179,8 +179,12 @@ export function TodoCard({
     }
   }
 
+  const handleCardClick = () => {
+    router.push(`/dashboard/todos/${todo.id}/edit`)
+  }
+
   return (
-    <Card className="hover:shadow-md transition-shadow">
+    <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={handleCardClick}>
       <CardContent className="p-4">
         <div className="flex items-start justify-between">
           <div className="flex-1">
@@ -246,7 +250,10 @@ export function TodoCard({
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={handleMarkUnread}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleMarkUnread()
+                    }}
                     disabled={loading}
                     title="Mark as unread"
                   >
@@ -256,7 +263,10 @@ export function TodoCard({
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={handleMarkRead}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleMarkRead()
+                    }}
                     disabled={loading}
                     title="Mark as read"
                   >
@@ -268,7 +278,11 @@ export function TodoCard({
             <div className="space-y-2">
               <Select
                 value={todo.status}
-                onChange={(e) => handleStatusChange(e.target.value)}
+                onChange={(e) => {
+                  e.stopPropagation()
+                  handleStatusChange(e.target.value)
+                }}
+                onClick={(e) => e.stopPropagation()}
                 disabled={loading}
                 className="text-sm"
               >
@@ -281,7 +295,10 @@ export function TodoCard({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => router.push(`/dashboard/todos/${todo.id}/edit`)}
+              onClick={(e) => {
+                e.stopPropagation()
+                router.push(`/dashboard/todos/${todo.id}/edit`)
+              }}
               disabled={loading}
             >
               <Edit className="h-4 w-4" />
@@ -289,7 +306,10 @@ export function TodoCard({
             <Button
               variant="outline"
               size="sm"
-              onClick={handleDelete}
+              onClick={(e) => {
+                e.stopPropagation()
+                handleDelete()
+              }}
               disabled={loading}
               className="text-red-600 hover:text-red-700"
             >

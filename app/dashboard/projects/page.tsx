@@ -218,7 +218,7 @@ export default function ProjectsPage() {
         </CardContent>
       </Card>
 
-      <div className="space-y-4">
+      <div className="space-y-6">
         {projects.map((project) => {
           const totalBilled = calculateTotalBilled(project.bills)
           const proposedAmount = project.proposal?.amount || 0

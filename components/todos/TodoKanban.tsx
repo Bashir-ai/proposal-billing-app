@@ -5,6 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { TodoKanbanCard } from "./TodoKanbanCard"
 import { TodoStatus, TodoPriority } from "@prisma/client"
 import { toast } from "sonner"
+import { TodoKanbanFilters, TodoKanbanFilters as TodoKanbanFiltersType } from "./TodoKanbanFilters"
+import { useRouter } from "next/navigation"
 
 interface Todo {
   id: string
@@ -30,16 +32,10 @@ interface Todo {
 }
 
 interface TodoKanbanProps {
-  initialFilters?: {
-    assignedTo?: string
-    createdBy?: string
-    projectId?: string
-    clientId?: string
-    status?: string
-    priority?: string
-    includeCompleted?: boolean
-  }
+  initialFilters?: TodoKanbanFiltersType
   currentUserId: string
+  users: Array<{ id: string; name: string }>
+  defaultAssignedTo?: string
 }
 
 type KanbanColumn = "To Do" | "In Progress" | "Review" | "Done"
@@ -53,11 +49,19 @@ const COLUMN_STATUS_MAP: Record<KanbanColumn, TodoStatus> = {
 
 const COLUMNS: KanbanColumn[] = ["To Do", "In Progress", "Review", "Done"]
 
-export function TodoKanban({ initialFilters, currentUserId }: TodoKanbanProps) {
+export function TodoKanban({ initialFilters, currentUserId, users, defaultAssignedTo = "" }: TodoKanbanProps) {
+  const router = useRouter()
   const [todos, setTodos] = useState<Todo[]>([])
   const [loading, setLoading] = useState(true)
   const [draggedTodo, setDraggedTodo] = useState<Todo | null>(null)
-  const [filters, setFilters] = useState(initialFilters || {})
+  const [filters, setFilters] = useState<TodoKanbanFiltersType>(initialFilters || {
+    assignedFilter: defaultAssignedTo ? "me" : "everyone",
+    assignedTo: defaultAssignedTo,
+  })
+
+  const handleTodoClick = (todo: Todo) => {
+    router.push(`/dashboard/todos/${todo.id}/edit`)
+  }
 
   useEffect(() => {
     fetchTodos()
@@ -68,7 +72,20 @@ export function TodoKanban({ initialFilters, currentUserId }: TodoKanbanProps) {
     try {
       setLoading(true)
       const params = new URLSearchParams()
-      if (filters.assignedTo) params.append("assignedTo", filters.assignedTo)
+      
+      // Handle assigned filter
+      if (filters.assignedFilter === "me") {
+        params.append("assignedTo", currentUserId)
+      } else if (filters.assignedFilter === "others") {
+        // We'll filter in the component after fetching
+        // Don't set assignedTo param, we'll filter client-side
+      } else {
+        // "everyone" - don't set assignedTo
+      }
+      
+      if (filters.assignedTo && filters.assignedFilter !== "others") {
+        params.append("assignedTo", filters.assignedTo)
+      }
       if (filters.createdBy) params.append("createdBy", filters.createdBy)
       if (filters.projectId) params.append("projectId", filters.projectId)
       if (filters.clientId) params.append("clientId", filters.clientId)
@@ -78,7 +95,15 @@ export function TodoKanban({ initialFilters, currentUserId }: TodoKanbanProps) {
 
       const response = await fetch(`/api/todos?${params.toString()}`)
       if (response.ok) {
-        const data = await response.json()
+        let data = await response.json()
+        
+        // Filter for "others" if needed
+        if (filters.assignedFilter === "others") {
+          data = data.filter((todo: Todo) => 
+            todo.assignee && todo.assignee.id !== currentUserId
+          )
+        }
+        
         setTodos(data)
       }
     } catch (error) {
@@ -162,8 +187,15 @@ export function TodoKanban({ initialFilters, currentUserId }: TodoKanbanProps) {
   }
 
   return (
-    <div className="overflow-x-auto">
-      <div className="flex gap-4 min-w-max pb-4">
+    <div>
+      <TodoKanbanFilters
+        users={users}
+        onFilterChange={setFilters}
+        currentUserId={currentUserId}
+        defaultAssignedTo={defaultAssignedTo}
+      />
+      <div className="overflow-x-auto">
+        <div className="flex gap-4 min-w-max pb-4">
         {COLUMNS.map((column) => {
           const columnTodos = getTodosForColumn(column)
           return (
@@ -190,6 +222,7 @@ export function TodoKanban({ initialFilters, currentUserId }: TodoKanbanProps) {
                       todo={todo}
                       onDragStart={handleDragStart}
                       onDragEnd={handleDragEnd}
+                      onClick={() => handleTodoClick(todo)}
                     />
                   ))
                 )}
@@ -197,6 +230,7 @@ export function TodoKanban({ initialFilters, currentUserId }: TodoKanbanProps) {
             </Card>
           )
         })}
+        </div>
       </div>
     </div>
   )

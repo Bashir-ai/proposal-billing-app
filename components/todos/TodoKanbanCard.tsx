@@ -60,7 +60,7 @@ export function TodoKanbanCard({ todo, onDragStart, onDragEnd, onClick }: TodoKa
       onDragEnd={onDragEnd}
       onClick={onClick}
       className={cn(
-        "cursor-move hover:shadow-md transition-shadow mb-2",
+        "cursor-pointer hover:shadow-md transition-shadow mb-2",
         isOverdue && "border-red-500 border-2"
       )}
     >

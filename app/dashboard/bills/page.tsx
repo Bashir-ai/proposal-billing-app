@@ -196,7 +196,7 @@ export default async function BillsPage({
           )}
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-6">
           {filteredBills.map((bill) => (
             <Link key={bill.id} href={`/dashboard/bills/${bill.id}`}>
               <Card className="hover:shadow-lg transition-shadow">

@@ -3,10 +3,11 @@
 import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { AlertCircle, RefreshCw, Check } from "lucide-react"
+import { AlertCircle, RefreshCw, Check, Plus } from "lucide-react"
 import Link from "next/link"
 import { formatDate, cn } from "@/lib/utils"
 import { ChevronDown, ChevronUp } from "lucide-react"
+import { toast } from "sonner"
 
 interface Notification {
   type: string
@@ -225,6 +226,10 @@ export function NotificationsBox({ initialCount, initialNotifications, isCollaps
                     onClose={() => setIsOpen(false)}
                     onMarkAsViewed={() => handleMarkAsViewed(notification.id)}
                     isViewed={viewedNotifications.has(notification.id)}
+                    onTodoCreated={() => {
+                      refreshNotifications()
+                      toast.success("Todo created from notification")
+                    }}
                   />
                 ))}
               </div>
@@ -243,6 +248,7 @@ function NotificationItem({
   onClose,
   onMarkAsViewed,
   isViewed,
+  onTodoCreated,
 }: {
   notification: Notification
   getNotificationLabel: (notification: Notification) => string
@@ -250,13 +256,43 @@ function NotificationItem({
   onClose: () => void
   onMarkAsViewed?: () => void
   isViewed?: boolean
+  onTodoCreated?: () => void
 }) {
   const [isExpanded, setIsExpanded] = useState(false)
+  const [isCreatingTodo, setIsCreatingTodo] = useState(false)
   const link = getNotificationLink(notification)
 
   const handleMarkAsViewed = (e: React.MouseEvent) => {
     e.stopPropagation()
     onMarkAsViewed?.()
+  }
+
+  const handleCreateTodo = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setIsCreatingTodo(true)
+    try {
+      const response = await fetch("/api/notifications/create-todo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          notificationId: notification.id,
+          notificationType: notification.type,
+          itemId: notification.itemId,
+        }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || "Failed to create todo")
+      }
+
+      onTodoCreated?.()
+    } catch (error: any) {
+      console.error("Error creating todo:", error)
+      toast.error(error.message || "Failed to create todo from notification")
+    } finally {
+      setIsCreatingTodo(false)
+    }
   }
 
   return (
@@ -325,8 +361,8 @@ function NotificationItem({
           )}
         </div>
       </div>
-      {link !== "#" && (
-        <div className="px-4 pb-2">
+      <div className="px-4 pb-2 flex items-center justify-between gap-2">
+        {link !== "#" && (
           <Link
             href={link}
             onClick={onClose}
@@ -334,8 +370,19 @@ function NotificationItem({
           >
             View Details →
           </Link>
-        </div>
-      )}
+        )}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleCreateTodo}
+          disabled={isCreatingTodo}
+          className="h-7 px-2 text-xs"
+          title="Create Todo from this notification"
+        >
+          <Plus className="h-3 w-3 mr-1" />
+          {isCreatingTodo ? "Creating..." : "Create Todo"}
+        </Button>
+      </div>
     </div>
   )
 }

@@ -319,7 +319,7 @@ export default function ProposalsPage() {
         </CardContent>
       </Card>
 
-      <div className="space-y-4">
+      <div className="space-y-6">
         {filteredProposals.map((proposal) => (
           <Link key={proposal.id} href={`/dashboard/proposals/${proposal.id}`}>
             <Card className="hover:shadow-lg transition-shadow">

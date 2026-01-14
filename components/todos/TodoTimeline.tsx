@@ -7,6 +7,7 @@ import { formatDate } from "@/lib/utils"
 import { TodoPriority, TodoStatus } from "@prisma/client"
 import { ChevronLeft, ChevronRight, Calendar } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useRouter } from "next/navigation"
 
 interface Todo {
   id: string
@@ -54,11 +55,16 @@ interface TodoTimelineProps {
 type ViewMode = "week" | "month"
 
 export function TodoTimeline({ initialFilters, currentUserId }: TodoTimelineProps) {
+  const router = useRouter()
   const [todos, setTodos] = useState<Todo[]>([])
   const [loading, setLoading] = useState(true)
   const [viewMode, setViewMode] = useState<ViewMode>("month")
   const [currentDate, setCurrentDate] = useState(new Date())
   const [filters, setFilters] = useState(initialFilters || {})
+
+  const handleTodoClick = (todo: Todo) => {
+    router.push(`/dashboard/todos/${todo.id}/edit`)
+  }
 
   // Calculate date range based on view mode
   const { startDate, endDate, dateHeaders } = useMemo(() => {
@@ -293,6 +299,7 @@ export function TodoTimeline({ initialFilters, currentUserId }: TodoTimelineProp
                             {dayTodos.map(todo => (
                               <div
                                 key={todo.id}
+                                onClick={() => handleTodoClick(todo)}
                                 className={cn(
                                   "p-2 rounded border text-xs cursor-pointer hover:shadow-md transition-shadow",
                                   getPriorityColor(todo.priority),

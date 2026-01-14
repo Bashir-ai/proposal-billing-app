@@ -213,6 +213,8 @@ export default function TodosPage() {
           <TodoKanban
             initialFilters={timelineFilters}
             currentUserId={session.user.id}
+            users={users}
+            defaultAssignedTo={defaultAssignedTo}
           />
         </TabsContent>
       </Tabs>
