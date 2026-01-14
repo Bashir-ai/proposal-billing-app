@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { TodoKanbanCard } from "./TodoKanbanCard"
-import { TodoStatus } from "@prisma/client"
+import { TodoStatus, TodoPriority } from "@prisma/client"
 import { toast } from "sonner"
 
 interface Todo {
@@ -12,7 +12,7 @@ interface Todo {
   description?: string | null
   dueDate: string | null
   status: TodoStatus
-  priority: string
+  priority: TodoPriority
   assignee: {
     id: string
     name: string
@@ -146,7 +146,7 @@ export function TodoKanban({ initialFilters, currentUserId }: TodoKanbanProps) {
     // You can enhance this later with a review flag
     if (column === "Review") {
       // For now, show empty or filter by some criteria
-      return todos.filter((todo) => todo.status === TodoStatus.IN_PROGRESS && todo.priority === "HIGH")
+      return todos.filter((todo) => todo.status === TodoStatus.IN_PROGRESS && todo.priority === TodoPriority.HIGH)
     }
     return todos.filter((todo) => todo.status === targetStatus)
   }
