@@ -188,8 +188,17 @@ export function PaymentTermsWizard({
           installmentType: null,
         })
       } else if (paymentStructure === "ONE_TIME") {
-        // For one-time, the wizard is already completed by useEffect
-        // Just confirm completion
+        // Initialize one-time data and move to step 2 to allow setting due date
+        setWizardData({
+          upfrontType: null,
+          upfrontValue: null,
+          balancePaymentType: null,
+          balanceDueDate: wizardData.balanceDueDate || null, // Preserve existing due date if set
+          installmentType: null,
+          recurringEnabled: false,
+          recurringFrequency: null,
+        })
+        setCurrentStep(2)
         return
       } else if (paymentStructure === "INSTALLMENTS") {
         setWizardData({
@@ -197,7 +206,7 @@ export function PaymentTermsWizard({
           upfrontType: null,
           upfrontValue: null,
           balancePaymentType: null,
-          recurringEnabled: null,
+          recurringEnabled: false,
           recurringFrequency: null,
         })
       } else if (paymentStructure === "UPFRONT_BALANCE") {
@@ -206,7 +215,7 @@ export function PaymentTermsWizard({
           upfrontValue: 0,
           balancePaymentType: null,
           installmentType: null,
-          recurringEnabled: null,
+          recurringEnabled: false,
           recurringFrequency: null,
         })
       }
@@ -217,14 +226,33 @@ export function PaymentTermsWizard({
         setCurrentStep(3)
       } else if (paymentStructure === "ONE_TIME") {
         // Complete wizard for one-time payment
-        onProposalLevelChange(wizardData)
+        // Ensure recurringEnabled is explicitly false for ONE_TIME
+        const finalData = {
+          ...wizardData,
+          recurringEnabled: false,
+          recurringFrequency: null,
+          recurringStartDate: null,
+        }
+        onProposalLevelChange(finalData)
       } else {
         // Complete wizard for other structures
-        onProposalLevelChange(wizardData)
+        // Ensure recurringEnabled is explicitly set based on structure
+        const finalData = {
+          ...wizardData,
+          recurringEnabled: paymentStructure === "RECURRING" ? (wizardData.recurringEnabled ?? false) : false,
+        }
+        onProposalLevelChange(finalData)
       }
     } else if (currentStep === 3) {
       // Final step for UPFRONT_BALANCE
-      onProposalLevelChange(wizardData)
+      // Ensure recurringEnabled is explicitly false for UPFRONT_BALANCE
+      const finalData = {
+        ...wizardData,
+        recurringEnabled: false,
+        recurringFrequency: null,
+        recurringStartDate: null,
+      }
+      onProposalLevelChange(finalData)
     }
   }
 
@@ -239,6 +267,10 @@ export function PaymentTermsWizard({
   const handleStructureSelect = (structure: PaymentStructure) => {
     setPaymentStructure(structure)
     setErrors(prev => ({ ...prev, paymentStructure: "" }))
+    // Reset wizard data when changing structure to allow fresh selection
+    setWizardData({})
+    // Reset to step 1 when changing structure
+    setCurrentStep(1)
   }
 
   const getTotalSteps = (): number => {
@@ -288,8 +320,9 @@ export function PaymentTermsWizard({
   }
 
   // Handle one-time payment - allow setting due date
+  // Only initialize when structure is first selected, not when going back
   useEffect(() => {
-    if (paymentStructure === "ONE_TIME" && currentStep === 1) {
+    if (paymentStructure === "ONE_TIME" && currentStep === 1 && !wizardData.balanceDueDate && !proposalLevel) {
       const oneTimeData: PaymentTerm = {
         upfrontType: null,
         upfrontValue: null,
@@ -304,7 +337,7 @@ export function PaymentTermsWizard({
       setCurrentStep(2)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [paymentStructure, currentStep])
+  }, [paymentStructure])
 
   return (
     <Card>

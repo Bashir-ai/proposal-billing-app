@@ -143,6 +143,9 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
     recurringStartDate: initialData?.recurringStartDate ? new Date(initialData.recurringStartDate).toISOString().split("T")[0] : undefined,
   })
 
+  // Track which discount field was last edited for each item to prevent auto-calculation loops
+  const [discountEditSource, setDiscountEditSource] = useState<Record<number, "percent" | "amount" | null>>({})
+  
   const [items, setItems] = useState<LineItem[]>(initialData?.items?.map((item: any) => ({
     billingMethod: item.billingMethod || undefined,
     personId: item.personId || undefined,
@@ -2201,8 +2204,10 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                                   value={item.discountPercent || ""}
                                   onChange={(e) => {
                                     const discountPercent = parseFloat(e.target.value) || undefined
+                                    // Mark that we're editing percentage
+                                    setDiscountEditSource({ ...discountEditSource, [index]: "percent" })
                                     updateItem(index, "discountPercent", discountPercent)
-                                    // Auto-calculate discount amount if percentage is set
+                                    // Auto-calculate discount amount when editing percentage
                                     if (discountPercent && item.amount) {
                                       updateItem(index, "discountAmount", (item.amount * discountPercent / 100))
                                     } else if (!discountPercent) {
@@ -2221,8 +2226,10 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                                   value={item.discountAmount || ""}
                                   onChange={(e) => {
                                     const discountAmount = parseFloat(e.target.value) || undefined
+                                    // Mark that we're editing amount
+                                    setDiscountEditSource({ ...discountEditSource, [index]: "amount" })
                                     updateItem(index, "discountAmount", discountAmount)
-                                    // Auto-calculate discount percentage if amount is set
+                                    // Auto-calculate discount percentage when editing amount
                                     if (discountAmount && item.amount && item.amount > 0) {
                                       updateItem(index, "discountPercent", (discountAmount / item.amount * 100))
                                     } else if (!discountAmount) {
