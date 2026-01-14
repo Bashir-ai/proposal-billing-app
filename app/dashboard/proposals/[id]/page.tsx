@@ -86,7 +86,12 @@ export default async function ProposalDetailPage({
         hourlyCapHours: true,
         cappedAmount: true,
         retainerMonthlyAmount: true,
-        retainerHourlyCap: true,
+        retainerHoursPerMonth: true,
+        retainerAdditionalHoursType: true,
+        retainerAdditionalHoursRate: true,
+        retainerAdditionalHoursRateMin: true,
+        retainerAdditionalHoursRateMax: true,
+        retainerAdditionalHoursBlendedRate: true,
         blendedRate: true,
         useBlendedRate: true,
         successFeePercent: true,
@@ -799,7 +804,7 @@ export default async function ProposalDetailPage({
         </Card>
       )}
 
-      {proposal.type === "RETAINER" && (proposal.retainerMonthlyAmount || proposal.retainerHourlyCap) && (
+      {proposal.type === "RETAINER" && (proposal.retainerMonthlyAmount || proposal.retainerHoursPerMonth) && (
         <Card className="mb-8">
           <CardHeader>
             <CardTitle>Retainer Configuration</CardTitle>
@@ -811,10 +816,20 @@ export default async function ProposalDetailPage({
                 <span className="font-semibold">{currencySymbol}{proposal.retainerMonthlyAmount.toFixed(2)}</span>
               </div>
             )}
-            {proposal.retainerHourlyCap && (
+            {proposal.retainerHoursPerMonth && (
               <div>
-                <span className="text-sm text-gray-600">Hourly Cap: </span>
-                <span className="font-semibold">{currencySymbol}{proposal.retainerHourlyCap.toFixed(2)}</span>
+                <span className="text-sm text-gray-600">Hours Per Month: </span>
+                <span className="font-semibold">{proposal.retainerHoursPerMonth.toFixed(2)} hours</span>
+              </div>
+            )}
+            {proposal.retainerAdditionalHoursType && (
+              <div>
+                <span className="text-sm text-gray-600">Additional Hours: </span>
+                <span className="font-semibold">
+                  {proposal.retainerAdditionalHoursType === "FIXED_RATE" && proposal.retainerAdditionalHoursRate && `${currencySymbol}${proposal.retainerAdditionalHoursRate.toFixed(2)}/hr`}
+                  {proposal.retainerAdditionalHoursType === "RATE_RANGE" && proposal.retainerAdditionalHoursRateMin && proposal.retainerAdditionalHoursRateMax && `${currencySymbol}${proposal.retainerAdditionalHoursRateMin.toFixed(2)}-${proposal.retainerAdditionalHoursRateMax.toFixed(2)}/hr`}
+                  {proposal.retainerAdditionalHoursType === "BLENDED_RATE" && proposal.retainerAdditionalHoursBlendedRate && `${currencySymbol}${proposal.retainerAdditionalHoursBlendedRate.toFixed(2)}/hr`}
+                </span>
               </div>
             )}
           </CardContent>
