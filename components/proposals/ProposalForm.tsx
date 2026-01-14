@@ -2205,7 +2205,7 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                                   onChange={(e) => {
                                     const discountPercent = parseFloat(e.target.value) || undefined
                                     // Mark that we're editing percentage
-                                    const newEditSource = { ...discountEditSource, [index]: "percent" }
+                                    const newEditSource: Record<number, "amount" | "percent" | null> = { ...discountEditSource, [index]: "percent" }
                                     setDiscountEditSource(newEditSource)
                                     
                                     // Update both fields in a single updateItem call to prevent race conditions
@@ -2234,7 +2234,7 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                                   onChange={(e) => {
                                     const discountAmount = parseFloat(e.target.value) || undefined
                                     // Mark that we're editing amount
-                                    const newEditSource = { ...discountEditSource, [index]: "amount" }
+                                    const newEditSource: Record<number, "amount" | "percent" | null> = { ...discountEditSource, [index]: "amount" }
                                     setDiscountEditSource(newEditSource)
                                     
                                     // Update both fields in a single updateItem call to prevent race conditions
