@@ -72,7 +72,7 @@ export function CreateTimesheetEntryForm({
       if (selectedUser && selectedUser.defaultHourlyRate != null) {
         setFormData((prev) => ({
           ...prev,
-          rate: selectedUser.defaultHourlyRate.toString(),
+          rate: selectedUser.defaultHourlyRate!.toString(),
         }))
       }
     }
