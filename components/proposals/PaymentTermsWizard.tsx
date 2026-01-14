@@ -213,6 +213,9 @@ export function PaymentTermsWizard({
       if (paymentStructure === "UPFRONT_BALANCE") {
         // Need step 3 for balance payment method
         setCurrentStep(3)
+      } else if (paymentStructure === "ONE_TIME") {
+        // Complete wizard for one-time payment
+        onProposalLevelChange(wizardData)
       } else {
         // Complete wizard for other structures
         onProposalLevelChange(wizardData)
@@ -244,7 +247,10 @@ export function PaymentTermsWizard({
 
   const isCompleted = (): boolean => {
     if (!paymentStructure) return false
-    if (paymentStructure === "ONE_TIME") return true
+    if (paymentStructure === "ONE_TIME") {
+      // ONE_TIME is complete when we have the structure (due date is optional)
+      return true
+    }
     if (paymentStructure === "RECURRING") {
       return !!(wizardData.recurringFrequency && wizardData.recurringStartDate)
     }
@@ -275,20 +281,21 @@ export function PaymentTermsWizard({
     return false
   }
 
-  // Handle one-time payment completion immediately when selected
+  // Handle one-time payment - allow setting due date
   useEffect(() => {
     if (paymentStructure === "ONE_TIME" && currentStep === 1) {
       const oneTimeData: PaymentTerm = {
         upfrontType: null,
         upfrontValue: null,
         balancePaymentType: null,
+        balanceDueDate: null,
         installmentType: null,
         recurringEnabled: null,
         recurringFrequency: null,
       }
       setWizardData(oneTimeData)
-      // Complete wizard immediately for one-time payment
-      onProposalLevelChange(oneTimeData)
+      // Move to step 2 to allow setting due date
+      setCurrentStep(2)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paymentStructure, currentStep])
@@ -580,13 +587,31 @@ export function PaymentTermsWizard({
 
         {currentStep === 2 && paymentStructure === "ONE_TIME" && (
           <div className="space-y-4">
-            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <div className="flex items-center gap-2 mb-2">
-                <Check className="w-5 h-5 text-blue-600" />
-                <Label className="text-base font-semibold text-blue-900">One-time Payment Selected</Label>
-              </div>
+            <Label className="text-base font-semibold">One-time Payment Details</Label>
+            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg mb-4">
               <p className="text-sm text-blue-800">
-                The full balance will be due upon completion of the work.
+                The full amount will be paid in one payment. You can optionally specify when the payment is due.
+              </p>
+            </div>
+            
+            <div className="space-y-2">
+              <Label>Payment Due Date (Optional)</Label>
+              <Input
+                type="date"
+                value={wizardData.balanceDueDate || ""}
+                onChange={(e) => {
+                  const dueDate = e.target.value || null
+                  updateWizardData("balanceDueDate", dueDate)
+                  // If a due date is set, set balancePaymentType to TIME_BASED
+                  if (dueDate) {
+                    updateWizardData("balancePaymentType", "TIME_BASED")
+                  } else {
+                    updateWizardData("balancePaymentType", null)
+                  }
+                }}
+              />
+              <p className="text-xs text-gray-500">
+                Leave blank if payment is due upon completion. Set a date if payment is due on a specific date.
               </p>
             </div>
           </div>

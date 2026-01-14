@@ -152,6 +152,40 @@ export async function POST(request: Request) {
       })
     }
 
+    // Mark associated todos as completed
+    try {
+      if (validatedData.proposalId) {
+        await prisma.todo.updateMany({
+          where: {
+            proposalId: validatedData.proposalId,
+            assignedTo: session.user.id,
+            status: { not: "COMPLETED" },
+          },
+          data: {
+            status: "COMPLETED",
+            completedAt: new Date(),
+            completedBy: session.user.id,
+          },
+        })
+      } else if (validatedData.billId) {
+        await prisma.todo.updateMany({
+          where: {
+            invoiceId: validatedData.billId,
+            assignedTo: session.user.id,
+            status: { not: "COMPLETED" },
+          },
+          data: {
+            status: "COMPLETED",
+            completedAt: new Date(),
+            completedBy: session.user.id,
+          },
+        })
+      }
+    } catch (todoError) {
+      console.error("Failed to update todos after approval:", todoError)
+      // Don't fail the approval if todo update fails
+    }
+
     // Handle proposal approval workflow
     if (validatedData.proposalId) {
       const proposal = await prisma.proposal.findUnique({

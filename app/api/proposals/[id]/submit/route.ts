@@ -91,6 +91,39 @@ export async function POST(
         skipDuplicates: true,
       })
 
+      // Create todos for each approver
+      const { TodoPriority } = await import("@prisma/client")
+      const dueDate = new Date()
+      dueDate.setDate(dueDate.getDate() + 3) // Due in 3 days
+
+      // Find the project associated with this proposal (if any)
+      const project = await prisma.project.findFirst({
+        where: { proposalId: id },
+        select: { id: true, clientId: true },
+      })
+
+      for (const approverId of approverIds) {
+        try {
+          await prisma.todo.create({
+            data: {
+              title: `Approve Proposal: ${proposal.title}`,
+              description: `Proposal ${proposal.proposalNumber || proposal.id} requires your approval. Client: ${proposal.client?.name || "Unknown"}`,
+              assignedTo: approverId,
+              createdBy: session.user.id,
+              dueDate: dueDate,
+              priority: TodoPriority.HIGH,
+              status: "PENDING",
+              proposalId: id,
+              projectId: project?.id,
+              clientId: proposal.clientId || project?.clientId,
+            },
+          })
+        } catch (todoError) {
+          console.error(`Failed to create todo for approver ${approverId}:`, todoError)
+          // Continue with other todos even if one fails
+        }
+      }
+
       // Send email notifications to approvers
       for (const approver of approvers) {
         try {
