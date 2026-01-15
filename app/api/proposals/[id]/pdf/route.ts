@@ -231,12 +231,17 @@ export async function GET(
               <tbody>
                 ${proposal.items.map(item => {
                   const isHourly = item.billingMethod === "HOURLY" || (item.quantity && item.rate)
-                  const estimateInfo = item.isEstimate && isHourly 
+                  const isExpense = !!item.expenseId
+                  const estimateInfo = (item.isEstimate || item.isEstimated)
                     ? `<div style="font-size: 11px; color: #92400e; background-color: #fef3c7; padding: 4px 8px; border-radius: 4px; margin-top: 4px; display: inline-block;">
-                        Estimated: ${item.quantity || 0} hours at ${currencySymbol}${item.rate?.toFixed(2) || "0.00"}/hr = ${currencySymbol}${item.amount.toFixed(2)}
+                        ${item.isEstimated 
+                          ? `Estimated expense: ${currencySymbol}${item.amount.toFixed(2)}`
+                          : isHourly
+                            ? `Estimated: ${item.quantity || 0} hours at ${currencySymbol}${item.rate?.toFixed(2) || "0.00"}/hr = ${currencySymbol}${item.amount.toFixed(2)}`
+                            : `Estimated: ${currencySymbol}${item.amount.toFixed(2)}`}
                       </div>`
                     : ""
-                  const cappedInfo = item.isCapped && isHourly
+                  const cappedInfo = item.isCapped
                     ? (item.cappedHours && item.rate
                         ? `<div style="font-size: 11px; color: #1e40af; background-color: #dbeafe; padding: 4px 8px; border-radius: 4px; margin-top: 4px; display: inline-block; margin-left: 8px;">
                             Capped at ${item.cappedHours} hours at ${currencySymbol}${item.rate.toFixed(2)}/hr = ${currencySymbol}${(item.cappedHours * item.rate).toFixed(2)}
@@ -275,7 +280,7 @@ export async function GET(
               <tfoot>
                 ${(() => {
                   const subtotal = proposal.amount || proposal.items.reduce((sum: number, item: any) => sum + item.amount, 0)
-                  const hasEstimated = proposal.items.some((item: any) => item.isEstimate === true)
+                  const hasEstimated = proposal.items.some((item: any) => item.isEstimate === true || item.isEstimated === true)
                   const hasCapped = proposal.items.some((item: any) => item.isCapped === true)
                   let cappedAmount = 0
                   if (hasCapped) {

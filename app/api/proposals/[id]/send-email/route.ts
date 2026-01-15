@@ -166,7 +166,7 @@ function generateProposalHTML(proposal: any, logoBase64: string | null): string 
         </div>
         ` : ''}
 
-        ${proposal.items && proposal.items.some((item: any) => item.isEstimate === true) ? `
+        ${proposal.items && proposal.items.some((item: any) => item.isEstimate === true || item.isEstimated === true) ? `
         <div class="section">
           <div style="padding: 15px; background-color: #fef3c7; border: 2px solid #fbbf24; border-radius: 8px;">
             <p style="color: #92400e; font-weight: bold; font-size: 16px; margin: 0 0 10px 0;">
@@ -212,12 +212,17 @@ function generateProposalHTML(proposal: any, logoBase64: string | null): string 
             <tbody>
               ${proposal.items.map((item: any) => {
                 const isHourly = item.billingMethod === "HOURLY" || (item.quantity && item.rate)
-                const estimateInfo = item.isEstimate && isHourly 
+                const isExpense = !!item.expenseId
+                const estimateInfo = (item.isEstimate || item.isEstimated)
                   ? `<div style="font-size: 11px; color: #92400e; background-color: #fef3c7; padding: 4px 8px; border-radius: 4px; margin-top: 4px; display: inline-block;">
-                      Estimated: ${item.quantity || 0} hours at ${currencySymbol}${item.rate?.toFixed(2) || "0.00"}/hr = ${currencySymbol}${item.amount.toFixed(2)}
+                      ${item.isEstimated 
+                        ? `Estimated expense: ${currencySymbol}${item.amount.toFixed(2)}`
+                        : isHourly
+                          ? `Estimated: ${item.quantity || 0} hours at ${currencySymbol}${item.rate?.toFixed(2) || "0.00"}/hr = ${currencySymbol}${item.amount.toFixed(2)}`
+                          : `Estimated: ${currencySymbol}${item.amount.toFixed(2)}`}
                     </div>`
                   : ""
-                const cappedInfo = item.isCapped && isHourly
+                const cappedInfo = item.isCapped
                   ? (item.cappedHours && item.rate
                       ? `<div style="font-size: 11px; color: #1e40af; background-color: #dbeafe; padding: 4px 8px; border-radius: 4px; margin-top: 4px; display: inline-block; margin-left: 8px;">
                           Capped at ${item.cappedHours} hours at ${currencySymbol}${item.rate.toFixed(2)}/hr = ${currencySymbol}${(item.cappedHours * item.rate).toFixed(2)}
@@ -278,7 +283,7 @@ function generateProposalHTML(proposal: any, logoBase64: string | null): string 
             <div class="text-right">
               ${(() => {
                 const subtotal = proposal.amount || (proposal.items ? proposal.items.reduce((sum: number, item: any) => sum + item.amount, 0) : 0)
-                const hasEstimated = proposal.items && proposal.items.some((item: any) => item.isEstimate === true)
+                const hasEstimated = proposal.items && proposal.items.some((item: any) => item.isEstimate === true || item.isEstimated === true)
                 const hasCapped = proposal.items && proposal.items.some((item: any) => item.isCapped === true)
                 let cappedAmount = 0
                 if (hasCapped && proposal.items) {
@@ -293,10 +298,18 @@ function generateProposalHTML(proposal: any, logoBase64: string | null): string 
                   })
                 }
                 
+                // Calculate subtotal excluding expenses for tax calculation
+                const subtotalExcludingExpenses = proposal.items 
+                  ? proposal.items
+                      .filter((item: any) => !item.expenseId)
+                      .reduce((sum: number, item: any) => sum + item.amount, 0)
+                  : 0
+                
                 let html = `<div>${hasEstimated ? "Subtotal (Estimated):" : "Subtotal:"} ${currencySymbol}${subtotal.toFixed(2)}</div>`
                 if (proposal.taxRate) {
-                  html += `<div>Tax (${proposal.taxRate}%): ${currencySymbol}${(subtotal * proposal.taxRate / 100).toFixed(2)}</div>`
-                  html += `<div>Total with Tax: ${currencySymbol}${(subtotal * (1 + proposal.taxRate / 100)).toFixed(2)}</div>`
+                  const taxAmount = subtotalExcludingExpenses * proposal.taxRate / 100
+                  html += `<div>Tax (${proposal.taxRate}%): ${currencySymbol}${taxAmount.toFixed(2)}</div>`
+                  html += `<div>Total with Tax: ${currencySymbol}${(subtotal + taxAmount).toFixed(2)}</div>`
                 }
                 if (hasCapped && cappedAmount > 0) {
                   html += `<div style="color: #1e40af; font-weight: bold; margin-top: 10px; padding-top: 10px; border-top: 1px solid #dbeafe;">Maximum Charge (Will Not Exceed): ${currencySymbol}${cappedAmount.toFixed(2)}</div>`

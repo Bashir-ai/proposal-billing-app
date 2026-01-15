@@ -517,9 +517,17 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
   }
 
   const calculateClientDiscount = (): number => {
-    const subtotal = calculateSubtotal()
+    // Calculate subtotal excluding expenses for discount calculation
+    const subtotalExcludingExpenses = items
+      .filter(item => !item.expenseId)
+      .reduce((sum, item) => {
+        const itemAmount = item.amount || 0
+        const itemDiscount = item.discountAmount || (item.discountPercent && itemAmount ? (itemAmount * item.discountPercent / 100) : 0) || 0
+        return sum + (itemAmount - itemDiscount)
+      }, 0)
+    
     if (formData.clientDiscountType === "percent") {
-      return subtotal * (formData.clientDiscountPercent / 100)
+      return subtotalExcludingExpenses * (formData.clientDiscountPercent / 100)
     } else if (formData.clientDiscountType === "amount") {
       return formData.clientDiscountAmount
     }
@@ -528,8 +536,15 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
 
   const calculateTax = (): number => {
     if (!formData.taxRate || formData.taxRate === 0) return 0
-    const subtotal = calculateSubtotal()
-    const afterDiscount = subtotal - calculateClientDiscount()
+    // Calculate subtotal excluding expenses
+    const subtotalExcludingExpenses = items
+      .filter(item => !item.expenseId) // Exclude expenses
+      .reduce((sum, item) => {
+        const itemAmount = item.amount || 0
+        const itemDiscount = item.discountAmount || (item.discountPercent && itemAmount ? (itemAmount * item.discountPercent / 100) : 0) || 0
+        return sum + (itemAmount - itemDiscount)
+      }, 0)
+    const afterDiscount = subtotalExcludingExpenses - calculateClientDiscount()
     
     if (formData.taxInclusive) {
       // Tax is already included, calculate the tax portion
@@ -2560,22 +2575,26 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                           <div className="flex items-start justify-between">
                             <div className="flex-1">
                               <span className="font-medium">{item.description || `Item ${index + 1}`}</span>
-                              {/* Show estimate and capped info for hourly items */}
-                              {isHourly && (item.isEstimate || item.isCapped) && (
+                              {/* Show estimate and capped info for all items */}
+                              {(item.isEstimate || item.isEstimated || item.isCapped) && (
                                 <div className="mt-1 space-y-1">
-                                  {item.isEstimate && (
+                                  {(item.isEstimate || item.isEstimated) && (
                                     <div className="text-xs text-yellow-700 bg-yellow-50 px-2 py-1 rounded inline-block">
-                                      Estimated: {item.quantity || 0} hours at {selectedCurrency.symbol}{item.rate?.toFixed(2) || "0.00"}/hr = {selectedCurrency.symbol}{itemAmount.toFixed(2)}
+                                      {item.isEstimated 
+                                        ? `Estimated expense: ${selectedCurrency.symbol}${itemAmount.toFixed(2)}`
+                                        : isHourly
+                                          ? `Estimated: ${item.quantity || 0} hours at ${selectedCurrency.symbol}${item.rate?.toFixed(2) || "0.00"}/hr = ${selectedCurrency.symbol}${itemAmount.toFixed(2)}`
+                                          : `Estimated: ${selectedCurrency.symbol}${itemAmount.toFixed(2)}`}
                                     </div>
                                   )}
                                   {item.isCapped && item.cappedHours && (
                                     <div className="text-xs text-blue-700 bg-blue-50 px-2 py-1 rounded inline-block ml-2">
-                                      Capped at {item.cappedHours} hours at {selectedCurrency.symbol}{item.rate?.toFixed(2) || "0.00"}/hr = {selectedCurrency.symbol}{(item.cappedHours * (item.rate || 0)).toFixed(2)}
+                                      Capped at {item.cappedHours} hours at ${selectedCurrency.symbol}${item.rate?.toFixed(2) || "0.00"}/hr = ${selectedCurrency.symbol}${(item.cappedHours * (item.rate || 0)).toFixed(2)}
                                     </div>
                                   )}
                                   {item.isCapped && item.cappedAmount && (
                                     <div className="text-xs text-blue-700 bg-blue-50 px-2 py-1 rounded inline-block ml-2">
-                                      Capped at {selectedCurrency.symbol}{item.cappedAmount.toFixed(2)}
+                                      Capped at ${selectedCurrency.symbol}${item.cappedAmount.toFixed(2)}
                                     </div>
                                   )}
                                 </div>

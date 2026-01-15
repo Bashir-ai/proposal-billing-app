@@ -317,9 +317,13 @@ export default async function ProposalDetailPage({
   }
 
   const calculateClientDiscount = () => {
-    const subtotal = calculateSubtotal()
+    // Calculate subtotal excluding expenses for discount calculation
+    const subtotalExcludingExpenses = proposal.items
+      .filter(item => !item.expenseId)
+      .reduce((sum, item) => sum + item.amount, 0)
+    
     if (proposal.clientDiscountPercent) {
-      return subtotal * (proposal.clientDiscountPercent / 100)
+      return subtotalExcludingExpenses * (proposal.clientDiscountPercent / 100)
     } else if (proposal.clientDiscountAmount) {
       return proposal.clientDiscountAmount
     }
@@ -328,8 +332,11 @@ export default async function ProposalDetailPage({
 
   const calculateTax = () => {
     if (!proposal.taxRate || proposal.taxRate === 0) return 0
-    const subtotal = calculateSubtotal()
-    const afterDiscount = subtotal - calculateClientDiscount()
+    // Calculate subtotal excluding expenses
+    const subtotalExcludingExpenses = proposal.items
+      .filter(item => !item.expenseId) // Exclude expenses
+      .reduce((sum, item) => sum + item.amount, 0)
+    const afterDiscount = subtotalExcludingExpenses - calculateClientDiscount()
     
     if (proposal.taxInclusive) {
       return afterDiscount * (proposal.taxRate / (100 + proposal.taxRate))
@@ -368,8 +375,10 @@ export default async function ProposalDetailPage({
     return totalCapped
   }
 
-  // Check if any items are estimated
-  const hasEstimatedItems = proposal.items.some(item => item.isEstimate === true)
+  // Check if any items are estimated (including expenses)
+  const hasEstimatedItems = proposal.items.some(item => 
+    item.isEstimate === true || item.isEstimated === true
+  )
 
   // Check if any items are capped
   const hasCappedItems = proposal.items.some(item => item.isCapped === true)
@@ -1035,12 +1044,16 @@ export default async function ProposalDetailPage({
                       <td className="p-3 align-top">
                         <div className="space-y-2">
                           <div className="font-medium">{item.description || "-"}</div>
-                          {/* Show estimate and capped info for hourly items */}
-                          {isHourly && (item.isEstimate || item.isCapped) && (
+                          {/* Show estimate and capped info for all items */}
+                          {(item.isEstimate || item.isEstimated || item.isCapped) && (
                             <div className="flex flex-wrap gap-2 mt-2">
-                              {item.isEstimate && (
+                              {(item.isEstimate || item.isEstimated) && (
                                 <span className="text-xs text-yellow-700 bg-yellow-50 px-2 py-1 rounded border border-yellow-200 whitespace-nowrap">
-                                  Estimated: {item.quantity || 0} hours at {currencySymbol}{item.rate?.toFixed(2) || "0.00"}/hr = {currencySymbol}{item.amount.toFixed(2)}
+                                  {item.isEstimated 
+                                    ? `Estimated expense: ${currencySymbol}${item.amount.toFixed(2)}`
+                                    : isHourly
+                                      ? `Estimated: ${item.quantity || 0} hours at ${currencySymbol}${item.rate?.toFixed(2) || "0.00"}/hr = ${currencySymbol}${item.amount.toFixed(2)}`
+                                      : `Estimated: ${currencySymbol}${item.amount.toFixed(2)}`}
                                 </span>
                               )}
                               {item.isCapped && item.cappedHours && item.rate && (
