@@ -430,18 +430,8 @@ export async function POST(request: Request) {
       orderBy: { createdAt: "asc" },
     })
 
-    // Helper function to create default payment terms (monthly billing at beginning of month)
+    // Helper function to create default payment terms (one-time payment, no recurring)
     const getDefaultPaymentTerm = (): any => {
-      const now = new Date()
-      const day = now.getDate()
-      let startDate: Date
-      if (day < 15) {
-        // If before 15th, use first day of current month
-        startDate = new Date(now.getFullYear(), now.getMonth(), 1)
-      } else {
-        // If 15th or later, use first day of next month
-        startDate = new Date(now.getFullYear(), now.getMonth() + 1, 1)
-      }
       return {
         proposalId: proposal.id,
         proposalItemId: null, // Proposal-level
@@ -454,10 +444,10 @@ export async function POST(request: Request) {
         milestoneIds: [],
         balanceDueDate: null,
         installmentMaturityDates: [],
-        recurringEnabled: true,
-        recurringFrequency: "MONTHLY_1" as const,
+        recurringEnabled: false,
+        recurringFrequency: null,
         recurringCustomMonths: null,
-        recurringStartDate: startDate,
+        recurringStartDate: null,
       }
     }
 
@@ -467,9 +457,18 @@ export async function POST(request: Request) {
       validatedData.paymentTerms.some(term => term && !term.proposalItemId)
 
     // Filter out null/undefined terms and only keep terms with actual data
+    // A term is valid if it has any payment configuration (even if recurringEnabled is explicitly false)
     let validPaymentTerms = validatedData.paymentTerms && Array.isArray(validatedData.paymentTerms)
       ? validatedData.paymentTerms.filter(term => 
-          term && (term.upfrontType || term.installmentType || term.recurringEnabled || term.balancePaymentType)
+          term && (
+            term.upfrontType !== null && term.upfrontType !== undefined ||
+            term.upfrontValue !== null && term.upfrontValue !== undefined ||
+            term.installmentType !== null && term.installmentType !== undefined ||
+            term.balancePaymentType !== null && term.balancePaymentType !== undefined ||
+            term.balanceDueDate !== null && term.balanceDueDate !== undefined ||
+            term.recurringEnabled === true || // Explicitly enabled
+            term.recurringEnabled === false // Explicitly disabled (still valid)
+          )
         )
       : []
 
