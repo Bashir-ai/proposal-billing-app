@@ -935,13 +935,13 @@ export default async function ProposalDetailPage({
               <table className="w-full border-collapse">
                 <thead>
                   <tr className="border-b bg-gray-50">
-                    {proposal.type === "MIXED_MODEL" && <th className="text-left p-3 font-medium text-gray-700">Billing Method</th>}
-                    {(proposal.type === "HOURLY" || proposal.type === "MIXED_MODEL") && <th className="text-left p-3 font-medium text-gray-700">Person</th>}
-                    <th className="text-left p-3 font-medium text-gray-700 min-w-[200px]">Description</th>
-                    <th className="text-right p-3 font-medium text-gray-700">Quantity</th>
-                    <th className="text-right p-3 font-medium text-gray-700">Unit Price</th>
-                    <th className="text-right p-3 font-medium text-gray-700">Discount</th>
-                    <th className="text-right p-3 font-medium text-gray-700">Amount</th>
+                    {proposal.type === "MIXED_MODEL" && <th className="text-left p-3 font-medium text-gray-700 whitespace-nowrap">Billing Method</th>}
+                    {(proposal.type === "HOURLY" || proposal.type === "MIXED_MODEL") && <th className="text-left p-3 font-medium text-gray-700 whitespace-nowrap">Person</th>}
+                    <th className="text-left p-3 font-medium text-gray-700 min-w-[250px]">Description</th>
+                    <th className="text-right p-3 font-medium text-gray-700 whitespace-nowrap">Quantity</th>
+                    <th className="text-right p-3 font-medium text-gray-700 whitespace-nowrap">Unit Price</th>
+                    <th className="text-right p-3 font-medium text-gray-700 whitespace-nowrap">Discount</th>
+                    <th className="text-right p-3 font-medium text-gray-700 whitespace-nowrap">Amount</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -952,12 +952,20 @@ export default async function ProposalDetailPage({
                     const lineSubtotal = item.amount + lineDiscount
                     const isHourly = item.billingMethod === "HOURLY" || (item.quantity && item.rate)
                     
+                    // Calculate column count for milestone row colspan
+                    // Base columns: Description, Quantity, Unit Price, Discount, Amount = 5
+                    // +1 if MIXED_MODEL (Billing Method)
+                    // +1 if HOURLY or MIXED_MODEL (Person)
+                    let columnCount = 5 // Base columns
+                    if (proposal.type === "MIXED_MODEL") columnCount += 1 // Billing Method
+                    if (proposal.type === "HOURLY" || proposal.type === "MIXED_MODEL") columnCount += 1 // Person
+                    
                     return (
                       <>
                     <tr key={item.id} className="border-b hover:bg-gray-50">
                           {proposal.type === "MIXED_MODEL" && (
                             <td className="p-3 align-top">
-                              <span className="px-2 py-1 rounded text-xs bg-gray-100">
+                              <span className="px-2 py-1 rounded text-xs bg-gray-100 whitespace-nowrap">
                                 {item.billingMethod === "HOURLY" ? "Hourly" :
                                  item.billingMethod === "FIXED_FEE" ? "Fixed Fee" :
                                  item.billingMethod === "SUCCESS_FEE" ? "Success Fee" :
@@ -968,26 +976,26 @@ export default async function ProposalDetailPage({
                             </td>
                           )}
                           {(proposal.type === "HOURLY" || proposal.type === "MIXED_MODEL") && (
-                            <td className="p-3 align-top">{item.person?.name || "-"}</td>
+                            <td className="p-3 align-top whitespace-nowrap">{item.person?.name || "-"}</td>
                           )}
                       <td className="p-3 align-top">
                         <div className="space-y-2">
                           <div className="font-medium">{item.description || "-"}</div>
                           {/* Show estimate and capped info for hourly items */}
                           {isHourly && (item.isEstimate || item.isCapped) && (
-                            <div className="flex flex-wrap gap-2">
+                            <div className="flex flex-wrap gap-2 mt-2">
                               {item.isEstimate && (
-                                <span className="text-xs text-yellow-700 bg-yellow-50 px-2 py-1 rounded border border-yellow-200">
+                                <span className="text-xs text-yellow-700 bg-yellow-50 px-2 py-1 rounded border border-yellow-200 whitespace-nowrap">
                                   Estimated: {item.quantity || 0} hours at {currencySymbol}{item.rate?.toFixed(2) || "0.00"}/hr = {currencySymbol}{item.amount.toFixed(2)}
                                 </span>
                               )}
                               {item.isCapped && item.cappedHours && item.rate && (
-                                <span className="text-xs text-blue-700 bg-blue-50 px-2 py-1 rounded border border-blue-200">
+                                <span className="text-xs text-blue-700 bg-blue-50 px-2 py-1 rounded border border-blue-200 whitespace-nowrap">
                                   Capped at {item.cappedHours} hours at {currencySymbol}{item.rate.toFixed(2)}/hr = {currencySymbol}{(item.cappedHours * item.rate).toFixed(2)}
                                 </span>
                               )}
                               {item.isCapped && item.cappedAmount && (
-                                <span className="text-xs text-blue-700 bg-blue-50 px-2 py-1 rounded border border-blue-200">
+                                <span className="text-xs text-blue-700 bg-blue-50 px-2 py-1 rounded border border-blue-200 whitespace-nowrap">
                                   Capped at {currencySymbol}{item.cappedAmount.toFixed(2)}
                                 </span>
                               )}
@@ -995,19 +1003,19 @@ export default async function ProposalDetailPage({
                           )}
                         </div>
                       </td>
-                          <td className="p-3 text-right align-top">{item.quantity || "-"}</td>
-                          <td className="p-3 text-right align-top">
+                          <td className="p-3 text-right align-top whitespace-nowrap">{item.quantity || "-"}</td>
+                          <td className="p-3 text-right align-top whitespace-nowrap">
                             {item.rate ? `${currencySymbol}${item.rate.toFixed(2)}/hr` : item.unitPrice ? `${currencySymbol}${item.unitPrice.toFixed(2)}` : "-"}
                           </td>
-                          <td className="p-3 text-right text-sm text-gray-600 align-top">
+                          <td className="p-3 text-right text-sm text-gray-600 align-top whitespace-nowrap">
                             {item.discountPercent ? `${item.discountPercent}%` : item.discountAmount ? `${currencySymbol}${item.discountAmount.toFixed(2)}` : "-"}
                           </td>
-                          <td className="p-3 text-right font-semibold align-top">{currencySymbol}{item.amount.toFixed(2)}</td>
+                          <td className="p-3 text-right font-semibold align-top whitespace-nowrap">{currencySymbol}{item.amount.toFixed(2)}</td>
                     </tr>
                         {/* Display milestones for this line item */}
                         {item.milestones && item.milestones.length > 0 && (
                           <tr key={`${item.id}-milestones`} className="bg-gray-50">
-                            <td colSpan={proposal.type === "MIXED_MODEL" ? 6 : (proposal.type === "HOURLY" || item.person) ? 5 : 4} className="p-2 pl-8">
+                            <td colSpan={columnCount} className="p-3 pl-8">
                               <div className="flex flex-wrap gap-2 items-center">
                                 <span className="text-xs font-semibold text-gray-600">Milestones:</span>
                                 {item.milestones.map((milestone) => (
