@@ -92,6 +92,14 @@ export default async function ProposalDetailPage({
         retainerAdditionalHoursRateMin: true,
         retainerAdditionalHoursRateMax: true,
         retainerAdditionalHoursBlendedRate: true,
+        retainerStartDate: true,
+        retainerDurationMonths: true,
+        retainerProjectScope: true,
+        retainerProjectIds: true,
+        retainerExcessBillingType: true,
+        retainerUnusedBalancePolicy: true,
+        retainerUnusedBalanceExpiryMonths: true,
+        retainerHourlyTableRates: true,
         blendedRate: true,
         useBlendedRate: true,
         successFeePercent: true,
@@ -237,6 +245,7 @@ export default async function ProposalDetailPage({
         projects: {
           select: {
             id: true,
+            name: true,
           },
         },
       },
@@ -675,8 +684,8 @@ export default async function ProposalDetailPage({
         </Card>
       </div>
 
-      {/* Payment Terms Section - Always shown (mandatory) */}
-      {proposal.paymentTerms && proposal.paymentTerms.length > 0 && (() => {
+      {/* Payment Terms Section - Not shown for retainer proposals */}
+      {proposal.type !== "RETAINER" && proposal.paymentTerms && proposal.paymentTerms.length > 0 && (() => {
         // Get proposal-level payment term (first one without proposalItemId)
         const proposalPaymentTerm = proposal.paymentTerms.find(pt => !pt.proposalItemId)
         
@@ -870,38 +879,131 @@ export default async function ProposalDetailPage({
       )}
 
       {proposal.type === "RETAINER" && (proposal.retainerMonthlyAmount || proposal.retainerHoursPerMonth) && (
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle>Retainer Configuration</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {proposal.retainerMonthlyAmount && (
-              <div>
-                <span className="text-sm text-gray-600">Monthly Amount: </span>
-                <span className="font-semibold">{currencySymbol}{proposal.retainerMonthlyAmount.toFixed(2)}</span>
+        <>
+          <Card className="mb-8">
+            <CardHeader>
+              <CardTitle>Retainer Configuration</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {proposal.retainerMonthlyAmount && (
+                  <div>
+                    <span className="text-sm text-gray-600">Monthly Retainer Amount: </span>
+                    <span className="font-semibold">{currencySymbol}{proposal.retainerMonthlyAmount.toFixed(2)}</span>
+                  </div>
+                )}
+                {proposal.retainerHoursPerMonth && (
+                  <div>
+                    <span className="text-sm text-gray-600">Hours Per Month Included: </span>
+                    <span className="font-semibold">{proposal.retainerHoursPerMonth.toFixed(2)} hours</span>
+                  </div>
+                )}
               </div>
-            )}
-            {proposal.retainerHoursPerMonth && (
-              <div>
-                <span className="text-sm text-gray-600">Hours Per Month: </span>
-                <span className="font-semibold">{proposal.retainerHoursPerMonth.toFixed(2)} hours</span>
-              </div>
-            )}
-            {proposal.retainerAdditionalHoursType && (
-              <div>
-                <span className="text-sm text-gray-600">Additional Hours: </span>
-                <span className="font-semibold">
-                  {proposal.retainerAdditionalHoursType === "FIXED_RATE" && proposal.retainerAdditionalHoursRate && `${currencySymbol}${proposal.retainerAdditionalHoursRate.toFixed(2)}/hr`}
-                  {proposal.retainerAdditionalHoursType === "RATE_RANGE" && proposal.retainerAdditionalHoursRateMin && proposal.retainerAdditionalHoursRateMax && `${currencySymbol}${proposal.retainerAdditionalHoursRateMin.toFixed(2)}-${proposal.retainerAdditionalHoursRateMax.toFixed(2)}/hr`}
-                  {proposal.retainerAdditionalHoursType === "BLENDED_RATE" && proposal.retainerAdditionalHoursBlendedRate && `${currencySymbol}${proposal.retainerAdditionalHoursBlendedRate.toFixed(2)}/hr`}
-                </span>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              {proposal.retainerStartDate && proposal.retainerDurationMonths && (
+                <div>
+                  <span className="text-sm text-gray-600">Billing Period: </span>
+                  <span className="font-semibold">
+                    Monthly retainer charged on {formatDate(proposal.retainerStartDate)} and every anniversary thereafter for {proposal.retainerDurationMonths} months
+                  </span>
+                </div>
+              )}
+              {proposal.retainerProjectScope && (
+                <div>
+                  <span className="text-sm text-gray-600">Project Scope: </span>
+                  <span className="font-semibold">
+                    {proposal.retainerProjectScope === "ALL_PROJECTS" ? "All client projects" : "Specific projects"}
+                  </span>
+                  {proposal.retainerProjectScope === "SPECIFIC_PROJECTS" && proposal.retainerProjectIds && proposal.retainerProjectIds.length > 0 && proposal.projects && (
+                    <div className="mt-2 ml-4">
+                      <ul className="list-disc list-inside text-sm text-gray-700">
+                        {proposal.projects
+                          .filter((p: any) => proposal.retainerProjectIds.includes(p.id))
+                          .map((p: any) => (
+                            <li key={p.id}>{p.name}</li>
+                          ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+              {proposal.retainerAdditionalHoursType && (
+                <div>
+                  <span className="text-sm text-gray-600">Additional Hours Configuration: </span>
+                  <span className="font-semibold">
+                    {proposal.retainerAdditionalHoursType === "FIXED_RATE" && proposal.retainerAdditionalHoursRate && `${currencySymbol}${proposal.retainerAdditionalHoursRate.toFixed(2)}/hr`}
+                    {proposal.retainerAdditionalHoursType === "RATE_RANGE" && proposal.retainerAdditionalHoursRateMin && proposal.retainerAdditionalHoursRateMax && `${currencySymbol}${proposal.retainerAdditionalHoursRateMin.toFixed(2)}-${proposal.retainerAdditionalHoursRateMax.toFixed(2)}/hr`}
+                    {proposal.retainerAdditionalHoursType === "HOURLY_TABLE" && "Hourly table by profile"}
+                  </span>
+                  {proposal.retainerAdditionalHoursType === "HOURLY_TABLE" && proposal.retainerHourlyTableRates && (
+                    <div className="mt-2 ml-4 space-y-1">
+                      {Object.entries(proposal.retainerHourlyTableRates as Record<string, number>)
+                        .filter(([_, rate]) => rate && rate > 0)
+                        .sort((a, b) => (a[1] || 0) - (b[1] || 0))
+                        .map(([profile, rate]) => (
+                          <div key={profile} className="text-sm">
+                            <span className="text-gray-600">{profile.replace(/_/g, " ")}: </span>
+                            <span className="font-medium">{currencySymbol}{rate.toFixed(2)}/hr</span>
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Retainer Payment Terms */}
+          {proposal.retainerUnusedBalancePolicy && (
+            <Card className="mb-8">
+              <CardHeader>
+                <CardTitle>Retainer Payment Terms</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <span className="text-sm text-gray-600">Unused Balance Policy: </span>
+                  <span className="font-semibold">
+                    {proposal.retainerUnusedBalancePolicy === "EXPIRE" && `Expires after ${proposal.retainerUnusedBalanceExpiryMonths || 0} months`}
+                    {proposal.retainerUnusedBalancePolicy === "ROLLOVER" && (
+                      <>
+                        Rolls over to next month
+                        {proposal.retainerUnusedBalanceExpiryMonths !== null && proposal.retainerUnusedBalanceExpiryMonths > 0 && ` (expires after ${proposal.retainerUnusedBalanceExpiryMonths} months of non-use)`}
+                      </>
+                    )}
+                  </span>
+                </div>
+                <div className="bg-blue-50 p-3 rounded text-sm text-blue-900">
+                  <strong>Note:</strong> If approved, retainer hours will be available in drawdown mode and automatically offset against billed hours in timesheet or project mode.
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Retainer Financial Summary */}
+          {proposal.retainerMonthlyAmount && proposal.retainerDurationMonths && (
+            <Card className="mb-8">
+              <CardHeader>
+                <CardTitle>Financial Summary</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">Monthly Retainer Amount:</span>
+                  <span className="font-semibold">{currencySymbol}{proposal.retainerMonthlyAmount.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">Duration:</span>
+                  <span className="font-semibold">{proposal.retainerDurationMonths} months</span>
+                </div>
+                <div className="flex justify-between text-lg font-bold pt-2 border-t">
+                  <span>Total Retainer Amount:</span>
+                  <span>{currencySymbol}{(proposal.retainerMonthlyAmount * proposal.retainerDurationMonths).toFixed(2)}</span>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </>
       )}
 
-      {proposal.useBlendedRate && proposal.blendedRate && (
+      {proposal.type !== "RETAINER" && proposal.useBlendedRate && proposal.blendedRate && (
         <Card className="mb-8">
           <CardHeader>
             <CardTitle>Blended Rate Option</CardTitle>

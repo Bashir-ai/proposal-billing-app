@@ -7,10 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 
 interface RetainerPaymentTermsProps {
   currency: string
-  retainerExcessBillingType: string | null
   retainerUnusedBalancePolicy: string | null
   retainerUnusedBalanceExpiryMonths: number | null
-  onExcessBillingTypeChange: (type: string | null) => void
   onUnusedBalancePolicyChange: (policy: string | null) => void
   onUnusedBalanceExpiryMonthsChange: (months: number | null) => void
 }
@@ -25,10 +23,8 @@ const CURRENCIES: Record<string, string> = {
 
 export function RetainerPaymentTerms({
   currency,
-  retainerExcessBillingType,
   retainerUnusedBalancePolicy,
   retainerUnusedBalanceExpiryMonths,
-  onExcessBillingTypeChange,
   onUnusedBalancePolicyChange,
   onUnusedBalanceExpiryMonthsChange,
 }: RetainerPaymentTermsProps) {
@@ -42,55 +38,6 @@ export function RetainerPaymentTerms({
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="space-y-4">
-          <Label className="text-base font-semibold">Excess Hours Billing</Label>
-          <p className="text-sm text-gray-600">How will hours beyond the retainer package be billed?</p>
-          <div className="space-y-3">
-            <label className="flex items-center space-x-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
-              <input
-                type="radio"
-                name="retainerExcessBillingType"
-                value="ADDITIONAL_HOURS_RATE"
-                checked={retainerExcessBillingType === "ADDITIONAL_HOURS_RATE"}
-                onChange={(e) => onExcessBillingTypeChange(e.target.value)}
-                className="w-4 h-4"
-              />
-              <div className="flex-1">
-                <div className="font-medium">At additional hours rate</div>
-                <div className="text-sm text-gray-600">Use the rate configured for additional hours</div>
-              </div>
-            </label>
-            <label className="flex items-center space-x-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
-              <input
-                type="radio"
-                name="retainerExcessBillingType"
-                value="STANDARD_HOURLY_RATES"
-                checked={retainerExcessBillingType === "STANDARD_HOURLY_RATES"}
-                onChange={(e) => onExcessBillingTypeChange(e.target.value)}
-                className="w-4 h-4"
-              />
-              <div className="flex-1">
-                <div className="font-medium">At standard hourly rates</div>
-                <div className="text-sm text-gray-600">Use standard hourly rates for each professional</div>
-              </div>
-            </label>
-            <label className="flex items-center space-x-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
-              <input
-                type="radio"
-                name="retainerExcessBillingType"
-                value="BLENDED_RATE"
-                checked={retainerExcessBillingType === "BLENDED_RATE"}
-                onChange={(e) => onExcessBillingTypeChange(e.target.value)}
-                className="w-4 h-4"
-              />
-              <div className="flex-1">
-                <div className="font-medium">At blended rate</div>
-                <div className="text-sm text-gray-600">Use a single blended rate for all excess hours</div>
-              </div>
-            </label>
-          </div>
-        </div>
-
-        <div className="pt-4 border-t space-y-4">
           <Label className="text-base font-semibold">Unused Balance Policy</Label>
           <p className="text-sm text-gray-600">What happens to unused retainer hours?</p>
           <div className="space-y-3">
@@ -102,7 +49,8 @@ export function RetainerPaymentTerms({
                 checked={retainerUnusedBalancePolicy === "EXPIRE"}
                 onChange={(e) => {
                   onUnusedBalancePolicyChange(e.target.value)
-                  if (e.target.value === "EXPIRE" && !retainerUnusedBalanceExpiryMonths) {
+                  // Only set default if switching TO EXPIRE and no value is set
+                  if (e.target.value === "EXPIRE" && retainerUnusedBalanceExpiryMonths === null) {
                     onUnusedBalanceExpiryMonthsChange(1)
                   }
                 }}
@@ -134,7 +82,10 @@ export function RetainerPaymentTerms({
                 checked={retainerUnusedBalancePolicy === "ROLLOVER"}
                 onChange={(e) => {
                   onUnusedBalancePolicyChange(e.target.value)
-                  onUnusedBalanceExpiryMonthsChange(null)
+                  // Only clear expiry months if switching TO ROLLOVER (not when already ROLLOVER)
+                  if (e.target.value === "ROLLOVER" && retainerUnusedBalancePolicy !== "ROLLOVER") {
+                    onUnusedBalanceExpiryMonthsChange(null)
+                  }
                 }}
                 className="w-4 h-4"
               />

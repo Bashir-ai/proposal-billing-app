@@ -206,6 +206,7 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
 
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [showCreateLeadDialog, setShowCreateLeadDialog] = useState(false)
+  const [clientProjects, setClientProjects] = useState<Array<{id: string, name: string}>>([])
   
   // Wizard state management
   const shouldShowMilestonesStep = useMemo(() => {
@@ -237,7 +238,7 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
       if (initialData.type) completed.add("billing")
       if (initialData.type === "RETAINER") {
         // For retainer, check retainer payment terms
-        if (initialData.retainerExcessBillingType && initialData.retainerUnusedBalancePolicy) {
+        if (initialData.retainerUnusedBalancePolicy) {
           completed.add("payment")
         }
       } else if (proposalPaymentTerm) {
@@ -250,6 +251,27 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Fetch projects for selected client when retainer proposal
+  useEffect(() => {
+    const fetchProjects = async () => {
+      if (formData.type === "RETAINER" && formData.clientId) {
+        try {
+          const response = await fetch(`/api/projects?clientId=${formData.clientId}`)
+          if (response.ok) {
+            const projects = await response.json()
+            setClientProjects(projects.filter((p: any) => p.status === "ACTIVE").map((p: any) => ({ id: p.id, name: p.name })))
+          }
+        } catch (error) {
+          console.error("Error fetching projects:", error)
+          setClientProjects([])
+        }
+      } else {
+        setClientProjects([])
+      }
+    }
+    fetchProjects()
+  }, [formData.clientId, formData.type])
   
   // Wizard step validation
   const validateCurrentStep = (): boolean => {
@@ -262,6 +284,12 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
         setErrors(newErrors)
         return false
       }
+      // For retainer proposals, validate project selection if specific projects is chosen
+      if (formData.type === "RETAINER" && formData.retainerProjectScope === "SPECIFIC_PROJECTS" && formData.retainerProjectIds.length === 0) {
+        newErrors.retainerProjectIds = "Please select at least one project"
+        setErrors(newErrors)
+        return false
+      }
       setCompletedSteps(prev => new Set(prev).add("billing"))
       return true
     }
@@ -269,11 +297,6 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
     if (currentStepId === "payment") {
       // For retainer proposals, validate retainer payment terms
       if (formData.type === "RETAINER") {
-        if (!formData.retainerExcessBillingType) {
-          newErrors.paymentTerms = "Please select how excess hours will be billed"
-          setErrors(newErrors)
-          return false
-        }
         if (!formData.retainerUnusedBalancePolicy) {
           newErrors.paymentTerms = "Please select unused balance policy"
           setErrors(newErrors)
@@ -1563,8 +1586,32 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                           </div>
                           {formData.retainerProjectScope === "SPECIFIC_PROJECTS" && (
                             <div className="mt-4 space-y-2">
-                              <Label>Select Projects</Label>
-                              <p className="text-xs text-gray-500">Project selection will be available after client is selected</p>
+                              <Label>Select Projects *</Label>
+                              {!formData.clientId ? (
+                                <p className="text-xs text-gray-500">Please select a client first</p>
+                              ) : clientProjects.length === 0 ? (
+                                <p className="text-xs text-gray-500">No active projects found for this client</p>
+                              ) : (
+                                <div className="space-y-2 max-h-48 overflow-y-auto border rounded p-3">
+                                  {clientProjects.map((project) => (
+                                    <label key={project.id} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                                      <input
+                                        type="checkbox"
+                                        checked={formData.retainerProjectIds.includes(project.id)}
+                                        onChange={(e) => {
+                                          if (e.target.checked) {
+                                            setFormData({ ...formData, retainerProjectIds: [...formData.retainerProjectIds, project.id] })
+                                          } else {
+                                            setFormData({ ...formData, retainerProjectIds: formData.retainerProjectIds.filter(id => id !== project.id) })
+                                          }
+                                        }}
+                                        className="h-4 w-4 rounded border-gray-300"
+                                      />
+                                      <span className="text-sm">{project.name}</span>
+                                    </label>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
@@ -2026,10 +2073,8 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
               {formData.type === "RETAINER" ? (
                 <RetainerPaymentTerms
                   currency={formData.currency}
-                  retainerExcessBillingType={formData.retainerExcessBillingType}
                   retainerUnusedBalancePolicy={formData.retainerUnusedBalancePolicy}
                   retainerUnusedBalanceExpiryMonths={formData.retainerUnusedBalanceExpiryMonths}
-                  onExcessBillingTypeChange={(type) => setFormData({ ...formData, retainerExcessBillingType: type })}
                   onUnusedBalancePolicyChange={(policy) => setFormData({ ...formData, retainerUnusedBalancePolicy: policy })}
                   onUnusedBalanceExpiryMonthsChange={(months) => setFormData({ ...formData, retainerUnusedBalanceExpiryMonths: months })}
                 />
@@ -2735,6 +2780,11 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                       <span className="ml-2 font-medium">
                         {formData.retainerProjectScope === "ALL_PROJECTS" ? "All client projects" : "Specific projects"}
                       </span>
+                      {formData.retainerProjectScope === "SPECIFIC_PROJECTS" && formData.retainerProjectIds.length > 0 && (
+                        <div className="mt-1 ml-4 text-xs text-gray-600">
+                          Selected: {formData.retainerProjectIds.map(id => clientProjects.find(p => p.id === id)?.name).filter(Boolean).join(", ")}
+                        </div>
+                      )}
                     </div>
                     <div>
                       <span className="text-gray-500">Additional Hours:</span>
@@ -2746,12 +2796,15 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                     </div>
                     {formData.retainerAdditionalHoursType === "HOURLY_TABLE" && formData.retainerHourlyTableRates && (
                       <div className="ml-4 space-y-1">
-                        {Object.entries(formData.retainerHourlyTableRates).map(([profile, rate]: [string, any]) => (
-                          <div key={profile}>
-                            <span className="text-gray-500">{profile.replace(/_/g, " ")}:</span>
-                            <span className="ml-2 font-medium">{selectedCurrency.symbol}{rate}/hr</span>
-                          </div>
-                        ))}
+                        {Object.entries(formData.retainerHourlyTableRates)
+                          .filter(([_, rate]) => rate && rate > 0)
+                          .sort((a, b) => (a[1] || 0) - (b[1] || 0))
+                          .map(([profile, rate]: [string, any]) => (
+                            <div key={profile}>
+                              <span className="text-gray-500">{profile.replace(/_/g, " ")}:</span>
+                              <span className="ml-2 font-medium">{selectedCurrency.symbol}{rate}/hr</span>
+                            </div>
+                          ))}
                       </div>
                     )}
                   </div>
@@ -2763,14 +2816,6 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                 <div className="space-y-4">
                   <h3 className="font-semibold text-lg">Retainer Payment Terms</h3>
                   <div className="text-sm space-y-2">
-                    <div>
-                      <span className="text-gray-500">Excess Hours Billing:</span>
-                      <span className="ml-2 font-medium">
-                        {formData.retainerExcessBillingType === "ADDITIONAL_HOURS_RATE" && "At additional hours rate"}
-                        {formData.retainerExcessBillingType === "STANDARD_HOURLY_RATES" && "At standard hourly rates"}
-                        {formData.retainerExcessBillingType === "BLENDED_RATE" && "At blended rate"}
-                      </span>
-                    </div>
                     <div>
                       <span className="text-gray-500">Unused Balance Policy:</span>
                       <span className="ml-2 font-medium">
@@ -3003,38 +3048,59 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
               {/* Financial Summary */}
               <div className="space-y-4 pt-4 border-t">
                 <h3 className="font-semibold text-lg">Financial Summary</h3>
-                <div className="space-y-2">
-                  {/* Services Subtotal */}
-                  {calculateServicesSubtotal() > 0 && (
+                {formData.type === "RETAINER" ? (
+                  <div className="space-y-2">
                     <div className="flex justify-between">
-                      <span>Services Subtotal:</span>
-                      <span className="font-semibold">{selectedCurrency.symbol}{calculateServicesSubtotal().toFixed(2)}</span>
+                      <span>Monthly Retainer Amount:</span>
+                      <span className="font-semibold">{selectedCurrency.symbol}{formData.retainerMonthlyAmount.toFixed(2)}</span>
                     </div>
-                  )}
-                  {/* Expenses Subtotal */}
-                  {calculateExpensesSubtotal() > 0 && (
-                    <div className="flex justify-between">
-                      <span>Expenses Subtotal:</span>
-                      <span className="font-semibold">{selectedCurrency.symbol}{calculateExpensesSubtotal().toFixed(2)}</span>
-                    </div>
-                  )}
-                  {calculateClientDiscount() > 0 && (
-                    <div className="flex justify-between text-green-600">
-                      <span>Client Discount (on services):</span>
-                      <span>-{selectedCurrency.symbol}{calculateClientDiscount().toFixed(2)}</span>
-                    </div>
-                  )}
-                  {calculateTax() > 0 && (
-                    <div className="flex justify-between">
-                      <span>Tax ({formData.taxRate}%) on services:</span>
-                      <span>{selectedCurrency.symbol}{calculateTax().toFixed(2)}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between text-lg font-bold pt-2 border-t">
-                    <span>Grand Total:</span>
-                    <span>{selectedCurrency.symbol}{calculateGrandTotal().toFixed(2)}</span>
+                    {formData.retainerDurationMonths && (
+                      <>
+                        <div className="flex justify-between">
+                          <span>Duration:</span>
+                          <span className="font-semibold">{formData.retainerDurationMonths} months</span>
+                        </div>
+                        <div className="flex justify-between text-lg font-bold pt-2 border-t">
+                          <span>Total Retainer Amount:</span>
+                          <span>{selectedCurrency.symbol}{(formData.retainerMonthlyAmount * formData.retainerDurationMonths).toFixed(2)}</span>
+                        </div>
+                      </>
+                    )}
                   </div>
-                </div>
+                ) : (
+                  <div className="space-y-2">
+                    {/* Services Subtotal */}
+                    {calculateServicesSubtotal() > 0 && (
+                      <div className="flex justify-between">
+                        <span>Services Subtotal:</span>
+                        <span className="font-semibold">{selectedCurrency.symbol}{calculateServicesSubtotal().toFixed(2)}</span>
+                      </div>
+                    )}
+                    {/* Expenses Subtotal */}
+                    {calculateExpensesSubtotal() > 0 && (
+                      <div className="flex justify-between">
+                        <span>Expenses Subtotal:</span>
+                        <span className="font-semibold">{selectedCurrency.symbol}{calculateExpensesSubtotal().toFixed(2)}</span>
+                      </div>
+                    )}
+                    {calculateClientDiscount() > 0 && (
+                      <div className="flex justify-between text-green-600">
+                        <span>Client Discount (on services):</span>
+                        <span>-{selectedCurrency.symbol}{calculateClientDiscount().toFixed(2)}</span>
+                      </div>
+                    )}
+                    {calculateTax() > 0 && (
+                      <div className="flex justify-between">
+                        <span>Tax ({formData.taxRate}%) on services:</span>
+                        <span>{selectedCurrency.symbol}{calculateTax().toFixed(2)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-lg font-bold pt-2 border-t">
+                      <span>Grand Total:</span>
+                      <span>{selectedCurrency.symbol}{calculateGrandTotal().toFixed(2)}</span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Submit Button */}
