@@ -13,6 +13,7 @@ import { ResubmitModal } from "@/components/approvals/ResubmitModal"
 import { ApprovalButton } from "@/components/shared/ApprovalButton"
 import { DownloadPdfButton } from "./DownloadPdfButton"
 import { DeleteButton } from "@/components/shared/DeleteButton"
+import { UserRole } from "@prisma/client"
 
 interface ProposalActionsProps {
   proposalId: string
@@ -119,7 +120,7 @@ export function ProposalActions({
          proposalStatus === "SUBMITTED" && (
           <ApprovalButton
             proposalId={proposalId}
-            currentUserRole={(currentUserRole as any) || (isClient ? "CLIENT" : "STAFF")}
+            currentUserRole={(currentUserRole as UserRole) || (isClient ? "CLIENT" : "STAFF")}
           />
         )}
         {canResubmit && (

@@ -5,11 +5,12 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { useRouter } from "next/navigation"
+import { UserRole } from "@prisma/client"
 
 interface ApprovalButtonProps {
   proposalId?: string
   billId?: string
-  currentUserRole: "ADMIN" | "MANAGER" | "STAFF" | "CLIENT"
+  currentUserRole: UserRole
 }
 
 export function ApprovalButton({ proposalId, billId, currentUserRole }: ApprovalButtonProps) {
