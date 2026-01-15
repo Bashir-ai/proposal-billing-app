@@ -747,7 +747,8 @@ export default async function ProposalDetailPage({
                 )}
 
                 {/* Recurring Payment - only show if explicitly enabled */}
-                {recurringEnabled === true && recurringFrequency && (
+                {/* Only show if recurringEnabled is explicitly true AND recurringFrequency is set */}
+                {recurringEnabled === true && recurringFrequency && recurringFrequency !== null && recurringFrequency !== undefined && (
                   <div className="p-4 bg-gray-50 border border-gray-200 rounded">
                     <h4 className="font-semibold text-gray-900 mb-2">Recurring Payment</h4>
                     <p className="text-lg">
@@ -766,7 +767,10 @@ export default async function ProposalDetailPage({
                 )}
 
                 {/* Default: One-time payment if nothing else is set */}
-                {!upfrontType && !installmentType && (recurringEnabled === false || recurringEnabled === null || recurringEnabled === undefined) && (
+                {/* Show this if: no upfront, no installments, and recurring is NOT explicitly enabled */}
+                {!upfrontType && 
+                 !installmentType && 
+                 recurringEnabled !== true && (
                   <div className="p-4 bg-gray-50 border border-gray-200 rounded">
                     <h4 className="font-semibold text-gray-900 mb-2">Payment Terms</h4>
                     <p className="text-lg">
@@ -925,7 +929,20 @@ export default async function ProposalDetailPage({
         </Card>
       )}
 
-      {proposal.items.length > 0 && (
+      {proposal.items.length > 0 && (() => {
+        // Check if any item has a person assigned
+        const hasPersonColumn = proposal.items.some(item => item.person && item.person.name)
+        const showPersonColumn = (proposal.type === "HOURLY" || proposal.type === "MIXED_MODEL") && hasPersonColumn
+        
+        // Calculate column count for milestone row colspan
+        // Base columns: Description, Quantity, Unit Price, Discount, Amount = 5
+        // +1 if MIXED_MODEL (Billing Method)
+        // +1 if Person column is shown
+        let columnCount = 5 // Base columns
+        if (proposal.type === "MIXED_MODEL") columnCount += 1 // Billing Method
+        if (showPersonColumn) columnCount += 1 // Person
+        
+        return (
         <Card className="mb-8">
           <CardHeader>
             <CardTitle>Line Items</CardTitle>
@@ -936,7 +953,7 @@ export default async function ProposalDetailPage({
                 <thead>
                   <tr className="border-b bg-gray-50">
                     {proposal.type === "MIXED_MODEL" && <th className="text-left p-3 font-medium text-gray-700 whitespace-nowrap">Billing Method</th>}
-                    {(proposal.type === "HOURLY" || proposal.type === "MIXED_MODEL") && <th className="text-left p-3 font-medium text-gray-700 whitespace-nowrap">Person</th>}
+                    {showPersonColumn && <th className="text-left p-3 font-medium text-gray-700 whitespace-nowrap">Person</th>}
                     <th className="text-left p-3 font-medium text-gray-700 min-w-[250px]">Description</th>
                     <th className="text-right p-3 font-medium text-gray-700 whitespace-nowrap">Quantity</th>
                     <th className="text-right p-3 font-medium text-gray-700 whitespace-nowrap">Unit Price</th>
@@ -951,14 +968,6 @@ export default async function ProposalDetailPage({
                       : item.discountAmount || 0
                     const lineSubtotal = item.amount + lineDiscount
                     const isHourly = item.billingMethod === "HOURLY" || (item.quantity && item.rate)
-                    
-                    // Calculate column count for milestone row colspan
-                    // Base columns: Description, Quantity, Unit Price, Discount, Amount = 5
-                    // +1 if MIXED_MODEL (Billing Method)
-                    // +1 if HOURLY or MIXED_MODEL (Person)
-                    let columnCount = 5 // Base columns
-                    if (proposal.type === "MIXED_MODEL") columnCount += 1 // Billing Method
-                    if (proposal.type === "HOURLY" || proposal.type === "MIXED_MODEL") columnCount += 1 // Person
                     
                     return (
                       <>
@@ -975,7 +984,7 @@ export default async function ProposalDetailPage({
                               </span>
                             </td>
                           )}
-                          {(proposal.type === "HOURLY" || proposal.type === "MIXED_MODEL") && (
+                          {showPersonColumn && (
                             <td className="p-3 align-top whitespace-nowrap">{item.person?.name || "-"}</td>
                           )}
                       <td className="p-3 align-top">
@@ -1040,7 +1049,8 @@ export default async function ProposalDetailPage({
             </div>
           </CardContent>
         </Card>
-      )}
+        )
+      })()}
 
       {/* Summary Section */}
       <Card className="mb-8">
