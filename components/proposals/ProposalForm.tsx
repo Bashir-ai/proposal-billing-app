@@ -2782,7 +2782,7 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                       </span>
                       {formData.retainerProjectScope === "SPECIFIC_PROJECTS" && formData.retainerProjectIds.length > 0 && (
                         <div className="mt-1 ml-4 text-xs text-gray-600">
-                          Selected: {formData.retainerProjectIds.map(id => clientProjects.find(p => p.id === id)?.name).filter(Boolean).join(", ")}
+                          Selected: {formData.retainerProjectIds.map((id: string) => clientProjects.find(p => p.id === id)?.name).filter(Boolean).join(", ")}
                         </div>
                       )}
                     </div>
