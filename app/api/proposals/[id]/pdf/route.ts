@@ -194,8 +194,9 @@ export async function GET(
               <thead>
                 <tr>
                   <th>Description</th>
-                  ${proposal.items.some(item => item.quantity) ? "<th style=\"text-align: right;\">Qty</th>" : ""}
-                  ${proposal.items.some(item => item.rate) ? "<th style=\"text-align: right;\">Rate</th>" : ""}
+                  <th style="text-align: right;">Quantity</th>
+                  <th style="text-align: right;">Unit Price</th>
+                  <th style="text-align: right;">Discount</th>
                   <th style="text-align: right;">Amount</th>
                 </tr>
               </thead>
@@ -218,32 +219,41 @@ export async function GET(
                             </div>`
                           : "")
                     : ""
+                  const unitPriceDisplay = item.rate 
+                    ? `${currencySymbol}${item.rate.toFixed(2)}/hr` 
+                    : item.unitPrice 
+                      ? `${currencySymbol}${item.unitPrice.toFixed(2)}` 
+                      : "-"
+                  const discountDisplay = item.discountPercent 
+                    ? `${item.discountPercent}%` 
+                    : item.discountAmount 
+                      ? `${currencySymbol}${item.discountAmount.toFixed(2)}` 
+                      : "-"
                   return `
                   <tr>
                     <td>
-                      <div>${item.description}</div>
+                      <div>${item.description || "-"}</div>
                       ${estimateInfo}
                       ${cappedInfo}
                     </td>
-                    ${proposal.items.some(i => i.quantity) ? `<td style="text-align: right;">${item.quantity || "-"}</td>` : ""}
-                    ${proposal.items.some(i => i.rate) ? `<td style="text-align: right;">${item.rate ? `${currencySymbol}${item.rate.toFixed(2)}` : "-"}</td>` : ""}
+                    <td style="text-align: right;">${item.quantity || "-"}</td>
+                    <td style="text-align: right;">${unitPriceDisplay}</td>
+                    <td style="text-align: right;">${discountDisplay}</td>
                     <td style="text-align: right;">${currencySymbol}${item.amount.toFixed(2)}</td>
                   </tr>
                 `
                 }).join("")}
               </tbody>
-              ${proposal.amount ? `
-                <tfoot>
-                  <tr>
-                    <td colspan="${proposal.items.some(i => i.quantity) && proposal.items.some(i => i.rate) ? 3 : proposal.items.some(i => i.quantity) || proposal.items.some(i => i.rate) ? 2 : 1}" style="text-align: right; font-weight: bold;">
-                      Total:
-                    </td>
-                    <td style="text-align: right; font-size: 18px;">
-                      ${currencySymbol}${proposal.amount.toFixed(2)}
-                    </td>
-                  </tr>
-                </tfoot>
-              ` : ""}
+              <tfoot>
+                <tr>
+                  <td colspan="4" style="text-align: right; font-weight: bold;">
+                    Total:
+                  </td>
+                  <td style="text-align: right; font-size: 18px;">
+                    ${currencySymbol}${proposal.amount ? proposal.amount.toFixed(2) : proposal.items.reduce((sum: number, item: any) => sum + item.amount, 0).toFixed(2)}
+                  </td>
+                </tr>
+              </tfoot>
             </table>
           ` : proposal.amount ? `
             <div class="total">

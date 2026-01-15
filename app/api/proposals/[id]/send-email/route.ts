@@ -173,9 +173,9 @@ function generateProposalHTML(proposal: any, logoBase64: string | null): string 
             <thead>
               <tr>
                 <th>Description</th>
-                <th>Person</th>
                 <th>Quantity</th>
-                <th>Rate/Price</th>
+                <th>Unit Price</th>
+                <th>Discount</th>
                 <th class="text-right">Amount</th>
               </tr>
             </thead>
@@ -198,16 +198,26 @@ function generateProposalHTML(proposal: any, logoBase64: string | null): string 
                           </div>`
                         : "")
                   : ""
+                const unitPriceDisplay = item.rate 
+                  ? `${currencySymbol}${item.rate.toFixed(2)}/hr` 
+                  : item.unitPrice 
+                    ? `${currencySymbol}${item.unitPrice.toFixed(2)}` 
+                    : "-"
+                const discountDisplay = item.discountPercent 
+                  ? `${item.discountPercent}%` 
+                  : item.discountAmount 
+                    ? `${currencySymbol}${item.discountAmount.toFixed(2)}` 
+                    : "-"
                 return `
                 <tr>
                   <td>
-                    <div>${item.description}</div>
+                    <div>${item.description || "-"}</div>
                     ${estimateInfo}
                     ${cappedInfo}
                   </td>
-                  <td>${item.person ? item.person.name : '-'}</td>
                   <td>${item.quantity || '-'}</td>
-                  <td>${item.rate || item.unitPrice ? `${currencySymbol}${(item.rate || item.unitPrice || 0).toFixed(2)}` : '-'}</td>
+                  <td>${unitPriceDisplay}</td>
+                  <td>${discountDisplay}</td>
                   <td class="text-right">${currencySymbol}${item.amount.toFixed(2)}</td>
                 </tr>
               `
@@ -355,7 +365,12 @@ export async function POST(
         milestones: {
           orderBy: { createdAt: "asc" },
         },
-        paymentTerms: true,
+        paymentTerms: {
+          where: {
+            proposalItemId: null, // Only get proposal-level payment terms
+          },
+          orderBy: { createdAt: "asc" },
+        },
       },
     })
 

@@ -769,6 +769,7 @@ export default async function ProposalDetailPage({
                 {/* Default: One-time payment if nothing else is set */}
                 {/* Show this if: no upfront, no installments, and recurring is NOT explicitly enabled */}
                 {!upfrontType && 
+                 (upfrontValue === null || upfrontValue === undefined) &&
                  !installmentType && 
                  recurringEnabled !== true && (
                   <div className="p-4 bg-gray-50 border border-gray-200 rounded">
@@ -1014,7 +1015,11 @@ export default async function ProposalDetailPage({
                       </td>
                           <td className="p-3 text-right align-top whitespace-nowrap">{item.quantity || "-"}</td>
                           <td className="p-3 text-right align-top whitespace-nowrap">
-                            {item.rate ? `${currencySymbol}${item.rate.toFixed(2)}/hr` : item.unitPrice ? `${currencySymbol}${item.unitPrice.toFixed(2)}` : "-"}
+                            {item.rate 
+                              ? `${currencySymbol}${item.rate.toFixed(2)}/hr` 
+                              : item.unitPrice 
+                                ? `${currencySymbol}${item.unitPrice.toFixed(2)}${proposal.type === "FIXED_FEE" ? "" : "/unit"}` 
+                                : "-"}
                           </td>
                           <td className="p-3 text-right text-sm text-gray-600 align-top whitespace-nowrap">
                             {item.discountPercent ? `${item.discountPercent}%` : item.discountAmount ? `${currencySymbol}${item.discountAmount.toFixed(2)}` : "-"}
