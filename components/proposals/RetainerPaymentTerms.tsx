@@ -34,7 +34,7 @@ export function RetainerPaymentTerms({
     <Card>
       <CardHeader>
         <CardTitle>Retainer Payment Terms</CardTitle>
-        <CardDescription>Configure how excess hours are billed and unused balance is handled</CardDescription>
+        <CardDescription>Configure how unused balance is handled</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="space-y-4">

@@ -862,7 +862,6 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
       retainerDurationMonths: formData.retainerDurationMonths ?? undefined,
       retainerProjectScope: formData.retainerProjectScope || undefined,
       retainerProjectIds: formData.retainerProjectIds || [],
-      retainerExcessBillingType: formData.retainerExcessBillingType || undefined,
       retainerUnusedBalancePolicy: formData.retainerUnusedBalancePolicy || undefined,
       retainerUnusedBalanceExpiryMonths: formData.retainerUnusedBalanceExpiryMonths ?? undefined,
       retainerHourlyTableRates: formData.retainerHourlyTableRates || undefined,
