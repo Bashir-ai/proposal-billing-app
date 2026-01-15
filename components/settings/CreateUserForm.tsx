@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { UserRole } from "@prisma/client"
+import { UserRole, UserProfile } from "@prisma/client"
 
 interface CreateUserFormProps {
   onSuccess: () => void
@@ -20,6 +20,7 @@ export function CreateUserForm({ onSuccess, onCancel }: CreateUserFormProps) {
     email: "",
     password: "",
     role: "STAFF" as UserRole,
+    profile: "" as UserProfile | "",
     canApproveProposals: false,
     canApproveInvoices: false,
     canEditAllProposals: false,
@@ -42,6 +43,7 @@ export function CreateUserForm({ onSuccess, onCancel }: CreateUserFormProps) {
           email: formData.email,
           password: formData.password,
           role: formData.role,
+          profile: formData.profile || null,
           canApproveProposals: formData.canApproveProposals || null,
           canApproveInvoices: formData.canApproveInvoices || null,
           canEditAllProposals: formData.canEditAllProposals || null,
@@ -120,6 +122,25 @@ export function CreateUserForm({ onSuccess, onCancel }: CreateUserFormProps) {
               <option value="ADMIN">Admin</option>
               <option value="CLIENT">Client</option>
             </select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="profile">Profile (Optional)</Label>
+            <select
+              id="profile"
+              value={formData.profile}
+              onChange={(e) => setFormData({ ...formData, profile: e.target.value as UserProfile | "" })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md"
+            >
+              <option value="">None</option>
+              <option value="SECRETARIAT">Secretariat</option>
+              <option value="TRAINEE">Trainee</option>
+              <option value="JUNIOR_LAWYER">Junior Lawyer</option>
+              <option value="LAWYER">Lawyer</option>
+              <option value="SENIOR_LAWYER">Senior Lawyer</option>
+              <option value="PARTNER">Partner</option>
+            </select>
+            <p className="text-xs text-gray-500">Used for retainer hourly rate tables</p>
           </div>
 
           <div className="space-y-3 pt-4 border-t">

@@ -1,12 +1,13 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useSession } from "next-auth/react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { CreateUserForm } from "./CreateUserForm"
 import { EditUserForm } from "./EditUserForm"
 import { formatDate } from "@/lib/utils"
-import { Pencil, DollarSign } from "lucide-react"
+import { Pencil, DollarSign, Trash2 } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 interface User {
@@ -25,11 +26,14 @@ interface User {
 
 export function UserManagement() {
   const router = useRouter()
+  const { data: session } = useSession()
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [editingUserId, setEditingUserId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null)
+  const isAdmin = session?.user?.role === "ADMIN"
 
   useEffect(() => {
     fetchUsers()
@@ -69,6 +73,33 @@ export function UserManagement() {
   const handleUserUpdated = () => {
     setEditingUserId(null)
     fetchUsers()
+  }
+
+  const handleDeleteUser = async (userId: string) => {
+    if (!confirm("Are you sure you want to delete this user? This action cannot be undone.")) {
+      return
+    }
+
+    try {
+      setDeletingUserId(userId)
+      setError(null)
+      const response = await fetch(`/api/users/${userId}`, {
+        method: "DELETE",
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: "Failed to delete user" }))
+        throw new Error(errorData.error || "Failed to delete user")
+      }
+
+      // Refresh the user list
+      fetchUsers()
+    } catch (err: any) {
+      console.error("Error deleting user:", err)
+      setError(err.message || "Failed to delete user. Please try again.")
+    } finally {
+      setDeletingUserId(null)
+    }
   }
 
   if (loading) {
@@ -185,6 +216,18 @@ export function UserManagement() {
                       <Pencil className="h-4 w-4 mr-1" />
                       Edit
                     </Button>
+                    {isAdmin && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDeleteUser(user.id)}
+                        disabled={deletingUserId === user.id}
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      >
+                        <Trash2 className="h-4 w-4 mr-1" />
+                        {deletingUserId === user.id ? "Deleting..." : "Delete"}
+                      </Button>
+                    )}
                   </div>
                 </div>
               )}

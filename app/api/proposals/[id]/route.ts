@@ -86,11 +86,19 @@ const proposalUpdateSchema = z.object({
   cappedAmount: z.number().optional(),
   retainerMonthlyAmount: z.number().optional(),
   retainerHoursPerMonth: z.number().optional(),
-  retainerAdditionalHoursType: z.enum(["FIXED_RATE", "RATE_RANGE", "BLENDED_RATE"]).optional(),
+  retainerAdditionalHoursType: z.enum(["FIXED_RATE", "RATE_RANGE", "HOURLY_TABLE"]).optional(),
   retainerAdditionalHoursRate: z.number().optional(),
   retainerAdditionalHoursRateMin: z.number().optional(),
   retainerAdditionalHoursRateMax: z.number().optional(),
   retainerAdditionalHoursBlendedRate: z.number().optional(),
+  retainerStartDate: z.string().optional(),
+  retainerDurationMonths: z.number().nullable().optional(),
+  retainerProjectScope: z.enum(["ALL_PROJECTS", "SPECIFIC_PROJECTS"]).optional(),
+  retainerProjectIds: z.array(z.string()).optional(),
+  retainerExcessBillingType: z.enum(["ADDITIONAL_HOURS_RATE", "STANDARD_HOURLY_RATES", "BLENDED_RATE"]).optional(),
+  retainerUnusedBalancePolicy: z.enum(["EXPIRE", "ROLLOVER"]).optional(),
+  retainerUnusedBalanceExpiryMonths: z.number().nullable().optional(),
+  retainerHourlyTableRates: z.any().optional(), // JSON object
   blendedRate: z.number().optional(),
   useBlendedRate: z.boolean().optional(),
   successFeePercent: z.number().optional(),
@@ -385,6 +393,14 @@ export async function PUT(
       if (validatedData.retainerAdditionalHoursRateMin !== undefined) updateData.retainerAdditionalHoursRateMin = validatedData.retainerAdditionalHoursRateMin || null
       if (validatedData.retainerAdditionalHoursRateMax !== undefined) updateData.retainerAdditionalHoursRateMax = validatedData.retainerAdditionalHoursRateMax || null
       if (validatedData.retainerAdditionalHoursBlendedRate !== undefined) updateData.retainerAdditionalHoursBlendedRate = validatedData.retainerAdditionalHoursBlendedRate || null
+      if (validatedData.retainerStartDate !== undefined) updateData.retainerStartDate = validatedData.retainerStartDate ? new Date(validatedData.retainerStartDate) : null
+      if (validatedData.retainerDurationMonths !== undefined) updateData.retainerDurationMonths = validatedData.retainerDurationMonths ?? null
+      if (validatedData.retainerProjectScope !== undefined) updateData.retainerProjectScope = validatedData.retainerProjectScope || null
+      if (validatedData.retainerProjectIds !== undefined) updateData.retainerProjectIds = validatedData.retainerProjectIds || []
+      if (validatedData.retainerExcessBillingType !== undefined) updateData.retainerExcessBillingType = validatedData.retainerExcessBillingType || null
+      if (validatedData.retainerUnusedBalancePolicy !== undefined) updateData.retainerUnusedBalancePolicy = validatedData.retainerUnusedBalancePolicy || null
+      if (validatedData.retainerUnusedBalanceExpiryMonths !== undefined) updateData.retainerUnusedBalanceExpiryMonths = validatedData.retainerUnusedBalanceExpiryMonths ?? null
+      if (validatedData.retainerHourlyTableRates !== undefined) updateData.retainerHourlyTableRates = validatedData.retainerHourlyTableRates ? JSON.parse(JSON.stringify(validatedData.retainerHourlyTableRates)) : null
       if (validatedData.blendedRate !== undefined) updateData.blendedRate = validatedData.blendedRate || null
       if (validatedData.useBlendedRate !== undefined) updateData.useBlendedRate = validatedData.useBlendedRate
       if (validatedData.successFeePercent !== undefined) updateData.successFeePercent = validatedData.successFeePercent || null

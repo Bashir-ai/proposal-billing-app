@@ -13,6 +13,7 @@ import { formatCurrency } from "@/lib/utils"
 import { PaymentTermsWizard } from "./PaymentTermsWizard"
 import { ProposalFormWizard } from "./ProposalFormWizard"
 import { AddExpenseButton } from "./AddExpenseButton"
+import { RetainerPaymentTerms } from "./RetainerPaymentTerms"
 
 interface ProposalFormProps {
   onSubmit: (data: any) => Promise<void>
@@ -118,6 +119,14 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
     retainerAdditionalHoursRateMin: initialData?.retainerAdditionalHoursRateMin || 0,
     retainerAdditionalHoursRateMax: initialData?.retainerAdditionalHoursRateMax || 0,
     retainerAdditionalHoursBlendedRate: initialData?.retainerAdditionalHoursBlendedRate || 0,
+    retainerStartDate: initialData?.retainerStartDate ? new Date(initialData.retainerStartDate).toISOString().split("T")[0] : "",
+    retainerDurationMonths: initialData?.retainerDurationMonths || null,
+    retainerProjectScope: initialData?.retainerProjectScope || "ALL_PROJECTS",
+    retainerProjectIds: initialData?.retainerProjectIds || [],
+    retainerExcessBillingType: initialData?.retainerExcessBillingType || null,
+    retainerUnusedBalancePolicy: initialData?.retainerUnusedBalancePolicy || null,
+    retainerUnusedBalanceExpiryMonths: initialData?.retainerUnusedBalanceExpiryMonths || null,
+    retainerHourlyTableRates: initialData?.retainerHourlyTableRates ? (typeof initialData.retainerHourlyTableRates === 'string' ? JSON.parse(initialData.retainerHourlyTableRates) : initialData.retainerHourlyTableRates) : null,
     blendedRate: initialData?.blendedRate || 0,
     useBlendedRate: initialData?.useBlendedRate ?? false,
     successFeePercent: initialData?.successFeePercent || 0,
@@ -226,7 +235,14 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
       // If editing, mark steps as completed and jump to review if all filled
       const completed = new Set<string>()
       if (initialData.type) completed.add("billing")
-      if (proposalPaymentTerm) completed.add("payment")
+      if (initialData.type === "RETAINER") {
+        // For retainer, check retainer payment terms
+        if (initialData.retainerExcessBillingType && initialData.retainerUnusedBalancePolicy) {
+          completed.add("payment")
+        }
+      } else if (proposalPaymentTerm) {
+        completed.add("payment")
+      }
       if (shouldShowMilestonesStep && milestones.length > 0) completed.add("milestones")
       // For RETAINER, items step is skipped, so mark it as completed
       if (initialData.type === "RETAINER" || items.length > 0 || milestones.length > 0) completed.add("items")
@@ -251,10 +267,35 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
     }
     
     if (currentStepId === "payment") {
-      if (!proposalPaymentTerm) {
-        newErrors.paymentTerms = "Please configure payment terms using the wizard above"
-        setErrors(newErrors)
-        return false
+      // For retainer proposals, validate retainer payment terms
+      if (formData.type === "RETAINER") {
+        if (!formData.retainerExcessBillingType) {
+          newErrors.paymentTerms = "Please select how excess hours will be billed"
+          setErrors(newErrors)
+          return false
+        }
+        if (!formData.retainerUnusedBalancePolicy) {
+          newErrors.paymentTerms = "Please select unused balance policy"
+          setErrors(newErrors)
+          return false
+        }
+        if (formData.retainerUnusedBalancePolicy === "EXPIRE" && !formData.retainerUnusedBalanceExpiryMonths) {
+          newErrors.paymentTerms = "Please specify months before expiry"
+          setErrors(newErrors)
+          return false
+        }
+        if (formData.retainerUnusedBalancePolicy === "ROLLOVER" && formData.retainerUnusedBalanceExpiryMonths !== null && !formData.retainerUnusedBalanceExpiryMonths) {
+          newErrors.paymentTerms = "Please specify months of non-use before expiry"
+          setErrors(newErrors)
+          return false
+        }
+      } else {
+        // For non-retainer proposals, validate standard payment terms
+        if (!proposalPaymentTerm) {
+          newErrors.paymentTerms = "Please configure payment terms using the wizard above"
+          setErrors(newErrors)
+          return false
+        }
       }
       setCompletedSteps(prev => new Set(prev).add("payment"))
       return true
@@ -331,6 +372,10 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
     }
     
     if (currentStepId === "review") {
+      // For retainer proposals, only need billing and payment steps
+      if (formData.type === "RETAINER") {
+        return completedSteps.has("billing") && completedSteps.has("payment")
+      }
       return completedSteps.has("billing") && completedSteps.has("payment") && (completedSteps.has("items") || completedSteps.has("milestones"))
     }
     
@@ -716,8 +761,8 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
       return
     }
 
-    // Payment terms validation - must be explicitly configured
-    if (!proposalPaymentTerm) {
+    // Payment terms validation - must be explicitly configured (skip for retainer proposals)
+    if (formData.type !== "RETAINER" && !proposalPaymentTerm) {
       setErrors({ paymentTerms: "Please configure payment terms using the wizard above" })
       return
     }
@@ -775,7 +820,7 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
         percent: m.percent || undefined,
         dueDate: m.dueDate || undefined,
       })) : undefined,
-      paymentTerms: [
+      paymentTerms: formData.type !== "RETAINER" ? [
         // Proposal-level payment terms (mandatory - validated above)
         {
           ...proposalPaymentTerm,
@@ -788,7 +833,16 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
           proposalId: undefined,
           proposalItemId: undefined, // Will be set on server
         })),
-      ],
+      ] : undefined,
+      // Retainer-specific fields
+      retainerStartDate: formData.retainerStartDate || undefined,
+      retainerDurationMonths: formData.retainerDurationMonths ?? undefined,
+      retainerProjectScope: formData.retainerProjectScope || undefined,
+      retainerProjectIds: formData.retainerProjectIds || [],
+      retainerExcessBillingType: formData.retainerExcessBillingType || undefined,
+      retainerUnusedBalancePolicy: formData.retainerUnusedBalancePolicy || undefined,
+      retainerUnusedBalanceExpiryMonths: formData.retainerUnusedBalanceExpiryMonths ?? undefined,
+      retainerHourlyTableRates: formData.retainerHourlyTableRates || undefined,
       amount: calculateGrandTotal(),
     }
 
@@ -1189,12 +1243,12 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                   value={formData.type}
                   onChange={(e) => {
                     const newType = e.target.value as ProposalType
-                    // Disable blended rate for Fixed Fee
+                    // Disable blended rate for Fixed Fee and Retainer
                     setFormData({ 
                       ...formData, 
                       type: newType,
-                      useBlendedRate: newType === "FIXED_FEE" ? false : formData.useBlendedRate,
-                      blendedRate: newType === "FIXED_FEE" ? 0 : formData.blendedRate
+                      useBlendedRate: (newType === "FIXED_FEE" || newType === "RETAINER") ? false : formData.useBlendedRate,
+                      blendedRate: (newType === "FIXED_FEE" || newType === "RETAINER") ? 0 : formData.blendedRate
                     })
                     setItems([])
                     setMilestones([])
@@ -1311,14 +1365,14 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                               <input
                                 type="radio"
                                 name="retainerAdditionalHoursType"
-                                value="BLENDED_RATE"
-                                checked={formData.retainerAdditionalHoursType === "BLENDED_RATE"}
+                                value="HOURLY_TABLE"
+                                checked={formData.retainerAdditionalHoursType === "HOURLY_TABLE"}
                                 onChange={(e) => setFormData({ ...formData, retainerAdditionalHoursType: e.target.value })}
                                 className="w-4 h-4"
                               />
                               <div className="flex-1">
-                                <div className="font-medium">Blended Rate</div>
-                                <div className="text-sm text-gray-600">Charge a single blended rate for all additional hours</div>
+                                <div className="font-medium">Hourly Table</div>
+                                <div className="text-sm text-gray-600">Charge different rates based on user profile</div>
                               </div>
                             </label>
                           </div>
@@ -1367,18 +1421,150 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                             </div>
                           )}
                           
-                          {formData.retainerAdditionalHoursType === "BLENDED_RATE" && (
-                            <div className="space-y-2">
-                              <Label htmlFor="retainerAdditionalHoursBlendedRate">Blended Rate ({selectedCurrency.symbol}/hr) *</Label>
-                              <Input
-                                id="retainerAdditionalHoursBlendedRate"
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                value={formData.retainerAdditionalHoursBlendedRate}
-                                onChange={(e) => setFormData({ ...formData, retainerAdditionalHoursBlendedRate: parseFloat(e.target.value) || 0 })}
-                                required
+                          {formData.retainerAdditionalHoursType === "HOURLY_TABLE" && (
+                            <div className="space-y-4">
+                              <Label className="text-base font-semibold">Hourly Rates by Profile</Label>
+                              <div className="space-y-2">
+                                {[
+                                  { key: "SECRETARIAT", label: "Secretariat" },
+                                  { key: "TRAINEE", label: "Trainee" },
+                                  { key: "JUNIOR_LAWYER", label: "Junior Lawyer" },
+                                  { key: "LAWYER", label: "Lawyer" },
+                                  { key: "SENIOR_LAWYER", label: "Senior Lawyer" },
+                                  { key: "PARTNER", label: "Partner" },
+                                ].map((profile) => (
+                                  <div key={profile.key} className="grid grid-cols-2 gap-4 items-center">
+                                    <Label>{profile.label}</Label>
+                                    <Input
+                                      type="number"
+                                      step="0.01"
+                                      min="0"
+                                      value={formData.retainerHourlyTableRates?.[profile.key] || 0}
+                                      onChange={(e) => {
+                                        const newRates = { ...(formData.retainerHourlyTableRates || {}), [profile.key]: parseFloat(e.target.value) || 0 }
+                                        setFormData({ ...formData, retainerHourlyTableRates: newRates })
+                                      }}
+                                      placeholder={`${selectedCurrency.symbol}/hr`}
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="pt-4 border-t">
+                          <Label className="text-base font-semibold mb-3 block">Monthly Retainer Configuration</Label>
+                          <div className="space-y-4">
+                            <div className="flex items-center space-x-2">
+                              <input
+                                type="checkbox"
+                                id="retainerStartDateEnabled"
+                                checked={!!formData.retainerStartDate}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    const defaultDate = new Date()
+                                    defaultDate.setMonth(defaultDate.getMonth() + 1)
+                                    defaultDate.setDate(1)
+                                    setFormData({ ...formData, retainerStartDate: defaultDate.toISOString().split("T")[0] })
+                                  } else {
+                                    setFormData({ ...formData, retainerStartDate: "" })
+                                  }
+                                }}
+                                className="h-4 w-4 rounded border-gray-300"
                               />
+                              <Label htmlFor="retainerStartDateEnabled" className="cursor-pointer">
+                                Start charging on specific date
+                              </Label>
+                            </div>
+                            {formData.retainerStartDate && (
+                              <div className="space-y-2">
+                                <Label htmlFor="retainerStartDate">Start Date *</Label>
+                                <Input
+                                  id="retainerStartDate"
+                                  type="date"
+                                  value={formData.retainerStartDate}
+                                  onChange={(e) => setFormData({ ...formData, retainerStartDate: e.target.value })}
+                                  required
+                                />
+                              </div>
+                            )}
+                            <div className="space-y-2">
+                              <Label htmlFor="retainerDuration">Duration *</Label>
+                              <select
+                                id="retainerDuration"
+                                value={formData.retainerDurationMonths || ""}
+                                onChange={(e) => {
+                                  const value = e.target.value
+                                  if (value === "CUSTOM") {
+                                    setFormData({ ...formData, retainerDurationMonths: null })
+                                  } else {
+                                    setFormData({ ...formData, retainerDurationMonths: parseInt(value) || null })
+                                  }
+                                }}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                                required
+                              >
+                                <option value="">Select duration</option>
+                                <option value="3">3 months</option>
+                                <option value="5">5 months</option>
+                                <option value="10">10 months</option>
+                                <option value="12">1 year (12 months)</option>
+                                <option value="CUSTOM">Custom</option>
+                              </select>
+                              {formData.retainerDurationMonths === null && (
+                                <Input
+                                  type="number"
+                                  min="1"
+                                  placeholder="Enter number of months"
+                                  onChange={(e) => setFormData({ ...formData, retainerDurationMonths: parseInt(e.target.value) || null })}
+                                />
+                              )}
+                            </div>
+                            {formData.retainerStartDate && formData.retainerDurationMonths && (
+                              <p className="text-sm text-gray-600">
+                                Monthly retainer charged on {new Date(formData.retainerStartDate).toLocaleDateString()} and every anniversary thereafter for {formData.retainerDurationMonths} months
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="pt-4 border-t">
+                          <Label className="text-base font-semibold mb-3 block">Project Scope</Label>
+                          <div className="space-y-3">
+                            <label className="flex items-center space-x-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                              <input
+                                type="radio"
+                                name="retainerProjectScope"
+                                value="ALL_PROJECTS"
+                                checked={formData.retainerProjectScope === "ALL_PROJECTS"}
+                                onChange={(e) => setFormData({ ...formData, retainerProjectScope: e.target.value, retainerProjectIds: [] })}
+                                className="w-4 h-4"
+                              />
+                              <div className="flex-1">
+                                <div className="font-medium">All client projects</div>
+                                <div className="text-sm text-gray-600">Retainer applies to all projects for this client</div>
+                              </div>
+                            </label>
+                            <label className="flex items-center space-x-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                              <input
+                                type="radio"
+                                name="retainerProjectScope"
+                                value="SPECIFIC_PROJECTS"
+                                checked={formData.retainerProjectScope === "SPECIFIC_PROJECTS"}
+                                onChange={(e) => setFormData({ ...formData, retainerProjectScope: e.target.value })}
+                                className="w-4 h-4"
+                              />
+                              <div className="flex-1">
+                                <div className="font-medium">Specific projects</div>
+                                <div className="text-sm text-gray-600">Retainer applies only to selected projects</div>
+                              </div>
+                            </label>
+                          </div>
+                          {formData.retainerProjectScope === "SPECIFIC_PROJECTS" && (
+                            <div className="mt-4 space-y-2">
+                              <Label>Select Projects</Label>
+                              <p className="text-xs text-gray-500">Project selection will be available after client is selected</p>
                             </div>
                           )}
                         </div>
@@ -1830,15 +2016,31 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
           <Card>
             <CardHeader>
               <CardTitle>Step 2: Configure Payment Terms</CardTitle>
-              <CardDescription>Define when and how payments will be made</CardDescription>
+              <CardDescription>
+                {formData.type === "RETAINER" 
+                  ? "Configure retainer balance and unused hours policy"
+                  : "Define when and how payments will be made"}
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <PaymentTermsWizard
-                currency={formData.currency}
-                milestones={milestones.map((m, index) => ({ id: m.id || `temp-${index}`, name: m.name }))}
-                proposalLevel={proposalPaymentTerm}
-                onProposalLevelChange={(term) => setProposalPaymentTerm(term)}
-              />
+              {formData.type === "RETAINER" ? (
+                <RetainerPaymentTerms
+                  currency={formData.currency}
+                  retainerExcessBillingType={formData.retainerExcessBillingType}
+                  retainerUnusedBalancePolicy={formData.retainerUnusedBalancePolicy}
+                  retainerUnusedBalanceExpiryMonths={formData.retainerUnusedBalanceExpiryMonths}
+                  onExcessBillingTypeChange={(type) => setFormData({ ...formData, retainerExcessBillingType: type })}
+                  onUnusedBalancePolicyChange={(policy) => setFormData({ ...formData, retainerUnusedBalancePolicy: policy })}
+                  onUnusedBalanceExpiryMonthsChange={(months) => setFormData({ ...formData, retainerUnusedBalanceExpiryMonths: months })}
+                />
+              ) : (
+                <PaymentTermsWizard
+                  currency={formData.currency}
+                  milestones={milestones.map((m, index) => ({ id: m.id || `temp-${index}`, name: m.name }))}
+                  proposalLevel={proposalPaymentTerm}
+                  onProposalLevelChange={(term) => setProposalPaymentTerm(term)}
+                />
+              )}
               {errors.paymentTerms && (
                 <p className="text-sm text-destructive mt-2">{errors.paymentTerms}</p>
               )}
@@ -2503,8 +2705,93 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                 </div>
               </div>
 
+              {/* Retainer Configuration Summary */}
+              {formData.type === "RETAINER" && (
+                <div className="space-y-4">
+                  <h3 className="font-semibold text-lg">Retainer Configuration</h3>
+                  <div className="text-sm space-y-2">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <span className="text-gray-500">Monthly Retainer:</span>
+                        <span className="ml-2 font-medium">
+                          {selectedCurrency.symbol}{formData.retainerMonthlyAmount.toFixed(2)}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Hours Included:</span>
+                        <span className="ml-2 font-medium">{formData.retainerHoursPerMonth} hours/month</span>
+                      </div>
+                    </div>
+                    {formData.retainerStartDate && formData.retainerDurationMonths && (
+                      <div>
+                        <span className="text-gray-500">Billing Period:</span>
+                        <span className="ml-2 font-medium">
+                          Monthly retainer charged on {new Date(formData.retainerStartDate).toLocaleDateString()} and every anniversary thereafter for {formData.retainerDurationMonths} months
+                        </span>
+                      </div>
+                    )}
+                    <div>
+                      <span className="text-gray-500">Project Scope:</span>
+                      <span className="ml-2 font-medium">
+                        {formData.retainerProjectScope === "ALL_PROJECTS" ? "All client projects" : "Specific projects"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Additional Hours:</span>
+                      <span className="ml-2 font-medium">
+                        {formData.retainerAdditionalHoursType === "FIXED_RATE" && `${selectedCurrency.symbol}${formData.retainerAdditionalHoursRate}/hr`}
+                        {formData.retainerAdditionalHoursType === "RATE_RANGE" && `${selectedCurrency.symbol}${formData.retainerAdditionalHoursRateMin}-${formData.retainerAdditionalHoursRateMax}/hr`}
+                        {formData.retainerAdditionalHoursType === "HOURLY_TABLE" && "Hourly table by profile"}
+                      </span>
+                    </div>
+                    {formData.retainerAdditionalHoursType === "HOURLY_TABLE" && formData.retainerHourlyTableRates && (
+                      <div className="ml-4 space-y-1">
+                        {Object.entries(formData.retainerHourlyTableRates).map(([profile, rate]: [string, any]) => (
+                          <div key={profile}>
+                            <span className="text-gray-500">{profile.replace(/_/g, " ")}:</span>
+                            <span className="ml-2 font-medium">{selectedCurrency.symbol}{rate}/hr</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Retainer Payment Terms Summary */}
+              {formData.type === "RETAINER" && (
+                <div className="space-y-4">
+                  <h3 className="font-semibold text-lg">Retainer Payment Terms</h3>
+                  <div className="text-sm space-y-2">
+                    <div>
+                      <span className="text-gray-500">Excess Hours Billing:</span>
+                      <span className="ml-2 font-medium">
+                        {formData.retainerExcessBillingType === "ADDITIONAL_HOURS_RATE" && "At additional hours rate"}
+                        {formData.retainerExcessBillingType === "STANDARD_HOURLY_RATES" && "At standard hourly rates"}
+                        {formData.retainerExcessBillingType === "BLENDED_RATE" && "At blended rate"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Unused Balance Policy:</span>
+                      <span className="ml-2 font-medium">
+                        {formData.retainerUnusedBalancePolicy === "EXPIRE" && `Expires after ${formData.retainerUnusedBalanceExpiryMonths} months`}
+                        {formData.retainerUnusedBalancePolicy === "ROLLOVER" && (
+                          <>
+                            Rolls over to next month
+                            {formData.retainerUnusedBalanceExpiryMonths !== null && ` (expires after ${formData.retainerUnusedBalanceExpiryMonths} months of non-use)`}
+                          </>
+                        )}
+                      </span>
+                    </div>
+                    <div className="bg-blue-50 p-3 rounded text-xs text-blue-900">
+                      <strong>Note:</strong> If approved, retainer hours will be available in drawdown mode and automatically offset against billed hours in timesheet or project mode.
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Payment Terms Summary */}
-              {proposalPaymentTerm && (
+              {proposalPaymentTerm && formData.type !== "RETAINER" && (
                 <div className="space-y-4">
                   <h3 className="font-semibold text-lg">Payment Terms</h3>
                   <div className="text-sm space-y-1">

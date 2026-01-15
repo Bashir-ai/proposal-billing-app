@@ -5,13 +5,14 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { UserRole } from "@prisma/client"
+import { UserRole, UserProfile } from "@prisma/client"
 
 interface User {
   id: string
   name: string
   email: string
   role: string
+  profile?: UserProfile | null
   canApproveProposals?: boolean | null
   canApproveInvoices?: boolean | null
   canEditAllProposals?: boolean | null
@@ -35,6 +36,7 @@ export function EditUserForm({ user, onSuccess, onCancel }: EditUserFormProps) {
     email: user.email,
     password: "",
     role: user.role as UserRole,
+    profile: (user.profile || "") as UserProfile | "",
     canApproveProposals: user.canApproveProposals ?? false,
     canApproveInvoices: user.canApproveInvoices ?? false,
     canEditAllProposals: user.canEditAllProposals ?? false,
@@ -50,6 +52,7 @@ export function EditUserForm({ user, onSuccess, onCancel }: EditUserFormProps) {
       email: user.email,
       password: "",
       role: user.role as UserRole,
+      profile: (user.profile || "") as UserProfile | "",
       canApproveProposals: user.canApproveProposals ?? false,
       canApproveInvoices: user.canApproveInvoices ?? false,
       canEditAllProposals: user.canEditAllProposals ?? false,
@@ -70,6 +73,7 @@ export function EditUserForm({ user, onSuccess, onCancel }: EditUserFormProps) {
         name: formData.name,
         email: formData.email,
         role: formData.role,
+        profile: formData.profile || null,
         canApproveProposals: formData.canApproveProposals || null,
         canApproveInvoices: formData.canApproveInvoices || null,
         canEditAllProposals: formData.canEditAllProposals || null,
@@ -161,6 +165,25 @@ export function EditUserForm({ user, onSuccess, onCancel }: EditUserFormProps) {
               <option value="MANAGER">Manager</option>
               <option value="ADMIN">Admin</option>
             </select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="edit-profile">Profile (Optional)</Label>
+            <select
+              id="edit-profile"
+              value={formData.profile}
+              onChange={(e) => setFormData({ ...formData, profile: e.target.value as UserProfile | "" })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md"
+            >
+              <option value="">None</option>
+              <option value="SECRETARIAT">Secretariat</option>
+              <option value="TRAINEE">Trainee</option>
+              <option value="JUNIOR_LAWYER">Junior Lawyer</option>
+              <option value="LAWYER">Lawyer</option>
+              <option value="SENIOR_LAWYER">Senior Lawyer</option>
+              <option value="PARTNER">Partner</option>
+            </select>
+            <p className="text-xs text-gray-500">Used for retainer hourly rate tables</p>
           </div>
 
           <div className="space-y-2">

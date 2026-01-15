@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
-import { UserRole } from "@prisma/client"
+import { UserRole, UserProfile } from "@prisma/client"
 import bcrypt from "bcryptjs"
 import { canCreateUsers } from "@/lib/permissions"
 
@@ -13,6 +13,7 @@ const createUserSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
   role: z.nativeEnum(UserRole),
+  profile: z.nativeEnum(UserProfile).nullable().optional(),
   canApproveProposals: z.boolean().nullable().optional(),
   canApproveInvoices: z.boolean().nullable().optional(),
   canEditAllProposals: z.boolean().nullable().optional(),
@@ -39,6 +40,7 @@ export async function GET(request: Request) {
         name: true,
         email: true,
         role: true,
+        profile: true,
         defaultHourlyRate: true,
         canApproveProposals: true,
         canApproveInvoices: true,
@@ -116,6 +118,7 @@ export async function POST(request: Request) {
         email: validatedData.email,
         password: hashedPassword,
         role: validatedData.role,
+        profile: validatedData.profile ?? null,
         canApproveProposals: validatedData.canApproveProposals ?? null,
         canApproveInvoices: validatedData.canApproveInvoices ?? null,
         canEditAllProposals: validatedData.canEditAllProposals ?? null,
@@ -128,6 +131,7 @@ export async function POST(request: Request) {
         name: true,
         email: true,
         role: true,
+        profile: true,
         canApproveProposals: true,
         canApproveInvoices: true,
         canEditAllProposals: true,

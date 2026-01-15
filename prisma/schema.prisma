@@ -18,6 +18,15 @@ enum UserRole {
   CLIENT
 }
 
+enum UserProfile {
+  SECRETARIAT
+  TRAINEE
+  JUNIOR_LAWYER
+  LAWYER
+  SENIOR_LAWYER
+  PARTNER
+}
+
 enum ProposalType {
   FIXED_FEE
   CAPPED_FEE
@@ -202,6 +211,7 @@ model User {
   name                String
   password            String
   role                UserRole @default(STAFF)
+  profile             UserProfile?
   defaultHourlyRate   Float?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
@@ -370,6 +380,14 @@ model Proposal {
   retainerAdditionalHoursRateMin Float?
   retainerAdditionalHoursRateMax Float?
   retainerAdditionalHoursBlendedRate Float?
+  retainerStartDate         DateTime?
+  retainerDurationMonths    Int?
+  retainerProjectScope      String? // ALL_PROJECTS, SPECIFIC_PROJECTS
+  retainerProjectIds        String[]            @default([])
+  retainerExcessBillingType String? // How excess hours are billed
+  retainerUnusedBalancePolicy String? // EXPIRE, ROLLOVER
+  retainerUnusedBalanceExpiryMonths Int?
+  retainerHourlyTableRates  Json? // JSON object storing hourly table rates by profile
   blendedRate               Float?
   useBlendedRate            Boolean              @default(false)
   successFeePercent         Float?
