@@ -149,6 +149,8 @@ export default async function ProposalDetailPage({
             isCapped: true,
             cappedHours: true,
             cappedAmount: true,
+            expenseId: true,
+            isEstimated: true,
             person: {
               select: {
                 id: true,
