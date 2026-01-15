@@ -1099,7 +1099,7 @@ export default async function ProposalDetailPage({
                   <td colSpan={isExpense ? 6 : columnCount} className="p-3 pl-8">
                     <div className="flex flex-wrap gap-2 items-center">
                       <span className="text-xs font-semibold text-gray-600">Milestones:</span>
-                      {item.milestones.map((milestone) => (
+                      {item.milestones.map((milestone: any) => (
                         <span
                           key={milestone.id}
                           className="px-2 py-1 rounded text-xs bg-blue-100 text-blue-800 border border-blue-200"
