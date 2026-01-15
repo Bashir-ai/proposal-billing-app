@@ -191,9 +191,29 @@ export async function GET(
 
           ${proposal.items.some((item: any) => item.isEstimate === true) ? `
             <div style="margin: 30px 0; padding: 15px; background-color: #fef3c7; border: 2px solid #fbbf24; border-radius: 8px;">
-              <p style="color: #92400e; font-weight: bold; font-size: 16px; margin: 0;">
+              <p style="color: #92400e; font-weight: bold; font-size: 16px; margin: 0 0 10px 0;">
                 ⚠️ Proposed fees are estimated
               </p>
+              ${(() => {
+                const hasCapped = proposal.items.some((item: any) => item.isCapped === true)
+                let cappedAmount = 0
+                if (hasCapped) {
+                  proposal.items.forEach((item: any) => {
+                    if (item.isCapped) {
+                      if (item.cappedHours && item.rate) {
+                        cappedAmount += item.cappedHours * item.rate
+                      } else if (item.cappedAmount) {
+                        cappedAmount += item.cappedAmount
+                      }
+                    }
+                  })
+                }
+                return hasCapped && cappedAmount > 0 
+                  ? `<p style="color: #92400e; font-size: 14px; margin: 0;">
+                      However, the total charge will not exceed ${currencySymbol}${cappedAmount.toFixed(2)}.
+                    </p>`
+                  : ""
+              })()}
             </div>
           ` : ""}
 
@@ -282,7 +302,7 @@ export async function GET(
                     ${hasCapped && cappedAmount > 0 ? `
                       <tr>
                         <td colspan="4" style="text-align: right; font-weight: bold; color: #1e40af; padding-top: 10px; border-top: 1px solid #dbeafe;">
-                          Maximum Price (Capped):
+                          Maximum Charge (Will Not Exceed):
                         </td>
                         <td style="text-align: right; font-size: 18px; color: #1e40af; padding-top: 10px; border-top: 1px solid #dbeafe;">
                           ${currencySymbol}${cappedAmount.toFixed(2)}

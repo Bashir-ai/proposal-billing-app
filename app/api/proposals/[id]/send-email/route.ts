@@ -169,9 +169,29 @@ function generateProposalHTML(proposal: any, logoBase64: string | null): string 
         ${proposal.items && proposal.items.some((item: any) => item.isEstimate === true) ? `
         <div class="section">
           <div style="padding: 15px; background-color: #fef3c7; border: 2px solid #fbbf24; border-radius: 8px;">
-            <p style="color: #92400e; font-weight: bold; font-size: 16px; margin: 0;">
+            <p style="color: #92400e; font-weight: bold; font-size: 16px; margin: 0 0 10px 0;">
               ⚠️ Proposed fees are estimated
             </p>
+            ${(() => {
+              const hasCapped = proposal.items && proposal.items.some((item: any) => item.isCapped === true)
+              let cappedAmount = 0
+              if (hasCapped && proposal.items) {
+                proposal.items.forEach((item: any) => {
+                  if (item.isCapped) {
+                    if (item.cappedHours && item.rate) {
+                      cappedAmount += item.cappedHours * item.rate
+                    } else if (item.cappedAmount) {
+                      cappedAmount += item.cappedAmount
+                    }
+                  }
+                })
+              }
+              return hasCapped && cappedAmount > 0 
+                ? `<p style="color: #92400e; font-size: 14px; margin: 0;">
+                    However, the total charge will not exceed ${currencySymbol}${cappedAmount.toFixed(2)}.
+                  </p>`
+                : ""
+            })()}
           </div>
         </div>
         ` : ''}
@@ -279,7 +299,7 @@ function generateProposalHTML(proposal: any, logoBase64: string | null): string 
                   html += `<div>Total with Tax: ${currencySymbol}${(subtotal * (1 + proposal.taxRate / 100)).toFixed(2)}</div>`
                 }
                 if (hasCapped && cappedAmount > 0) {
-                  html += `<div style="color: #1e40af; font-weight: bold; margin-top: 10px; padding-top: 10px; border-top: 1px solid #dbeafe;">Maximum Price (Capped): ${currencySymbol}${cappedAmount.toFixed(2)}</div>`
+                  html += `<div style="color: #1e40af; font-weight: bold; margin-top: 10px; padding-top: 10px; border-top: 1px solid #dbeafe;">Maximum Charge (Will Not Exceed): ${currencySymbol}${cappedAmount.toFixed(2)}</div>`
                 }
                 return html
               })()}

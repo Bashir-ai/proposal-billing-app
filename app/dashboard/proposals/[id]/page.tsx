@@ -958,10 +958,17 @@ export default async function ProposalDetailPage({
       {hasEstimatedItems && (
         <Card className="mb-8 border-yellow-300 bg-yellow-50">
           <CardContent className="pt-6">
-            <div className="flex items-center space-x-2">
-              <span className="text-lg font-semibold text-yellow-900">
-                ⚠️ Proposed fees are estimated
-              </span>
+            <div className="space-y-2">
+              <div className="flex items-center space-x-2">
+                <span className="text-lg font-semibold text-yellow-900">
+                  ⚠️ Proposed fees are estimated
+                </span>
+              </div>
+              {hasCappedItems && cappedAmount > 0 && (
+                <div className="mt-2 text-base text-yellow-800">
+                  However, the total charge will not exceed {currencySymbol}{cappedAmount.toFixed(2)}.
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -1119,7 +1126,7 @@ export default async function ProposalDetailPage({
             )}
             {hasCappedItems && cappedAmount > 0 && (
               <div className="flex justify-between text-blue-700 font-semibold pt-2 border-t border-blue-200">
-                <span>Maximum Price (Capped):</span>
+                <span>Maximum Charge (Will Not Exceed):</span>
                 <span>{currencySymbol}{cappedAmount.toFixed(2)}</span>
               </div>
             )}
