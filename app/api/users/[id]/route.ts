@@ -233,7 +233,7 @@ export async function DELETE(
     // Only admins can delete users
     const currentUser = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { role: true },
+      select: { role: true, email: true },
     })
 
     if (!currentUser) {
@@ -262,6 +262,27 @@ export async function DELETE(
 
     if (!targetUser) {
       return NextResponse.json({ error: "User not found" }, { status: 404 })
+    }
+
+    // If requester is bkv@vpa.pt, allow direct deletion (no approval needed)
+    // Otherwise, require an approved deletion request
+    if (currentUser.email !== "bkv@vpa.pt") {
+      const approvedRequest = await prisma.userDeletionRequest.findFirst({
+        where: {
+          targetUserId: id,
+          status: "APPROVED",
+        },
+      })
+
+      if (!approvedRequest) {
+        return NextResponse.json(
+          { 
+            error: "Cannot delete user. An approved deletion request is required. Please use the deletion request workflow.",
+            hint: "Create a deletion request first, then get it approved by another admin.",
+          },
+          { status: 403 }
+        )
+      }
     }
 
     // Check for critical relations that would prevent deletion
@@ -303,6 +324,25 @@ export async function DELETE(
       await prisma.user.delete({
         where: { id },
       })
+
+      // If there was an approved deletion request, mark it as completed
+      if (currentUser.email !== "bkv@vpa.pt") {
+        const approvedRequest = await prisma.userDeletionRequest.findFirst({
+          where: {
+            targetUserId: id,
+            status: "APPROVED",
+          },
+        })
+        if (approvedRequest) {
+          await prisma.userDeletionRequest.update({
+            where: { id: approvedRequest.id },
+            data: {
+              status: "COMPLETED",
+              completedAt: new Date(),
+            },
+          })
+        }
+      }
     } catch (error: any) {
       // Handle foreign key constraint errors
       if (error.code === "P2003") {

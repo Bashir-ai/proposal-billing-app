@@ -24,6 +24,25 @@ interface User {
   createdAt: string
 }
 
+interface DeletionRequest {
+  id: string
+  targetUserId: string
+  requestedBy: string
+  approvedBy: string[]
+  status: string
+  createdAt: string
+  targetUser?: {
+    id: string
+    name: string
+    email: string
+  }
+  requester?: {
+    id: string
+    name: string
+    email: string
+  }
+}
+
 export function UserManagement() {
   const router = useRouter()
   const { data: session } = useSession()
@@ -33,11 +52,20 @@ export function UserManagement() {
   const [editingUserId, setEditingUserId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null)
+  const [deletionRequests, setDeletionRequests] = useState<Record<string, DeletionRequest[]>>({})
+  const [approvingUserId, setApprovingUserId] = useState<string | null>(null)
   const isAdmin = session?.user?.role === "ADMIN"
+  const isBkvUser = session?.user?.email === "bkv@vpa.pt"
 
   useEffect(() => {
     fetchUsers()
   }, [])
+
+  useEffect(() => {
+    if (isAdmin && users.length > 0) {
+      fetchDeletionRequests()
+    }
+  }, [isAdmin, users])
 
   const fetchUsers = async () => {
     try {
@@ -75,6 +103,36 @@ export function UserManagement() {
     fetchUsers()
   }
 
+  const fetchDeletionRequests = async () => {
+    if (users.length === 0) return
+    try {
+      const requestsByUser: Record<string, DeletionRequest[]> = {}
+      // Fetch deletion requests for all users in parallel
+      const requests = await Promise.all(
+        users.map(async (user) => {
+          try {
+            const response = await fetch(`/api/users/${user.id}/delete-request`)
+            if (response.ok) {
+              const data = await response.json()
+              return { userId: user.id, requests: Array.isArray(data) ? data : [] }
+            }
+            return { userId: user.id, requests: [] }
+          } catch {
+            return { userId: user.id, requests: [] }
+          }
+        })
+      )
+      requests.forEach(({ userId, requests }) => {
+        if (requests.length > 0) {
+          requestsByUser[userId] = requests
+        }
+      })
+      setDeletionRequests(requestsByUser)
+    } catch (err) {
+      console.error("Error fetching deletion requests:", err)
+    }
+  }
+
   const handleDeleteUser = async (userId: string) => {
     if (!confirm("Are you sure you want to delete this user? This action cannot be undone.")) {
       return
@@ -83,22 +141,69 @@ export function UserManagement() {
     try {
       setDeletingUserId(userId)
       setError(null)
-      const response = await fetch(`/api/users/${userId}`, {
-        method: "DELETE",
-      })
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: "Failed to delete user" }))
-        throw new Error(errorData.error || "Failed to delete user")
+      // If bkv@vpa.pt, delete directly via DELETE endpoint
+      // Otherwise, create a deletion request
+      if (isBkvUser) {
+        const response = await fetch(`/api/users/${userId}`, {
+          method: "DELETE",
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: "Failed to delete user" }))
+          throw new Error(errorData.error || "Failed to delete user")
+        }
+
+        // Refresh the user list
+        fetchUsers()
+      } else {
+        // Create deletion request
+        const response = await fetch(`/api/users/${userId}/delete-request`, {
+          method: "POST",
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: "Failed to create deletion request" }))
+          throw new Error(errorData.error || "Failed to create deletion request")
+        }
+
+        // Refresh deletion requests and user list
+        await fetchDeletionRequests()
+        fetchUsers()
       }
-
-      // Refresh the user list
-      fetchUsers()
     } catch (err: any) {
       console.error("Error deleting user:", err)
       setError(err.message || "Failed to delete user. Please try again.")
     } finally {
       setDeletingUserId(null)
+    }
+  }
+
+  const handleApproveDeletion = async (userId: string) => {
+    if (!confirm("Are you sure you want to approve the deletion of this user? This action cannot be undone.")) {
+      return
+    }
+
+    try {
+      setApprovingUserId(userId)
+      setError(null)
+      const response = await fetch(`/api/users/${userId}/delete-request/approve`, {
+        method: "POST",
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: "Failed to approve deletion" }))
+        throw new Error(errorData.error || "Failed to approve deletion")
+      }
+
+      // Refresh deletion requests and user list
+      await fetchDeletionRequests()
+      fetchUsers()
+    } catch (err: any) {
+      console.error("Error approving deletion:", err)
+      setError(err.message || "Failed to approve deletion. Please try again.")
+    } finally {
+      setApprovingUserId(null)
     }
   }
 
@@ -198,6 +303,43 @@ export function UserManagement() {
                     <p className="text-xs text-gray-500 mt-2">
                       Created: {formatDate(new Date(user.createdAt))}
                     </p>
+                    {/* Show pending deletion requests */}
+                    {deletionRequests[user.id] && deletionRequests[user.id].length > 0 && (
+                      <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded">
+                        {deletionRequests[user.id].map((request) => {
+                          if (request.status !== "PENDING") return null
+                          const approvalCount = request.approvedBy.length
+                          const requiredApprovals = 2
+                          const canApprove = isAdmin && 
+                            !request.approvedBy.includes(session?.user?.id || "") &&
+                            request.requestedBy !== session?.user?.id
+                          return (
+                            <div key={request.id} className="text-sm">
+                              <div className="font-medium text-yellow-800 mb-1">
+                                Deletion Request Pending
+                              </div>
+                              <div className="text-yellow-700">
+                                Requested by: {request.requester?.name || "Unknown"}
+                              </div>
+                              <div className="text-yellow-700 mb-2">
+                                Approvals: {approvalCount}/{requiredApprovals}
+                              </div>
+                              {canApprove && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleApproveDeletion(user.id)}
+                                  disabled={approvingUserId === user.id}
+                                  className="mt-2"
+                                >
+                                  {approvingUserId === user.id ? "Approving..." : "Approve Deletion"}
+                                </Button>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
                   </div>
                   <div className="ml-4 flex gap-2">
                     <Button

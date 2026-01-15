@@ -20,8 +20,18 @@ export async function GET(request: Request) {
     const startDate = searchParams.get("startDate") ? new Date(searchParams.get("startDate")!) : undefined
     const endDate = searchParams.get("endDate") ? new Date(searchParams.get("endDate")!) : undefined
 
-    // If user is not admin, they can only see their own fees
-    const targetUserId = session.user.role === "ADMIN" && userId ? userId : session.user.id
+    // EXTERNAL users can only see their own fees
+    // Admins can see any user's fees if userId is provided, otherwise their own
+    // Other users can only see their own fees
+    let targetUserId = session.user.id
+    if (session.user.role === "ADMIN" && userId) {
+      targetUserId = userId
+    } else if (session.user.role === "EXTERNAL" && userId && userId !== session.user.id) {
+      return NextResponse.json(
+        { error: "Forbidden - External users can only view their own finder fees" },
+        { status: 403 }
+      )
+    }
 
     const options: {
       status?: "PENDING" | "PARTIALLY_PAID" | "PAID"

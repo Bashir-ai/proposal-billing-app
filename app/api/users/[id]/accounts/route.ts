@@ -19,6 +19,10 @@ export async function GET(
     const userId = id
 
     // Check permissions: user can view own, admin/manager can view all
+    // EXTERNAL users can only view their own account
+    if (session.user.role === UserRole.EXTERNAL && session.user.id !== userId) {
+      return NextResponse.json({ error: "Forbidden - External users can only view their own account" }, { status: 403 })
+    }
     if (session.user.id !== userId && session.user.role !== UserRole.ADMIN && session.user.role !== UserRole.MANAGER) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }

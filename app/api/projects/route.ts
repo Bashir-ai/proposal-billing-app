@@ -78,6 +78,15 @@ export async function GET(request: Request) {
       }
     }
 
+    // For EXTERNAL users, only show projects they're assigned to
+    if (session.user.role === "EXTERNAL") {
+      where.projectManagers = {
+        some: {
+          userId: session.user.id,
+        },
+      }
+    }
+
     const projects = await prisma.project.findMany({
       where,
       orderBy: { createdAt: "desc" },
@@ -149,7 +158,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    if (session.user.role === "CLIENT") {
+    if (session.user.role === "CLIENT" || session.user.role === "EXTERNAL") {
       return NextResponse.json(
         { error: "Forbidden" },
         { status: 403 }

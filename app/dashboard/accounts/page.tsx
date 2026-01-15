@@ -76,6 +76,9 @@ export default function AccountsPage() {
           setSelectedUserId(session.user.id)
         })
         .catch(console.error)
+    } else if (session.user.role === "EXTERNAL") {
+      // EXTERNAL users can only view their own account
+      setSelectedUserId(session.user.id)
     }
 
     // Fetch clients for filter
@@ -135,6 +138,7 @@ export default function AccountsPage() {
 
   const isAdmin = session.user.role === "ADMIN"
   const isManager = session.user.role === "MANAGER"
+  const isExternal = session.user.role === "EXTERNAL"
   const targetUserId = isAdmin && selectedUserId ? selectedUserId : session.user.id
 
   const tabs = [
@@ -154,8 +158,8 @@ export default function AccountsPage() {
         </div>
       </div>
 
-      {/* User selector for admins */}
-      {isAdmin && (
+      {/* User selector for admins only (not for EXTERNAL users) */}
+      {isAdmin && !isExternal && (
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-4">

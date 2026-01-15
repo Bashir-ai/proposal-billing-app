@@ -124,6 +124,27 @@ export async function GET(
       }
     }
 
+    // Check if EXTERNAL user can access this bill (must be client manager or finder)
+    if (session.user.role === "EXTERNAL") {
+      const client = await prisma.client.findUnique({
+        where: { id: bill.clientId },
+        include: {
+          finders: true,
+        },
+      })
+      if (!client) {
+        return NextResponse.json({ error: "Client not found" }, { status: 404 })
+      }
+      const isManager = client.clientManagerId === session.user.id
+      const isFinder = client.finders.some((finder) => finder.userId === session.user.id)
+      if (!isManager && !isFinder) {
+        return NextResponse.json(
+          { error: "Forbidden - External users can only view invoices for clients they manage or where they are finders" },
+          { status: 403 }
+        )
+      }
+    }
+
     return NextResponse.json(bill)
   } catch (error) {
     return NextResponse.json(

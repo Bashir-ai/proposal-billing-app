@@ -16,6 +16,7 @@ enum UserRole {
   MANAGER
   STAFF
   CLIENT
+  EXTERNAL
 }
 
 enum UserProfile {
@@ -266,6 +267,8 @@ model User {
   createdTransactions     UserFinancialTransaction[] @relation("TransactionCreator")
   eligibilityRecords     CompensationEligibility[] @relation("EligibilityUser")
   createdExpenses         ProjectExpense[]          @relation("ExpenseCreator")
+  deletionRequestsMade   UserDeletionRequest[]     @relation("DeletionRequester")
+  deletionTargets         UserDeletionRequest[]    @relation("DeletionTarget")
 }
 
 model Client {
@@ -1268,4 +1271,20 @@ model CompensationEligibility {
   project       Project?            @relation("EligibilityProject", fields: [projectId], references: [id], onDelete: Cascade)
   client        Client?            @relation("EligibilityClient", fields: [clientId], references: [id], onDelete: Cascade)
   bill          Bill?              @relation("EligibilityBill", fields: [billId], references: [id], onDelete: Cascade)
+}
+
+model UserDeletionRequest {
+  id            String   @id @default(cuid())
+  targetUserId  String   // User to be deleted
+  requestedBy   String   // Admin who requested deletion
+  approvedBy    String[] @default([]) // Array of admin IDs who approved
+  status        String   @default("PENDING") // PENDING, APPROVED, REJECTED, COMPLETED
+  createdAt     DateTime @default(now())
+  completedAt  DateTime?
+  
+  targetUser    User     @relation("DeletionTarget", fields: [targetUserId], references: [id], onDelete: Cascade)
+  requester     User     @relation("DeletionRequester", fields: [requestedBy], references: [id])
+  
+  @@index([status])
+  @@index([targetUserId])
 }

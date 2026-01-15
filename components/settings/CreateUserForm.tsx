@@ -121,6 +121,7 @@ export function CreateUserForm({ onSuccess, onCancel }: CreateUserFormProps) {
               <option value="MANAGER">Manager</option>
               <option value="ADMIN">Admin</option>
               <option value="CLIENT">Client</option>
+              <option value="EXTERNAL">External</option>
             </select>
           </div>
 

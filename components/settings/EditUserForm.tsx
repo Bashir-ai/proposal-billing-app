@@ -164,6 +164,7 @@ export function EditUserForm({ user, onSuccess, onCancel }: EditUserFormProps) {
               <option value="STAFF">Staff</option>
               <option value="MANAGER">Manager</option>
               <option value="ADMIN">Admin</option>
+              <option value="EXTERNAL">External</option>
             </select>
           </div>
 

@@ -1,4 +1,5 @@
 import { UserRole } from "@prisma/client"
+import { prisma } from "./prisma"
 
 interface User {
   id: string
@@ -118,6 +119,8 @@ function getRoleRank(role: UserRole): number {
       return 2
     case "CLIENT":
       return 1
+    case "EXTERNAL":
+      return 0.5
     default:
       return 0
   }
@@ -155,5 +158,66 @@ export function canReassignTodo(
   }
 
   return false
+}
+
+/**
+ * Check if External user can bill hours in a project
+ * External users can only bill hours in projects they're assigned to
+ */
+export async function canBillHours(user: User, projectId: string): Promise<boolean> {
+  // Non-External users can always bill hours (subject to other permissions)
+  if (user.role !== "EXTERNAL") return true
+
+  // Check if user is assigned to the project
+  const projectManager = await prisma.projectManager.findFirst({
+    where: {
+      projectId,
+      userId: user.id,
+    },
+  })
+
+  return !!projectManager
+}
+
+/**
+ * Check if External user can view an invoice
+ * External users can view invoices for clients where they are:
+ * - Client manager, OR
+ * - Finder
+ */
+export async function canViewInvoice(user: User, invoice: { clientId: string }): Promise<boolean> {
+  // Non-External users can view invoices (subject to other permissions)
+  if (user.role !== "EXTERNAL") return true
+
+  // Check if user is client manager or finder
+  const client = await prisma.client.findUnique({
+    where: { id: invoice.clientId },
+    include: {
+      finders: true,
+    },
+  })
+
+  if (!client) return false
+
+  // Check if user is client manager
+  if (client.clientManagerId === user.id) return true
+
+  // Check if user is a finder
+  const isFinder = client.finders.some((finder) => finder.userId === user.id)
+  if (isFinder) return true
+
+  return false
+}
+
+/**
+ * Check if user can view an account
+ * External users can only view their own account
+ */
+export function canViewAccount(user: User, accountUserId: string): boolean {
+  // Non-External users can view accounts (subject to other permissions)
+  if (user.role !== "EXTERNAL") return true
+
+  // External users can only view their own account
+  return user.id === accountUserId
 }
 

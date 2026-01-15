@@ -42,8 +42,36 @@ export async function PUT(
       return NextResponse.json({ error: "Timesheet entry not found" }, { status: 404 })
     }
 
+    // For EXTERNAL users, only allow access to assigned projects and their own entries
+    if (session.user.role === "EXTERNAL") {
+      const isAssigned = await prisma.projectManager.findFirst({
+        where: {
+          projectId: id,
+          userId: session.user.id,
+        },
+      })
+      if (!isAssigned) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+      }
+      // EXTERNAL users can only update their own entries
+      if (entry.userId !== session.user.id) {
+        return NextResponse.json(
+          { error: "Forbidden - External users can only update their own entries" },
+          { status: 403 }
+        )
+      }
+    }
+
     const body = await request.json()
     const validatedData = timesheetEntryUpdateSchema.parse(body)
+
+    // For EXTERNAL users, prevent changing userId to someone else
+    if (session.user.role === "EXTERNAL" && validatedData.userId !== undefined && validatedData.userId !== session.user.id) {
+      return NextResponse.json(
+        { error: "Forbidden - External users cannot change entry ownership" },
+        { status: 403 }
+      )
+    }
 
     const updateData: any = {}
     if (validatedData.userId !== undefined) {
@@ -134,6 +162,26 @@ export async function DELETE(
 
     if (!entry || entry.projectId !== id) {
       return NextResponse.json({ error: "Timesheet entry not found" }, { status: 404 })
+    }
+
+    // For EXTERNAL users, only allow access to assigned projects and their own entries
+    if (session.user.role === "EXTERNAL") {
+      const isAssigned = await prisma.projectManager.findFirst({
+        where: {
+          projectId: id,
+          userId: session.user.id,
+        },
+      })
+      if (!isAssigned) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+      }
+      // EXTERNAL users can only delete their own entries
+      if (entry.userId !== session.user.id) {
+        return NextResponse.json(
+          { error: "Forbidden - External users can only delete their own entries" },
+          { status: 403 }
+        )
+      }
     }
 
     await prisma.timesheetEntry.delete({

@@ -47,6 +47,19 @@ export async function GET(
       }
     }
 
+    // For EXTERNAL users, only allow access to assigned projects
+    if (session.user.role === "EXTERNAL") {
+      const isAssigned = await prisma.projectManager.findFirst({
+        where: {
+          projectId: id,
+          userId: session.user.id,
+        },
+      })
+      if (!isAssigned) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+      }
+    }
+
     const entries = await prisma.timesheetEntry.findMany({
       where: { projectId: id },
       include: {
@@ -98,8 +111,29 @@ export async function POST(
       return NextResponse.json({ error: "Project not found" }, { status: 404 })
     }
 
+    // For EXTERNAL users, only allow creating entries for assigned projects
+    if (session.user.role === "EXTERNAL") {
+      const isAssigned = await prisma.projectManager.findFirst({
+        where: {
+          projectId: id,
+          userId: session.user.id,
+        },
+      })
+      if (!isAssigned) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+      }
+    }
+
     const body = await request.json()
     const validatedData = timesheetEntrySchema.parse(body)
+
+    // For EXTERNAL users, they can only create entries for themselves
+    if (session.user.role === "EXTERNAL" && validatedData.userId !== session.user.id) {
+      return NextResponse.json(
+        { error: "Forbidden - External users can only create entries for themselves" },
+        { status: 403 }
+      )
+    }
 
     // Verify user exists and get default rate
     const user = await prisma.user.findUnique({

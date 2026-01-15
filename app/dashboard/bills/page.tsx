@@ -78,6 +78,30 @@ export default async function BillsPage({
       }
     }
 
+    // Filter for EXTERNAL users - only show invoices for clients where they are manager or finder
+    if (session.user.role === "EXTERNAL") {
+      const clients = await prisma.client.findMany({
+        where: {
+          OR: [
+            { clientManagerId: session.user.id },
+            { finders: { some: { userId: session.user.id } } },
+          ],
+          deletedAt: null,
+        },
+        select: { id: true },
+      })
+      const clientIds = clients.map(c => c.id)
+      if (clientIds.length === 0) {
+        return (
+          <div>
+            <h1 className="text-3xl font-bold">Invoices</h1>
+            <p className="text-gray-600 mt-2">No invoices found.</p>
+          </div>
+        )
+      }
+      where.clientId = { in: clientIds }
+    }
+
     const bills = await prisma.bill.findMany({
       where,
       orderBy: { createdAt: "desc" },
