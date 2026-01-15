@@ -962,11 +962,10 @@ export default async function ProposalDetailPage({
                 <div>
                   <span className="text-sm text-gray-600">Unused Balance Policy: </span>
                   <span className="font-semibold">
-                    {proposal.retainerUnusedBalancePolicy === "EXPIRE" && `Expires after ${proposal.retainerUnusedBalanceExpiryMonths || 0} months`}
+                    {proposal.retainerUnusedBalancePolicy === "EXPIRE" && "Expires at the end of the month"}
                     {proposal.retainerUnusedBalancePolicy === "ROLLOVER" && (
                       <>
-                        Rolls over to next month
-                        {proposal.retainerUnusedBalanceExpiryMonths !== null && proposal.retainerUnusedBalanceExpiryMonths > 0 && ` (expires after ${proposal.retainerUnusedBalanceExpiryMonths} months of non-use)`}
+                        Rolls over to {proposal.retainerUnusedBalanceExpiryMonths || 0} {proposal.retainerUnusedBalanceExpiryMonths === 1 ? "month" : "months"}
                       </>
                     )}
                   </span>

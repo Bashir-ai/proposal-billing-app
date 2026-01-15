@@ -49,31 +49,16 @@ export function RetainerPaymentTerms({
                 checked={retainerUnusedBalancePolicy === "EXPIRE"}
                 onChange={(e) => {
                   onUnusedBalancePolicyChange(e.target.value)
-                  // Only set default if switching TO EXPIRE and no value is set
-                  if (e.target.value === "EXPIRE" && retainerUnusedBalanceExpiryMonths === null) {
-                    onUnusedBalanceExpiryMonthsChange(1)
-                  }
+                  // Set expiryMonths to null for "expires at end of month"
+                  onUnusedBalanceExpiryMonthsChange(null)
                 }}
                 className="w-4 h-4"
               />
               <div className="flex-1">
-                <div className="font-medium">Expires after X months</div>
-                <div className="text-sm text-gray-600">Unused hours expire after a specified period</div>
+                <div className="font-medium">Expires at the end of the month</div>
+                <div className="text-sm text-gray-600">Unused hours expire within 30 days of the beginning of such rolling month</div>
               </div>
             </label>
-            {retainerUnusedBalancePolicy === "EXPIRE" && (
-              <div className="ml-7 space-y-2">
-                <Label htmlFor="expiryMonths">Months before expiry</Label>
-                <Input
-                  id="expiryMonths"
-                  type="number"
-                  min="1"
-                  value={retainerUnusedBalanceExpiryMonths || ""}
-                  onChange={(e) => onUnusedBalanceExpiryMonthsChange(parseInt(e.target.value) || null)}
-                  placeholder="Enter number of months"
-                />
-              </div>
-            )}
             <label className="flex items-center space-x-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
               <input
                 type="radio"
@@ -82,48 +67,29 @@ export function RetainerPaymentTerms({
                 checked={retainerUnusedBalancePolicy === "ROLLOVER"}
                 onChange={(e) => {
                   onUnusedBalancePolicyChange(e.target.value)
-                  // Only clear expiry months if switching TO ROLLOVER (not when already ROLLOVER)
-                  if (e.target.value === "ROLLOVER" && retainerUnusedBalancePolicy !== "ROLLOVER") {
-                    onUnusedBalanceExpiryMonthsChange(null)
+                  // Set default to 1 month when switching to ROLLOVER
+                  if (e.target.value === "ROLLOVER" && retainerUnusedBalanceExpiryMonths === null) {
+                    onUnusedBalanceExpiryMonthsChange(1)
                   }
                 }}
                 className="w-4 h-4"
               />
               <div className="flex-1">
-                <div className="font-medium">Rolls over to next month</div>
-                <div className="text-sm text-gray-600">Unused hours carry forward to the next billing period</div>
+                <div className="font-medium">Rolls over to __ months</div>
+                <div className="text-sm text-gray-600">Unused hours carry forward for the specified number of months</div>
               </div>
             </label>
             {retainerUnusedBalancePolicy === "ROLLOVER" && (
               <div className="ml-7 space-y-2">
-                <label className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    checked={retainerUnusedBalanceExpiryMonths !== null}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        onUnusedBalanceExpiryMonthsChange(3) // Default to 3 months
-                      } else {
-                        onUnusedBalanceExpiryMonthsChange(null)
-                      }
-                    }}
-                    className="h-4 w-4 rounded border-gray-300"
-                  />
-                  <span className="text-sm">Expires after X months of non-use</span>
-                </label>
-                {retainerUnusedBalanceExpiryMonths !== null && (
-                  <div className="ml-6 space-y-2">
-                    <Label htmlFor="rolloverExpiryMonths">Months of non-use before expiry</Label>
-                    <Input
-                      id="rolloverExpiryMonths"
-                      type="number"
-                      min="1"
-                      value={retainerUnusedBalanceExpiryMonths || ""}
-                      onChange={(e) => onUnusedBalanceExpiryMonthsChange(parseInt(e.target.value) || null)}
-                      placeholder="Enter number of months"
-                    />
-                  </div>
-                )}
+                <Label htmlFor="rolloverMonths">Number of months</Label>
+                <Input
+                  id="rolloverMonths"
+                  type="number"
+                  min="1"
+                  value={retainerUnusedBalanceExpiryMonths || ""}
+                  onChange={(e) => onUnusedBalanceExpiryMonthsChange(parseInt(e.target.value) || null)}
+                  placeholder="Enter number of months"
+                />
               </div>
             )}
           </div>

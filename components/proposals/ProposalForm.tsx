@@ -302,13 +302,10 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
           setErrors(newErrors)
           return false
         }
-        if (formData.retainerUnusedBalancePolicy === "EXPIRE" && !formData.retainerUnusedBalanceExpiryMonths) {
-          newErrors.paymentTerms = "Please specify months before expiry"
-          setErrors(newErrors)
-          return false
-        }
-        if (formData.retainerUnusedBalancePolicy === "ROLLOVER" && formData.retainerUnusedBalanceExpiryMonths !== null && !formData.retainerUnusedBalanceExpiryMonths) {
-          newErrors.paymentTerms = "Please specify months of non-use before expiry"
+        // For EXPIRE (expires at end of month), expiryMonths should be null
+        // For ROLLOVER, expiryMonths must be set (not null and > 0)
+        if (formData.retainerUnusedBalancePolicy === "ROLLOVER" && (!formData.retainerUnusedBalanceExpiryMonths || formData.retainerUnusedBalanceExpiryMonths <= 0)) {
+          newErrors.paymentTerms = "Please specify the number of months for rollover"
           setErrors(newErrors)
           return false
         }
@@ -1528,10 +1525,18 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                                 required
                               >
                                 <option value="">Select duration</option>
+                                <option value="1">1 month</option>
+                                <option value="2">2 months</option>
                                 <option value="3">3 months</option>
+                                <option value="4">4 months</option>
                                 <option value="5">5 months</option>
+                                <option value="6">6 months</option>
+                                <option value="7">7 months</option>
+                                <option value="8">8 months</option>
+                                <option value="9">9 months</option>
                                 <option value="10">10 months</option>
-                                <option value="12">1 year (12 months)</option>
+                                <option value="11">11 months</option>
+                                <option value="12">12 months</option>
                                 <option value="CUSTOM">Custom</option>
                               </select>
                               {formData.retainerDurationMonths === null && (
@@ -1545,7 +1550,7 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                             </div>
                             {formData.retainerStartDate && formData.retainerDurationMonths && (
                               <p className="text-sm text-gray-600">
-                                Monthly retainer charged on {new Date(formData.retainerStartDate).toLocaleDateString()} and every anniversary thereafter for {formData.retainerDurationMonths} months
+                                Monthly retainer charged on {new Date(formData.retainerStartDate).toLocaleDateString()} and every anniversary thereafter for {formData.retainerDurationMonths} {formData.retainerDurationMonths === 1 ? "month" : "months"}
                               </p>
                             )}
                           </div>
@@ -2818,11 +2823,10 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                     <div>
                       <span className="text-gray-500">Unused Balance Policy:</span>
                       <span className="ml-2 font-medium">
-                        {formData.retainerUnusedBalancePolicy === "EXPIRE" && `Expires after ${formData.retainerUnusedBalanceExpiryMonths} months`}
+                        {formData.retainerUnusedBalancePolicy === "EXPIRE" && "Expires at the end of the month"}
                         {formData.retainerUnusedBalancePolicy === "ROLLOVER" && (
                           <>
-                            Rolls over to next month
-                            {formData.retainerUnusedBalanceExpiryMonths !== null && ` (expires after ${formData.retainerUnusedBalanceExpiryMonths} months of non-use)`}
+                            Rolls over to {formData.retainerUnusedBalanceExpiryMonths} {formData.retainerUnusedBalanceExpiryMonths === 1 ? "month" : "months"}
                           </>
                         )}
                       </span>
