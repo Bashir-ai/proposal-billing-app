@@ -166,6 +166,16 @@ function generateProposalHTML(proposal: any, logoBase64: string | null): string 
         </div>
         ` : ''}
 
+        ${proposal.items && proposal.items.some((item: any) => item.isEstimate === true) ? `
+        <div class="section">
+          <div style="padding: 15px; background-color: #fef3c7; border: 2px solid #fbbf24; border-radius: 8px;">
+            <p style="color: #92400e; font-weight: bold; font-size: 16px; margin: 0;">
+              ⚠️ Proposed fees are estimated
+            </p>
+          </div>
+        </div>
+        ` : ''}
+
         ${proposal.items && proposal.items.length > 0 ? `
         <div class="section">
           <h2>Line Items</h2>
@@ -242,15 +252,37 @@ function generateProposalHTML(proposal: any, logoBase64: string | null): string 
         </div>
         ` : ''}
 
-        ${proposal.amount ? `
+        ${proposal.amount || (proposal.items && proposal.items.length > 0) ? `
         <div class="section">
           <div class="total">
             <div class="text-right">
-              <div>Total Amount: ${currencySymbol}${proposal.amount.toFixed(2)}</div>
-              ${proposal.taxRate ? `
-                <div>Tax (${proposal.taxRate}%): ${currencySymbol}${(proposal.amount * proposal.taxRate / 100).toFixed(2)}</div>
-                <div>Total with Tax: ${currencySymbol}${(proposal.amount * (1 + proposal.taxRate / 100)).toFixed(2)}</div>
-              ` : ''}
+              ${(() => {
+                const subtotal = proposal.amount || (proposal.items ? proposal.items.reduce((sum: number, item: any) => sum + item.amount, 0) : 0)
+                const hasEstimated = proposal.items && proposal.items.some((item: any) => item.isEstimate === true)
+                const hasCapped = proposal.items && proposal.items.some((item: any) => item.isCapped === true)
+                let cappedAmount = 0
+                if (hasCapped && proposal.items) {
+                  proposal.items.forEach((item: any) => {
+                    if (item.isCapped) {
+                      if (item.cappedHours && item.rate) {
+                        cappedAmount += item.cappedHours * item.rate
+                      } else if (item.cappedAmount) {
+                        cappedAmount += item.cappedAmount
+                      }
+                    }
+                  })
+                }
+                
+                let html = `<div>${hasEstimated ? "Subtotal (Estimated):" : "Subtotal:"} ${currencySymbol}${subtotal.toFixed(2)}</div>`
+                if (proposal.taxRate) {
+                  html += `<div>Tax (${proposal.taxRate}%): ${currencySymbol}${(subtotal * proposal.taxRate / 100).toFixed(2)}</div>`
+                  html += `<div>Total with Tax: ${currencySymbol}${(subtotal * (1 + proposal.taxRate / 100)).toFixed(2)}</div>`
+                }
+                if (hasCapped && cappedAmount > 0) {
+                  html += `<div style="color: #1e40af; font-weight: bold; margin-top: 10px; padding-top: 10px; border-top: 1px solid #dbeafe;">Maximum Price (Capped): ${currencySymbol}${cappedAmount.toFixed(2)}</div>`
+                }
+                return html
+              })()}
             </div>
           </div>
         </div>

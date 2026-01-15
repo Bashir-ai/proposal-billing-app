@@ -351,10 +351,34 @@ export default async function ProposalDetailPage({
     }
   }
 
+  // Calculate capped amount (maximum price)
+  const calculateCappedAmount = () => {
+    let totalCapped = 0
+    proposal.items.forEach(item => {
+      if (item.isCapped) {
+        if (item.cappedHours && item.rate) {
+          // Capped by hours: cappedHours * rate
+          totalCapped += item.cappedHours * item.rate
+        } else if (item.cappedAmount) {
+          // Capped by amount: use cappedAmount directly
+          totalCapped += item.cappedAmount
+        }
+      }
+    })
+    return totalCapped
+  }
+
+  // Check if any items are estimated
+  const hasEstimatedItems = proposal.items.some(item => item.isEstimate === true)
+
+  // Check if any items are capped
+  const hasCappedItems = proposal.items.some(item => item.isCapped === true)
+
   const subtotal = calculateSubtotal()
   const clientDiscount = calculateClientDiscount()
   const tax = calculateTax()
   const grandTotal = calculateGrandTotal()
+  const cappedAmount = calculateCappedAmount()
 
   // Use currentUser from parallel query
   let canEdit = false
@@ -930,6 +954,19 @@ export default async function ProposalDetailPage({
         </Card>
       )}
 
+      {/* Estimated Fees Statement */}
+      {hasEstimatedItems && (
+        <Card className="mb-8 border-yellow-300 bg-yellow-50">
+          <CardContent className="pt-6">
+            <div className="flex items-center space-x-2">
+              <span className="text-lg font-semibold text-yellow-900">
+                ⚠️ Proposed fees are estimated
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {proposal.items.length > 0 && (() => {
         // Check if any item has a person assigned
         const hasPersonColumn = proposal.items.some(item => item.person && item.person.name)
@@ -1065,7 +1102,7 @@ export default async function ProposalDetailPage({
         <CardContent>
           <div className="space-y-2">
             <div className="flex justify-between">
-              <span>Subtotal:</span>
+              <span>{hasEstimatedItems ? "Subtotal (Estimated):" : "Subtotal:"}</span>
               <span className="font-semibold">{currencySymbol}{subtotal.toFixed(2)}</span>
             </div>
             {clientDiscount > 0 && (
@@ -1078,6 +1115,12 @@ export default async function ProposalDetailPage({
               <div className="flex justify-between">
                 <span>Tax ({proposal.taxRate}%):</span>
                 <span>{currencySymbol}{tax.toFixed(2)}</span>
+              </div>
+            )}
+            {hasCappedItems && cappedAmount > 0 && (
+              <div className="flex justify-between text-blue-700 font-semibold pt-2 border-t border-blue-200">
+                <span>Maximum Price (Capped):</span>
+                <span>{currencySymbol}{cappedAmount.toFixed(2)}</span>
               </div>
             )}
             <div className="flex justify-between text-lg font-bold pt-2 border-t">

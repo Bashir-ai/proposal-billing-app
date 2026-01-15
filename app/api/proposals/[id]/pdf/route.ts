@@ -189,6 +189,14 @@ export async function GET(
             </div>
           ` : ""}
 
+          ${proposal.items.some((item: any) => item.isEstimate === true) ? `
+            <div style="margin: 30px 0; padding: 15px; background-color: #fef3c7; border: 2px solid #fbbf24; border-radius: 8px;">
+              <p style="color: #92400e; font-weight: bold; font-size: 16px; margin: 0;">
+                ⚠️ Proposed fees are estimated
+              </p>
+            </div>
+          ` : ""}
+
           ${proposal.items.length > 0 ? `
             <table class="items-table">
               <thead>
@@ -245,14 +253,44 @@ export async function GET(
                 }).join("")}
               </tbody>
               <tfoot>
-                <tr>
-                  <td colspan="4" style="text-align: right; font-weight: bold;">
-                    Total:
-                  </td>
-                  <td style="text-align: right; font-size: 18px;">
-                    ${currencySymbol}${proposal.amount ? proposal.amount.toFixed(2) : proposal.items.reduce((sum: number, item: any) => sum + item.amount, 0).toFixed(2)}
-                  </td>
-                </tr>
+                ${(() => {
+                  const subtotal = proposal.amount || proposal.items.reduce((sum: number, item: any) => sum + item.amount, 0)
+                  const hasEstimated = proposal.items.some((item: any) => item.isEstimate === true)
+                  const hasCapped = proposal.items.some((item: any) => item.isCapped === true)
+                  let cappedAmount = 0
+                  if (hasCapped) {
+                    proposal.items.forEach((item: any) => {
+                      if (item.isCapped) {
+                        if (item.cappedHours && item.rate) {
+                          cappedAmount += item.cappedHours * item.rate
+                        } else if (item.cappedAmount) {
+                          cappedAmount += item.cappedAmount
+                        }
+                      }
+                    })
+                  }
+                  
+                  return `
+                    <tr>
+                      <td colspan="4" style="text-align: right; font-weight: bold;">
+                        ${hasEstimated ? "Subtotal (Estimated):" : "Subtotal:"}
+                      </td>
+                      <td style="text-align: right; font-size: 18px;">
+                        ${currencySymbol}${subtotal.toFixed(2)}
+                      </td>
+                    </tr>
+                    ${hasCapped && cappedAmount > 0 ? `
+                      <tr>
+                        <td colspan="4" style="text-align: right; font-weight: bold; color: #1e40af; padding-top: 10px; border-top: 1px solid #dbeafe;">
+                          Maximum Price (Capped):
+                        </td>
+                        <td style="text-align: right; font-size: 18px; color: #1e40af; padding-top: 10px; border-top: 1px solid #dbeafe;">
+                          ${currencySymbol}${cappedAmount.toFixed(2)}
+                        </td>
+                      </tr>
+                    ` : ""}
+                  `
+                })()}
               </tfoot>
             </table>
           ` : proposal.amount ? `
