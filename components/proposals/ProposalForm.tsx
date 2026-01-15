@@ -2797,7 +2797,7 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                     {formData.retainerAdditionalHoursType === "HOURLY_TABLE" && formData.retainerHourlyTableRates && (
                       <div className="ml-4 space-y-1">
                         {Object.entries(formData.retainerHourlyTableRates)
-                          .filter(([_, rate]) => rate && rate > 0)
+                          .filter(([_, rate]: [string, any]) => rate && rate > 0)
                           .sort((a, b) => (a[1] || 0) - (b[1] || 0))
                           .map(([profile, rate]: [string, any]) => (
                             <div key={profile}>
