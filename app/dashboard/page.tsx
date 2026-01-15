@@ -18,6 +18,11 @@ export default async function DashboardPage() {
   try {
     const session = await getServerSession(authOptions)
 
+    // Redirect EXTERNAL users to accounts page
+    if (session?.user.role === "EXTERNAL") {
+      redirect("/dashboard/accounts")
+    }
+
     // Fetch notifications server-side
     let notificationsData: { count: number; notifications: Notification[] } = { count: 0, notifications: [] }
     if (session) {

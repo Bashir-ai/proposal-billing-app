@@ -7,12 +7,13 @@ import { Button } from "@/components/ui/button"
 import { Select } from "@/components/ui/select"
 import { formatCurrency, formatDate } from "@/lib/utils"
 import Link from "next/link"
-import { Calendar, DollarSign, TrendingUp, Wallet, Gift, ArrowUpDown } from "lucide-react"
+import { Calendar, DollarSign, TrendingUp, Wallet, Gift, ArrowUpDown, Users } from "lucide-react"
 import { TimeFilter } from "@/components/accounts/TimeFilter"
 import { CompensationSection } from "@/components/accounts/CompensationSection"
 import { AdvancesSection } from "@/components/accounts/AdvancesSection"
 import { BenefitsSection } from "@/components/accounts/BenefitsSection"
 import { TransactionsList } from "@/components/accounts/TransactionsList"
+import { FinderClientsSection } from "@/components/accounts/FinderClientsSection"
 
 interface FinderFee {
   id: string
@@ -43,7 +44,7 @@ interface FinderFee {
   }>
 }
 
-type TabType = "compensation" | "advances" | "benefits" | "transactions" | "finderFees"
+type TabType = "compensation" | "advances" | "benefits" | "transactions" | "finderFees" | "finderClients"
 
 export default function AccountsPage() {
   const { data: session } = useSession()
@@ -63,6 +64,8 @@ export default function AccountsPage() {
   const [accountsSummary, setAccountsSummary] = useState<any>(null)
   const [selectedUserId, setSelectedUserId] = useState<string>("")
   const [users, setUsers] = useState<Array<{ id: string; name: string; email: string }>>([])
+  const [finderClients, setFinderClients] = useState<any[]>([])
+  const [finderClientsLoading, setFinderClientsLoading] = useState(false)
 
   useEffect(() => {
     if (!session) return
@@ -130,6 +133,21 @@ export default function AccountsPage() {
         console.error(err)
         setLoading(false)
       })
+
+    // Fetch finder clients for EXTERNAL users
+    if (session.user.role === "EXTERNAL") {
+      setFinderClientsLoading(true)
+      fetch(`/api/users/${targetUserId}/finder-clients`)
+        .then((res) => res.json())
+        .then((data) => {
+          setFinderClients(data.clients || [])
+          setFinderClientsLoading(false)
+        })
+        .catch((err) => {
+          console.error(err)
+          setFinderClientsLoading(false)
+        })
+    }
   }, [session, selectedStatus, selectedClientId, selectedUserId, startDate, endDate])
 
   if (!session) {
@@ -467,6 +485,10 @@ export default function AccountsPage() {
                     </Card>
                   ))}
                 </div>
+              )}
+
+              {activeTab === "finderClients" && (
+                <FinderClientsSection clients={finderClients} loading={finderClientsLoading} />
               )}
             </div>
           )}
