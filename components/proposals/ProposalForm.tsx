@@ -2157,68 +2157,6 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                                 Auto-calculated: {item.quantity || 0} hours × {formatCurrency(item.rate || 0)} = {formatCurrency(item.amount || 0)}
                               </p>
                             </div>
-                            
-                            {/* Estimate and Capped Options for Hourly Items */}
-                            <div className="space-y-3 md:col-span-2">
-                              <div className="flex items-center space-x-2">
-                                <input
-                                  type="checkbox"
-                                  id={`isEstimate-${index}`}
-                                  checked={item.isEstimate || false}
-                                  onChange={(e) => updateItem(index, "isEstimate", e.target.checked)}
-                                  className="h-4 w-4 rounded border-gray-300"
-                                />
-                                <Label htmlFor={`isEstimate-${index}`} className="cursor-pointer">
-                                  Mark as Estimate
-                                </Label>
-                              </div>
-                              
-                              <div className="flex items-center space-x-2">
-                                <input
-                                  type="checkbox"
-                                  id={`isCapped-${index}`}
-                                  checked={item.isCapped || false}
-                                  onChange={(e) => {
-                                    updateItem(index, "isCapped", e.target.checked)
-                                    if (!e.target.checked) {
-                                      updateItem(index, "cappedHours", undefined)
-                                      updateItem(index, "cappedAmount", undefined)
-                                    }
-                                  }}
-                                  className="h-4 w-4 rounded border-gray-300"
-                                />
-                                <Label htmlFor={`isCapped-${index}`} className="cursor-pointer">
-                                  Apply Cap
-                                </Label>
-                              </div>
-                              
-                              {item.isCapped && (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pl-6">
-                                  <div className="space-y-2">
-                                    <Label>Capped Hours (Optional)</Label>
-                                    <Input
-                                      type="number"
-                                      step="0.25"
-                                      min="0"
-                                      value={item.cappedHours || ""}
-                                      onChange={(e) => updateItem(index, "cappedHours", parseFloat(e.target.value) || undefined)}
-                                      placeholder="e.g., 100"
-                                    />
-                                  </div>
-                                  <div className="space-y-2">
-                                    <Label>Capped Amount ({selectedCurrency.symbol}) (Optional)</Label>
-                                    <Input
-                                      type="number"
-                                      step="0.01"
-                                      min="0"
-                                      value={item.cappedAmount || ""}
-                                      onChange={(e) => updateItem(index, "cappedAmount", parseFloat(e.target.value) || undefined)}
-                                      placeholder="e.g., 10000"
-                                    />
-                                  </div>
-                                </div>
-                              )}
-                            </div>
                           </>
                         ) : (
                           <>
@@ -2350,6 +2288,75 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                               </div>
                             )}
                           </>
+                        )}
+
+                        {/* Estimate and Capped Options for All Items (except expenses) */}
+                        {!item.expenseId && (
+                          <div className="space-y-3 md:col-span-2">
+                            <div className="flex items-center space-x-2">
+                              <input
+                                type="checkbox"
+                                id={`isEstimate-${index}`}
+                                checked={item.isEstimate || false}
+                                onChange={(e) => updateItem(index, "isEstimate", e.target.checked)}
+                                className="h-4 w-4 rounded border-gray-300"
+                              />
+                              <Label htmlFor={`isEstimate-${index}`} className="cursor-pointer">
+                                Mark as Estimate
+                              </Label>
+                            </div>
+                            
+                            <div className="flex items-center space-x-2">
+                              <input
+                                type="checkbox"
+                                id={`isCapped-${index}`}
+                                checked={item.isCapped || false}
+                                onChange={(e) => {
+                                  updateItem(index, "isCapped", e.target.checked)
+                                  if (!e.target.checked) {
+                                    updateItem(index, "cappedHours", undefined)
+                                    updateItem(index, "cappedAmount", undefined)
+                                  }
+                                }}
+                                className="h-4 w-4 rounded border-gray-300"
+                              />
+                              <Label htmlFor={`isCapped-${index}`} className="cursor-pointer">
+                                Apply Cap
+                              </Label>
+                            </div>
+                            
+                            {item.isCapped && (
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pl-6">
+                                <div className="space-y-2">
+                                  <Label>Capped Hours (Optional - for hourly items only)</Label>
+                                  <Input
+                                    type="number"
+                                    step="0.25"
+                                    min="0"
+                                    value={item.cappedHours || ""}
+                                    onChange={(e) => updateItem(index, "cappedHours", parseFloat(e.target.value) || undefined)}
+                                    placeholder="e.g., 100"
+                                    disabled={item.billingMethod !== "HOURLY" && formData.type !== "HOURLY"}
+                                    className={item.billingMethod !== "HOURLY" && formData.type !== "HOURLY" ? "bg-gray-50 cursor-not-allowed" : ""}
+                                  />
+                                  {(item.billingMethod !== "HOURLY" && formData.type !== "HOURLY") && (
+                                    <p className="text-xs text-gray-500">Only available for hourly items</p>
+                                  )}
+                                </div>
+                                <div className="space-y-2">
+                                  <Label>Capped Amount ({selectedCurrency.symbol}) (Optional)</Label>
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    value={item.cappedAmount || ""}
+                                    onChange={(e) => updateItem(index, "cappedAmount", parseFloat(e.target.value) || undefined)}
+                                    placeholder="e.g., 10000"
+                                  />
+                                </div>
+                              </div>
+                            )}
+                          </div>
                         )}
 
                         {/* Milestone Assignment - Only show when milestones are enabled */}
