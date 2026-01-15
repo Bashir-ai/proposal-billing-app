@@ -1602,7 +1602,7 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                                           if (e.target.checked) {
                                             setFormData({ ...formData, retainerProjectIds: [...formData.retainerProjectIds, project.id] })
                                           } else {
-                                            setFormData({ ...formData, retainerProjectIds: formData.retainerProjectIds.filter(id => id !== project.id) })
+                                            setFormData({ ...formData, retainerProjectIds: formData.retainerProjectIds.filter((id: string) => id !== project.id) })
                                           }
                                         }}
                                         className="h-4 w-4 rounded border-gray-300"
