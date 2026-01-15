@@ -516,18 +516,34 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
     }, 0)
   }
 
-  const calculateClientDiscount = (): number => {
-    // Calculate subtotal excluding expenses for discount calculation
-    const subtotalExcludingExpenses = items
+  // Calculate services subtotal (excluding expenses)
+  const calculateServicesSubtotal = (): number => {
+    return items
       .filter(item => !item.expenseId)
       .reduce((sum, item) => {
         const itemAmount = item.amount || 0
         const itemDiscount = item.discountAmount || (item.discountPercent && itemAmount ? (itemAmount * item.discountPercent / 100) : 0) || 0
         return sum + (itemAmount - itemDiscount)
       }, 0)
+  }
+
+  // Calculate expenses subtotal
+  const calculateExpensesSubtotal = (): number => {
+    return items
+      .filter(item => item.expenseId !== null)
+      .reduce((sum, item) => {
+        const itemAmount = item.amount || 0
+        const itemDiscount = item.discountAmount || (item.discountPercent && itemAmount ? (itemAmount * item.discountPercent / 100) : 0) || 0
+        return sum + (itemAmount - itemDiscount)
+      }, 0)
+  }
+
+  const calculateClientDiscount = (): number => {
+    // Calculate subtotal excluding expenses for discount calculation
+    const servicesSubtotal = calculateServicesSubtotal()
     
     if (formData.clientDiscountType === "percent") {
-      return subtotalExcludingExpenses * (formData.clientDiscountPercent / 100)
+      return servicesSubtotal * (formData.clientDiscountPercent / 100)
     } else if (formData.clientDiscountType === "amount") {
       return formData.clientDiscountAmount
     }
@@ -556,17 +572,22 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
   }
 
   const calculateGrandTotal = (): number => {
-    const subtotal = calculateSubtotal()
+    const servicesSubtotal = calculateServicesSubtotal()
+    const expensesSubtotal = calculateExpensesSubtotal()
     const discount = calculateClientDiscount()
     const tax = calculateTax()
-    const afterDiscount = subtotal - discount
+    const servicesAfterDiscount = servicesSubtotal - discount
     
     if (formData.taxInclusive) {
-      return afterDiscount
+      return servicesAfterDiscount + expensesSubtotal
     } else {
-      return afterDiscount + tax
+      return servicesAfterDiscount + tax + expensesSubtotal
     }
   }
+
+  // Separate items into services and expenses
+  const servicesItems = items.filter(item => !item.expenseId)
+  const expensesItems = items.filter(item => item.expenseId !== null)
 
   const addItem = () => {
     const newItem: LineItem = {
@@ -2560,12 +2581,12 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                 </div>
               )}
 
-              {/* Line Items Summary */}
-              <div className="space-y-4">
-                <h3 className="font-semibold text-lg">Line Items ({items.length})</h3>
-                {items.length > 0 ? (
+              {/* Services Summary */}
+              {servicesItems.length > 0 && (
+                <div className="space-y-4">
+                  <h3 className="font-semibold text-lg">Services ({servicesItems.length})</h3>
                   <div className="space-y-2">
-                    {items.map((item, index) => {
+                    {servicesItems.map((item, index) => {
                       const itemAmount = item.amount || 0
                       const itemDiscount = item.discountAmount || (item.discountPercent && itemAmount ? (itemAmount * item.discountPercent / 100) : 0) || 0
                       const finalAmount = itemAmount - itemDiscount
@@ -2618,28 +2639,100 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                       )
                     })}
                   </div>
-                ) : (
-                  <p className="text-sm text-gray-500">No line items defined</p>
-                )}
-              </div>
+                </div>
+              )}
+
+              {/* Expenses Summary */}
+              {expensesItems.length > 0 && (
+                <div className="space-y-4">
+                  <h3 className="font-semibold text-lg">Expenses ({expensesItems.length})</h3>
+                  <div className="space-y-2">
+                    {expensesItems.map((item, index) => {
+                      const itemAmount = item.amount || 0
+                      const itemDiscount = item.discountAmount || (item.discountPercent && itemAmount ? (itemAmount * item.discountPercent / 100) : 0) || 0
+                      const finalAmount = itemAmount - itemDiscount
+                      const isHourly = formData.type === "HOURLY" || item.billingMethod === "HOURLY"
+                      return (
+                        <div key={index} className="text-sm p-2 border rounded bg-purple-50">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="px-2 py-1 rounded text-xs bg-purple-100 text-purple-800">Expense</span>
+                                <span className="font-medium">{item.description || `Item ${index + 1}`}</span>
+                              </div>
+                              {/* Show estimate and capped info for all items */}
+                              {(item.isEstimate || item.isEstimated || item.isCapped) && (
+                                <div className="mt-1 space-y-1">
+                                  {(item.isEstimate || item.isEstimated) && (
+                                    <div className="text-xs text-yellow-700 bg-yellow-50 px-2 py-1 rounded inline-block">
+                                      {item.isEstimated 
+                                        ? `Estimated expense: ${selectedCurrency.symbol}${itemAmount.toFixed(2)}`
+                                        : isHourly
+                                          ? `Estimated: ${item.quantity || 0} hours at ${selectedCurrency.symbol}${item.rate?.toFixed(2) || "0.00"}/hr = ${selectedCurrency.symbol}${itemAmount.toFixed(2)}`
+                                          : `Estimated: ${selectedCurrency.symbol}${itemAmount.toFixed(2)}`}
+                                    </div>
+                                  )}
+                                  {item.isCapped && item.cappedHours && (
+                                    <div className="text-xs text-blue-700 bg-blue-50 px-2 py-1 rounded inline-block ml-2">
+                                      Capped at {item.cappedHours} hours at ${selectedCurrency.symbol}${item.rate?.toFixed(2) || "0.00"}/hr = ${selectedCurrency.symbol}${(item.cappedHours * (item.rate || 0)).toFixed(2)}
+                                    </div>
+                                  )}
+                                  {item.isCapped && item.cappedAmount && (
+                                    <div className="text-xs text-blue-700 bg-blue-50 px-2 py-1 rounded inline-block ml-2">
+                                      Capped at ${selectedCurrency.symbol}${item.cappedAmount.toFixed(2)}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                            <div className="ml-2 text-gray-500">
+                              {itemDiscount > 0 ? (
+                                <>
+                                  <span className="line-through">{selectedCurrency.symbol}{itemAmount.toFixed(2)}</span>
+                                  <span className="ml-2">- {selectedCurrency.symbol}{finalAmount.toFixed(2)}</span>
+                                  <span className="ml-2 text-green-600">
+                                    ({item.discountPercent ? `${item.discountPercent}%` : `${selectedCurrency.symbol}${item.discountAmount?.toFixed(2)}`} discount)
+                                  </span>
+                                </>
+                              ) : (
+                                <span>- {selectedCurrency.symbol}{itemAmount.toFixed(2)}</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Financial Summary */}
               <div className="space-y-4 pt-4 border-t">
                 <h3 className="font-semibold text-lg">Financial Summary</h3>
                 <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span>Subtotal:</span>
-                    <span className="font-semibold">{selectedCurrency.symbol}{calculateSubtotal().toFixed(2)}</span>
-                  </div>
+                  {/* Services Subtotal */}
+                  {calculateServicesSubtotal() > 0 && (
+                    <div className="flex justify-between">
+                      <span>Services Subtotal:</span>
+                      <span className="font-semibold">{selectedCurrency.symbol}{calculateServicesSubtotal().toFixed(2)}</span>
+                    </div>
+                  )}
+                  {/* Expenses Subtotal */}
+                  {calculateExpensesSubtotal() > 0 && (
+                    <div className="flex justify-between">
+                      <span>Expenses Subtotal:</span>
+                      <span className="font-semibold">{selectedCurrency.symbol}{calculateExpensesSubtotal().toFixed(2)}</span>
+                    </div>
+                  )}
                   {calculateClientDiscount() > 0 && (
                     <div className="flex justify-between text-green-600">
-                      <span>Client Discount:</span>
+                      <span>Client Discount (on services):</span>
                       <span>-{selectedCurrency.symbol}{calculateClientDiscount().toFixed(2)}</span>
                     </div>
                   )}
                   {calculateTax() > 0 && (
                     <div className="flex justify-between">
-                      <span>Tax ({formData.taxRate}%):</span>
+                      <span>Tax ({formData.taxRate}%) on services:</span>
                       <span>{selectedCurrency.symbol}{calculateTax().toFixed(2)}</span>
                     </div>
                   )}

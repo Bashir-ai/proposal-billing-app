@@ -318,14 +318,26 @@ export default async function ProposalDetailPage({
     return proposal.items.reduce((sum, item) => sum + item.amount, 0)
   }
 
-  const calculateClientDiscount = () => {
-    // Calculate subtotal excluding expenses for discount calculation
-    const subtotalExcludingExpenses = proposal.items
+  // Calculate services subtotal (excluding expenses)
+  const calculateServicesSubtotal = () => {
+    return proposal.items
       .filter(item => !item.expenseId)
       .reduce((sum, item) => sum + item.amount, 0)
+  }
+
+  // Calculate expenses subtotal
+  const calculateExpensesSubtotal = () => {
+    return proposal.items
+      .filter(item => item.expenseId !== null)
+      .reduce((sum, item) => sum + item.amount, 0)
+  }
+
+  const calculateClientDiscount = () => {
+    // Calculate subtotal excluding expenses for discount calculation
+    const servicesSubtotal = calculateServicesSubtotal()
     
     if (proposal.clientDiscountPercent) {
-      return subtotalExcludingExpenses * (proposal.clientDiscountPercent / 100)
+      return servicesSubtotal * (proposal.clientDiscountPercent / 100)
     } else if (proposal.clientDiscountAmount) {
       return proposal.clientDiscountAmount
     }
@@ -335,10 +347,8 @@ export default async function ProposalDetailPage({
   const calculateTax = () => {
     if (!proposal.taxRate || proposal.taxRate === 0) return 0
     // Calculate subtotal excluding expenses
-    const subtotalExcludingExpenses = proposal.items
-      .filter(item => !item.expenseId) // Exclude expenses
-      .reduce((sum, item) => sum + item.amount, 0)
-    const afterDiscount = subtotalExcludingExpenses - calculateClientDiscount()
+    const servicesSubtotal = calculateServicesSubtotal()
+    const afterDiscount = servicesSubtotal - calculateClientDiscount()
     
     if (proposal.taxInclusive) {
       return afterDiscount * (proposal.taxRate / (100 + proposal.taxRate))
@@ -348,15 +358,16 @@ export default async function ProposalDetailPage({
   }
 
   const calculateGrandTotal = () => {
-    const subtotal = calculateSubtotal()
+    const servicesSubtotal = calculateServicesSubtotal()
+    const expensesSubtotal = calculateExpensesSubtotal()
     const discount = calculateClientDiscount()
     const tax = calculateTax()
-    const afterDiscount = subtotal - discount
+    const servicesAfterDiscount = servicesSubtotal - discount
     
     if (proposal.taxInclusive) {
-      return afterDiscount
+      return servicesAfterDiscount + expensesSubtotal
     } else {
-      return afterDiscount + tax
+      return servicesAfterDiscount + tax + expensesSubtotal
     }
   }
 
@@ -386,10 +397,16 @@ export default async function ProposalDetailPage({
   const hasCappedItems = proposal.items.some(item => item.isCapped === true)
 
   const subtotal = calculateSubtotal()
+  const servicesSubtotal = calculateServicesSubtotal()
+  const expensesSubtotal = calculateExpensesSubtotal()
   const clientDiscount = calculateClientDiscount()
   const tax = calculateTax()
   const grandTotal = calculateGrandTotal()
   const cappedAmount = calculateCappedAmount()
+
+  // Separate items into services and expenses
+  const servicesItems = proposal.items.filter(item => !item.expenseId)
+  const expensesItems = proposal.items.filter(item => item.expenseId !== null)
 
   // Use currentUser from parallel query
   let canEdit = false
@@ -986,8 +1003,8 @@ export default async function ProposalDetailPage({
       )}
 
       {proposal.items.length > 0 && (() => {
-        // Check if any item has a person assigned
-        const hasPersonColumn = proposal.items.some(item => item.person && item.person.name)
+        // Check if any item has a person assigned (for services only)
+        const hasPersonColumn = servicesItems.some(item => item.person && item.person.name)
         const showPersonColumn = (proposal.type === "HOURLY" || proposal.type === "MIXED_MODEL") && hasPersonColumn
         
         // Calculate column count for milestone row colspan
@@ -997,122 +1014,172 @@ export default async function ProposalDetailPage({
         let columnCount = 5 // Base columns
         if (proposal.type === "MIXED_MODEL") columnCount += 1 // Billing Method
         if (showPersonColumn) columnCount += 1 // Person
-        
-        return (
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle>Line Items</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="border-b bg-gray-50">
-                    {proposal.type === "MIXED_MODEL" && <th className="text-left p-3 font-medium text-gray-700 whitespace-nowrap">Billing Method</th>}
-                    {showPersonColumn && <th className="text-left p-3 font-medium text-gray-700 whitespace-nowrap">Person</th>}
-                    <th className="text-left p-3 font-medium text-gray-700 min-w-[250px]">Description</th>
-                    <th className="text-right p-3 font-medium text-gray-700 whitespace-nowrap">Quantity</th>
-                    <th className="text-right p-3 font-medium text-gray-700 whitespace-nowrap">Unit Price</th>
-                    <th className="text-right p-3 font-medium text-gray-700 whitespace-nowrap">Discount</th>
-                    <th className="text-right p-3 font-medium text-gray-700 whitespace-nowrap">Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {proposal.items.map((item) => {
+
+        // Render item row function
+        const renderItemRow = (item: any, isExpense: boolean = false) => {
                     const lineDiscount = item.discountPercent 
                       ? (item.amount / (1 - item.discountPercent / 100)) * (item.discountPercent / 100)
                       : item.discountAmount || 0
                     const lineSubtotal = item.amount + lineDiscount
                     const isHourly = item.billingMethod === "HOURLY" || (item.quantity && item.rate)
                     
-                    return (
-                      <>
-                    <tr key={item.id} className="border-b hover:bg-gray-50">
-                          {proposal.type === "MIXED_MODEL" && (
-                            <td className="p-3 align-top">
-                              <span className="px-2 py-1 rounded text-xs bg-gray-100 whitespace-nowrap">
-                                {item.billingMethod === "HOURLY" ? "Hourly" :
-                                 item.billingMethod === "FIXED_FEE" ? "Fixed Fee" :
-                                 item.billingMethod === "SUCCESS_FEE" ? "Success Fee" :
-                                 item.billingMethod === "RECURRING" ? "Recurring" :
-                                 item.billingMethod === "CAPPED_FEE" ? "Capped Fee" :
-                                 item.billingMethod || "Fixed"}
-                              </span>
-                            </td>
-                          )}
-                          {showPersonColumn && (
-                            <td className="p-3 align-top whitespace-nowrap">{item.person?.name || "-"}</td>
-                          )}
-                      <td className="p-3 align-top">
-                        <div className="space-y-2">
-                          <div className="font-medium">{item.description || "-"}</div>
-                          {/* Show estimate and capped info for all items */}
-                          {(item.isEstimate || item.isEstimated || item.isCapped) && (
-                            <div className="flex flex-wrap gap-2 mt-2">
-                              {(item.isEstimate || item.isEstimated) && (
-                                <span className="text-xs text-yellow-700 bg-yellow-50 px-2 py-1 rounded border border-yellow-200 whitespace-nowrap">
-                                  {item.isEstimated 
-                                    ? `Estimated expense: ${currencySymbol}${item.amount.toFixed(2)}`
-                                    : isHourly
-                                      ? `Estimated: ${item.quantity || 0} hours at ${currencySymbol}${item.rate?.toFixed(2) || "0.00"}/hr = ${currencySymbol}${item.amount.toFixed(2)}`
-                                      : `Estimated: ${currencySymbol}${item.amount.toFixed(2)}`}
-                                </span>
-                              )}
-                              {item.isCapped && item.cappedHours && item.rate && (
-                                <span className="text-xs text-blue-700 bg-blue-50 px-2 py-1 rounded border border-blue-200 whitespace-nowrap">
-                                  Capped at {item.cappedHours} hours at {currencySymbol}{item.rate.toFixed(2)}/hr = {currencySymbol}{(item.cappedHours * item.rate).toFixed(2)}
-                                </span>
-                              )}
-                              {item.isCapped && item.cappedAmount && (
-                                <span className="text-xs text-blue-700 bg-blue-50 px-2 py-1 rounded border border-blue-200 whitespace-nowrap">
-                                  Capped at {currencySymbol}{item.cappedAmount.toFixed(2)}
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                          <td className="p-3 text-right align-top whitespace-nowrap">{item.quantity || "-"}</td>
-                          <td className="p-3 text-right align-top whitespace-nowrap">
-                            {item.rate 
-                              ? `${currencySymbol}${item.rate.toFixed(2)}/hr` 
-                              : item.unitPrice 
-                                ? `${currencySymbol}${item.unitPrice.toFixed(2)}${proposal.type === "FIXED_FEE" ? "" : "/unit"}` 
-                                : "-"}
-                          </td>
-                          <td className="p-3 text-right text-sm text-gray-600 align-top whitespace-nowrap">
-                            {item.discountPercent ? `${item.discountPercent}%` : item.discountAmount ? `${currencySymbol}${item.discountAmount.toFixed(2)}` : "-"}
-                          </td>
-                          <td className="p-3 text-right font-semibold align-top whitespace-nowrap">{currencySymbol}{item.amount.toFixed(2)}</td>
-                    </tr>
-                        {/* Display milestones for this line item */}
-                        {item.milestones && item.milestones.length > 0 && (
-                          <tr key={`${item.id}-milestones`} className="bg-gray-50">
-                            <td colSpan={columnCount} className="p-3 pl-8">
-                              <div className="flex flex-wrap gap-2 items-center">
-                                <span className="text-xs font-semibold text-gray-600">Milestones:</span>
-                                {item.milestones.map((milestone) => (
-                                  <span
-                                    key={milestone.id}
-                                    className="px-2 py-1 rounded text-xs bg-blue-100 text-blue-800 border border-blue-200"
-                                  >
-                                    {milestone.name}
-                                    {milestone.percent && ` (${milestone.percent}%)`}
-                                    {milestone.amount && !milestone.percent && ` (${currencySymbol}${milestone.amount.toFixed(2)})`}
-                                  </span>
-                                ))}
-                              </div>
-                            </td>
-                          </tr>
+          return (
+            <>
+              <tr key={item.id} className="border-b hover:bg-gray-50">
+                {proposal.type === "MIXED_MODEL" && !isExpense && (
+                  <td className="p-3 align-top">
+                    <span className="px-2 py-1 rounded text-xs bg-gray-100 whitespace-nowrap">
+                      {item.billingMethod === "HOURLY" ? "Hourly" :
+                       item.billingMethod === "FIXED_FEE" ? "Fixed Fee" :
+                       item.billingMethod === "SUCCESS_FEE" ? "Success Fee" :
+                       item.billingMethod === "RECURRING" ? "Recurring" :
+                       item.billingMethod === "CAPPED_FEE" ? "Capped Fee" :
+                       item.billingMethod || "Fixed"}
+                    </span>
+                  </td>
+                )}
+                {isExpense && (
+                  <td className="p-3 align-top">
+                    <span className="px-2 py-1 rounded text-xs bg-purple-100 text-purple-800 whitespace-nowrap">
+                      Expense
+                    </span>
+                  </td>
+                )}
+                {showPersonColumn && !isExpense && (
+                  <td className="p-3 align-top whitespace-nowrap">{item.person?.name || "-"}</td>
+                )}
+                {isExpense && (
+                  <td className="p-3 align-top whitespace-nowrap">-</td>
+                )}
+                <td className="p-3 align-top">
+                  <div className="space-y-2">
+                    <div className="font-medium">{item.description || "-"}</div>
+                    {/* Show estimate and capped info for all items */}
+                    {(item.isEstimate || item.isEstimated || item.isCapped) && (
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {(item.isEstimate || item.isEstimated) && (
+                          <span className="text-xs text-yellow-700 bg-yellow-50 px-2 py-1 rounded border border-yellow-200 whitespace-nowrap">
+                            {item.isEstimated 
+                              ? `Estimated expense: ${currencySymbol}${item.amount.toFixed(2)}`
+                              : isHourly
+                                ? `Estimated: ${item.quantity || 0} hours at ${currencySymbol}${item.rate?.toFixed(2) || "0.00"}/hr = ${currencySymbol}${item.amount.toFixed(2)}`
+                                : `Estimated: ${currencySymbol}${item.amount.toFixed(2)}`}
+                          </span>
                         )}
-                      </>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
+                        {item.isCapped && item.cappedHours && item.rate && (
+                          <span className="text-xs text-blue-700 bg-blue-50 px-2 py-1 rounded border border-blue-200 whitespace-nowrap">
+                            Capped at {item.cappedHours} hours at ${currencySymbol}${item.rate.toFixed(2)}/hr = ${currencySymbol}${(item.cappedHours * item.rate).toFixed(2)}
+                          </span>
+                        )}
+                        {item.isCapped && item.cappedAmount && (
+                          <span className="text-xs text-blue-700 bg-blue-50 px-2 py-1 rounded border border-blue-200 whitespace-nowrap">
+                            Capped at ${currencySymbol}${item.cappedAmount.toFixed(2)}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </td>
+                <td className="p-3 text-right align-top whitespace-nowrap">{item.quantity || "-"}</td>
+                <td className="p-3 text-right align-top whitespace-nowrap">
+                  {item.rate 
+                    ? `${currencySymbol}${item.rate.toFixed(2)}/hr` 
+                    : item.unitPrice 
+                      ? `${currencySymbol}${item.unitPrice.toFixed(2)}${proposal.type === "FIXED_FEE" ? "" : "/unit"}` 
+                      : "-"}
+                </td>
+                <td className="p-3 text-right text-sm text-gray-600 align-top whitespace-nowrap">
+                  {item.discountPercent ? `${item.discountPercent}%` : item.discountAmount ? `${currencySymbol}${item.discountAmount.toFixed(2)}` : "-"}
+                </td>
+                <td className="p-3 text-right font-semibold align-top whitespace-nowrap">{currencySymbol}{item.amount.toFixed(2)}</td>
+              </tr>
+              {/* Display milestones for this line item */}
+              {item.milestones && item.milestones.length > 0 && (
+                <tr key={`${item.id}-milestones`} className="bg-gray-50">
+                  <td colSpan={isExpense ? 6 : columnCount} className="p-3 pl-8">
+                    <div className="flex flex-wrap gap-2 items-center">
+                      <span className="text-xs font-semibold text-gray-600">Milestones:</span>
+                      {item.milestones.map((milestone) => (
+                        <span
+                          key={milestone.id}
+                          className="px-2 py-1 rounded text-xs bg-blue-100 text-blue-800 border border-blue-200"
+                        >
+                          {milestone.name}
+                          {milestone.percent && ` (${milestone.percent}%)`}
+                          {milestone.amount && !milestone.percent && ` (${currencySymbol}${milestone.amount.toFixed(2)})`}
+                        </span>
+                      ))}
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </>
+          )
+        }
+
+        // Calculate expenses column count (no billing method or person columns)
+        const expensesColumnCount = 6
+
+        return (
+          <>
+            {/* Services Section */}
+            {servicesItems.length > 0 && (
+              <Card className="mb-8">
+                <CardHeader>
+                  <CardTitle>Services</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="border-b bg-gray-50">
+                          {proposal.type === "MIXED_MODEL" && <th className="text-left p-3 font-medium text-gray-700 whitespace-nowrap">Billing Method</th>}
+                          {showPersonColumn && <th className="text-left p-3 font-medium text-gray-700 whitespace-nowrap">Person</th>}
+                          <th className="text-left p-3 font-medium text-gray-700 min-w-[250px]">Description</th>
+                          <th className="text-right p-3 font-medium text-gray-700 whitespace-nowrap">Quantity</th>
+                          <th className="text-right p-3 font-medium text-gray-700 whitespace-nowrap">Unit Price</th>
+                          <th className="text-right p-3 font-medium text-gray-700 whitespace-nowrap">Discount</th>
+                          <th className="text-right p-3 font-medium text-gray-700 whitespace-nowrap">Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {servicesItems.map((item) => renderItemRow(item, false))}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Expenses Section */}
+            {expensesItems.length > 0 && (
+              <Card className="mb-8">
+                <CardHeader>
+                  <CardTitle>Expenses</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="border-b bg-gray-50">
+                          <th className="text-left p-3 font-medium text-gray-700 whitespace-nowrap">Type</th>
+                          <th className="text-left p-3 font-medium text-gray-700 whitespace-nowrap">-</th>
+                          <th className="text-left p-3 font-medium text-gray-700 min-w-[250px]">Description</th>
+                          <th className="text-right p-3 font-medium text-gray-700 whitespace-nowrap">Quantity</th>
+                          <th className="text-right p-3 font-medium text-gray-700 whitespace-nowrap">Unit Price</th>
+                          <th className="text-right p-3 font-medium text-gray-700 whitespace-nowrap">Discount</th>
+                          <th className="text-right p-3 font-medium text-gray-700 whitespace-nowrap">Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {expensesItems.map((item) => renderItemRow(item, true))}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </>
         )
       })()}
 
@@ -1123,19 +1190,29 @@ export default async function ProposalDetailPage({
         </CardHeader>
         <CardContent>
           <div className="space-y-2">
-            <div className="flex justify-between">
-              <span>{hasEstimatedItems ? "Subtotal (Estimated):" : "Subtotal:"}</span>
-              <span className="font-semibold">{currencySymbol}{subtotal.toFixed(2)}</span>
-            </div>
+            {/* Services Subtotal */}
+            {servicesSubtotal > 0 && (
+              <div className="flex justify-between">
+                <span>Services Subtotal{hasEstimatedItems ? " (Estimated):" : ":"}</span>
+                <span className="font-semibold">{currencySymbol}{servicesSubtotal.toFixed(2)}</span>
+              </div>
+            )}
+            {/* Expenses Subtotal */}
+            {expensesSubtotal > 0 && (
+              <div className="flex justify-between">
+                <span>Expenses Subtotal:</span>
+                <span className="font-semibold">{currencySymbol}{expensesSubtotal.toFixed(2)}</span>
+              </div>
+            )}
             {clientDiscount > 0 && (
               <div className="flex justify-between text-green-600">
-                <span>Client Discount:</span>
+                <span>Client Discount (on services):</span>
                 <span>-{currencySymbol}{clientDiscount.toFixed(2)}</span>
               </div>
             )}
             {tax > 0 && (
               <div className="flex justify-between">
-                <span>Tax ({proposal.taxRate}%):</span>
+                <span>Tax ({proposal.taxRate}%) on services:</span>
                 <span>{currencySymbol}{tax.toFixed(2)}</span>
               </div>
             )}

@@ -196,71 +196,107 @@ function generateProposalHTML(proposal: any, logoBase64: string | null): string 
         </div>
         ` : ''}
 
-        ${proposal.items && proposal.items.length > 0 ? `
-        <div class="section">
-          <h2>Line Items</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>Description</th>
-                <th>Quantity</th>
-                <th>Unit Price</th>
-                <th>Discount</th>
-                <th class="text-right">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${proposal.items.map((item: any) => {
-                const isHourly = item.billingMethod === "HOURLY" || (item.quantity && item.rate)
-                const isExpense = !!item.expenseId
-                const estimateInfo = (item.isEstimate || item.isEstimated)
-                  ? `<div style="font-size: 11px; color: #92400e; background-color: #fef3c7; padding: 4px 8px; border-radius: 4px; margin-top: 4px; display: inline-block;">
-                      ${item.isEstimated 
-                        ? `Estimated expense: ${currencySymbol}${item.amount.toFixed(2)}`
-                        : isHourly
-                          ? `Estimated: ${item.quantity || 0} hours at ${currencySymbol}${item.rate?.toFixed(2) || "0.00"}/hr = ${currencySymbol}${item.amount.toFixed(2)}`
-                          : `Estimated: ${currencySymbol}${item.amount.toFixed(2)}`}
+        ${proposal.items && proposal.items.length > 0 ? (() => {
+          const servicesItems = proposal.items.filter((item: any) => !item.expenseId)
+          const expensesItems = proposal.items.filter((item: any) => item.expenseId !== null)
+          
+          const renderItemRow = (item: any, isExpense: boolean = false) => {
+            const isHourly = item.billingMethod === "HOURLY" || (item.quantity && item.rate)
+            const estimateInfo = (item.isEstimate || item.isEstimated)
+              ? `<div style="font-size: 11px; color: #92400e; background-color: #fef3c7; padding: 4px 8px; border-radius: 4px; margin-top: 4px; display: inline-block;">
+                  ${item.isEstimated 
+                    ? `Estimated expense: ${currencySymbol}${item.amount.toFixed(2)}`
+                    : isHourly
+                      ? `Estimated: ${item.quantity || 0} hours at ${currencySymbol}${item.rate?.toFixed(2) || "0.00"}/hr = ${currencySymbol}${item.amount.toFixed(2)}`
+                      : `Estimated: ${currencySymbol}${item.amount.toFixed(2)}`}
+                </div>`
+              : ""
+            const cappedInfo = item.isCapped
+              ? (item.cappedHours && item.rate
+                  ? `<div style="font-size: 11px; color: #1e40af; background-color: #dbeafe; padding: 4px 8px; border-radius: 4px; margin-top: 4px; display: inline-block; margin-left: 8px;">
+                      Capped at ${item.cappedHours} hours at ${currencySymbol}${item.rate.toFixed(2)}/hr = ${currencySymbol}${(item.cappedHours * item.rate).toFixed(2)}
                     </div>`
-                  : ""
-                const cappedInfo = item.isCapped
-                  ? (item.cappedHours && item.rate
-                      ? `<div style="font-size: 11px; color: #1e40af; background-color: #dbeafe; padding: 4px 8px; border-radius: 4px; margin-top: 4px; display: inline-block; margin-left: 8px;">
-                          Capped at ${item.cappedHours} hours at ${currencySymbol}${item.rate.toFixed(2)}/hr = ${currencySymbol}${(item.cappedHours * item.rate).toFixed(2)}
-                        </div>`
-                      : item.cappedAmount
-                        ? `<div style="font-size: 11px; color: #1e40af; background-color: #dbeafe; padding: 4px 8px; border-radius: 4px; margin-top: 4px; display: inline-block; margin-left: 8px;">
-                            Capped at ${currencySymbol}${item.cappedAmount.toFixed(2)}
-                          </div>`
-                        : "")
-                  : ""
-                const unitPriceDisplay = item.rate 
-                  ? `${currencySymbol}${item.rate.toFixed(2)}/hr` 
-                  : item.unitPrice 
-                    ? `${currencySymbol}${item.unitPrice.toFixed(2)}` 
-                    : "-"
-                const discountDisplay = item.discountPercent 
-                  ? `${item.discountPercent}%` 
-                  : item.discountAmount 
-                    ? `${currencySymbol}${item.discountAmount.toFixed(2)}` 
-                    : "-"
-                return `
-                <tr>
-                  <td>
-                    <div>${item.description || "-"}</div>
-                    ${estimateInfo}
-                    ${cappedInfo}
-                  </td>
-                  <td>${item.quantity || '-'}</td>
-                  <td>${unitPriceDisplay}</td>
-                  <td>${discountDisplay}</td>
-                  <td class="text-right">${currencySymbol}${item.amount.toFixed(2)}</td>
-                </tr>
-              `
-              }).join('')}
-            </tbody>
-          </table>
-        </div>
-        ` : ''}
+                  : item.cappedAmount
+                    ? `<div style="font-size: 11px; color: #1e40af; background-color: #dbeafe; padding: 4px 8px; border-radius: 4px; margin-top: 4px; display: inline-block; margin-left: 8px;">
+                        Capped at ${currencySymbol}${item.cappedAmount.toFixed(2)}
+                      </div>`
+                    : "")
+              : ""
+            const unitPriceDisplay = item.rate 
+              ? `${currencySymbol}${item.rate.toFixed(2)}/hr` 
+              : item.unitPrice 
+                ? `${currencySymbol}${item.unitPrice.toFixed(2)}` 
+                : "-"
+            const discountDisplay = item.discountPercent 
+              ? `${item.discountPercent}%` 
+              : item.discountAmount 
+                ? `${currencySymbol}${item.discountAmount.toFixed(2)}` 
+                : "-"
+            return `
+              <tr>
+                <td>
+                  <div>${isExpense ? '<span style="background-color: #e9d5ff; color: #6b21a8; padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-right: 8px;">Expense</span>' : ''}${item.description || "-"}</div>
+                  ${estimateInfo}
+                  ${cappedInfo}
+                </td>
+                <td>${item.quantity || '-'}</td>
+                <td>${unitPriceDisplay}</td>
+                <td>${discountDisplay}</td>
+                <td class="text-right">${currencySymbol}${item.amount.toFixed(2)}</td>
+              </tr>
+            `
+          }
+          
+          let html = ""
+          
+          // Services Section
+          if (servicesItems.length > 0) {
+            html += `
+              <div class="section">
+                <h2>Services</h2>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Description</th>
+                      <th>Quantity</th>
+                      <th>Unit Price</th>
+                      <th>Discount</th>
+                      <th class="text-right">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${servicesItems.map((item: any) => renderItemRow(item, false)).join('')}
+                  </tbody>
+                </table>
+              </div>
+            `
+          }
+          
+          // Expenses Section
+          if (expensesItems.length > 0) {
+            html += `
+              <div class="section">
+                <h2>Expenses</h2>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Description</th>
+                      <th>Quantity</th>
+                      <th>Unit Price</th>
+                      <th>Discount</th>
+                      <th class="text-right">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${expensesItems.map((item: any) => renderItemRow(item, true)).join('')}
+                  </tbody>
+                </table>
+              </div>
+            `
+          }
+          
+          return html
+        })() : ''}
 
         ${proposal.milestones && proposal.milestones.length > 0 ? `
         <div class="section">
@@ -282,7 +318,17 @@ function generateProposalHTML(proposal: any, logoBase64: string | null): string 
           <div class="total">
             <div class="text-right">
               ${(() => {
-                const subtotal = proposal.amount || (proposal.items ? proposal.items.reduce((sum: number, item: any) => sum + item.amount, 0) : 0)
+                const servicesSubtotal = proposal.items 
+                  ? proposal.items
+                      .filter((item: any) => !item.expenseId)
+                      .reduce((sum: number, item: any) => sum + item.amount, 0)
+                  : 0
+                const expensesSubtotal = proposal.items 
+                  ? proposal.items
+                      .filter((item: any) => item.expenseId !== null)
+                      .reduce((sum: number, item: any) => sum + item.amount, 0)
+                  : 0
+                const subtotal = servicesSubtotal + expensesSubtotal
                 const hasEstimated = proposal.items && proposal.items.some((item: any) => item.isEstimate === true || item.isEstimated === true)
                 const hasCapped = proposal.items && proposal.items.some((item: any) => item.isCapped === true)
                 let cappedAmount = 0
@@ -298,22 +344,37 @@ function generateProposalHTML(proposal: any, logoBase64: string | null): string 
                   })
                 }
                 
-                // Calculate subtotal excluding expenses for tax calculation
-                const subtotalExcludingExpenses = proposal.items 
-                  ? proposal.items
-                      .filter((item: any) => !item.expenseId)
-                      .reduce((sum: number, item: any) => sum + item.amount, 0)
+                // Calculate tax only on services
+                const clientDiscount = proposal.clientDiscountPercent 
+                  ? servicesSubtotal * (proposal.clientDiscountPercent / 100)
+                  : proposal.clientDiscountAmount || 0
+                const servicesAfterDiscount = servicesSubtotal - clientDiscount
+                const tax = proposal.taxRate && proposal.taxRate > 0
+                  ? (proposal.taxInclusive 
+                      ? servicesAfterDiscount * (proposal.taxRate / (100 + proposal.taxRate))
+                      : servicesAfterDiscount * (proposal.taxRate / 100))
                   : 0
+                const grandTotal = proposal.taxInclusive 
+                  ? servicesAfterDiscount + expensesSubtotal
+                  : servicesAfterDiscount + tax + expensesSubtotal
                 
-                let html = `<div>${hasEstimated ? "Subtotal (Estimated):" : "Subtotal:"} ${currencySymbol}${subtotal.toFixed(2)}</div>`
-                if (proposal.taxRate) {
-                  const taxAmount = subtotalExcludingExpenses * proposal.taxRate / 100
-                  html += `<div>Tax (${proposal.taxRate}%): ${currencySymbol}${taxAmount.toFixed(2)}</div>`
-                  html += `<div>Total with Tax: ${currencySymbol}${(subtotal + taxAmount).toFixed(2)}</div>`
+                let html = ""
+                if (servicesSubtotal > 0) {
+                  html += `<div>Services Subtotal${hasEstimated ? " (Estimated):" : ":"} ${currencySymbol}${servicesSubtotal.toFixed(2)}</div>`
+                }
+                if (expensesSubtotal > 0) {
+                  html += `<div>Expenses Subtotal: ${currencySymbol}${expensesSubtotal.toFixed(2)}</div>`
+                }
+                if (clientDiscount > 0) {
+                  html += `<div style="color: #059669;">Client Discount (on services): -${currencySymbol}${clientDiscount.toFixed(2)}</div>`
+                }
+                if (tax > 0) {
+                  html += `<div>Tax (${proposal.taxRate}%) on services: ${currencySymbol}${tax.toFixed(2)}</div>`
                 }
                 if (hasCapped && cappedAmount > 0) {
                   html += `<div style="color: #1e40af; font-weight: bold; margin-top: 10px; padding-top: 10px; border-top: 1px solid #dbeafe;">Maximum Charge (Will Not Exceed): ${currencySymbol}${cappedAmount.toFixed(2)}</div>`
                 }
+                html += `<div style="font-weight: bold; font-size: 18px; margin-top: 10px; padding-top: 10px; border-top: 2px solid #000;">Grand Total: ${currencySymbol}${grandTotal.toFixed(2)}</div>`
                 return html
               })()}
             </div>

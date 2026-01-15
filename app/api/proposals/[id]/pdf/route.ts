@@ -217,69 +217,114 @@ export async function GET(
             </div>
           ` : ""}
 
-          ${proposal.items.length > 0 ? `
-            <table class="items-table">
-              <thead>
-                <tr>
-                  <th>Description</th>
-                  <th style="text-align: right;">Quantity</th>
-                  <th style="text-align: right;">Unit Price</th>
-                  <th style="text-align: right;">Discount</th>
-                  <th style="text-align: right;">Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${proposal.items.map(item => {
-                  const isHourly = item.billingMethod === "HOURLY" || (item.quantity && item.rate)
-                  const isExpense = !!item.expenseId
-                  const estimateInfo = (item.isEstimate || item.isEstimated)
-                    ? `<div style="font-size: 11px; color: #92400e; background-color: #fef3c7; padding: 4px 8px; border-radius: 4px; margin-top: 4px; display: inline-block;">
-                        ${item.isEstimated 
-                          ? `Estimated expense: ${currencySymbol}${item.amount.toFixed(2)}`
-                          : isHourly
-                            ? `Estimated: ${item.quantity || 0} hours at ${currencySymbol}${item.rate?.toFixed(2) || "0.00"}/hr = ${currencySymbol}${item.amount.toFixed(2)}`
-                            : `Estimated: ${currencySymbol}${item.amount.toFixed(2)}`}
+          ${proposal.items.length > 0 ? (() => {
+            const servicesItems = proposal.items.filter((item: any) => !item.expenseId)
+            const expensesItems = proposal.items.filter((item: any) => item.expenseId !== null)
+            
+            const renderItemRow = (item: any, isExpense: boolean = false) => {
+              const isHourly = item.billingMethod === "HOURLY" || (item.quantity && item.rate)
+              const estimateInfo = (item.isEstimate || item.isEstimated)
+                ? `<div style="font-size: 11px; color: #92400e; background-color: #fef3c7; padding: 4px 8px; border-radius: 4px; margin-top: 4px; display: inline-block;">
+                    ${item.isEstimated 
+                      ? `Estimated expense: ${currencySymbol}${item.amount.toFixed(2)}`
+                      : isHourly
+                        ? `Estimated: ${item.quantity || 0} hours at ${currencySymbol}${item.rate?.toFixed(2) || "0.00"}/hr = ${currencySymbol}${item.amount.toFixed(2)}`
+                        : `Estimated: ${currencySymbol}${item.amount.toFixed(2)}`}
+                  </div>`
+                : ""
+              const cappedInfo = item.isCapped
+                ? (item.cappedHours && item.rate
+                    ? `<div style="font-size: 11px; color: #1e40af; background-color: #dbeafe; padding: 4px 8px; border-radius: 4px; margin-top: 4px; display: inline-block; margin-left: 8px;">
+                        Capped at ${item.cappedHours} hours at ${currencySymbol}${item.rate.toFixed(2)}/hr = ${currencySymbol}${(item.cappedHours * item.rate).toFixed(2)}
                       </div>`
-                    : ""
-                  const cappedInfo = item.isCapped
-                    ? (item.cappedHours && item.rate
-                        ? `<div style="font-size: 11px; color: #1e40af; background-color: #dbeafe; padding: 4px 8px; border-radius: 4px; margin-top: 4px; display: inline-block; margin-left: 8px;">
-                            Capped at ${item.cappedHours} hours at ${currencySymbol}${item.rate.toFixed(2)}/hr = ${currencySymbol}${(item.cappedHours * item.rate).toFixed(2)}
-                          </div>`
-                        : item.cappedAmount
-                          ? `<div style="font-size: 11px; color: #1e40af; background-color: #dbeafe; padding: 4px 8px; border-radius: 4px; margin-top: 4px; display: inline-block; margin-left: 8px;">
-                              Capped at ${currencySymbol}${item.cappedAmount.toFixed(2)}
-                            </div>`
-                          : "")
-                    : ""
-                  const unitPriceDisplay = item.rate 
-                    ? `${currencySymbol}${item.rate.toFixed(2)}/hr` 
-                    : item.unitPrice 
-                      ? `${currencySymbol}${item.unitPrice.toFixed(2)}` 
-                      : "-"
-                  const discountDisplay = item.discountPercent 
-                    ? `${item.discountPercent}%` 
-                    : item.discountAmount 
-                      ? `${currencySymbol}${item.discountAmount.toFixed(2)}` 
-                      : "-"
-                  return `
-                  <tr>
-                    <td>
-                      <div>${item.description || "-"}</div>
-                      ${estimateInfo}
-                      ${cappedInfo}
-                    </td>
-                    <td style="text-align: right;">${item.quantity || "-"}</td>
-                    <td style="text-align: right;">${unitPriceDisplay}</td>
-                    <td style="text-align: right;">${discountDisplay}</td>
-                    <td style="text-align: right;">${currencySymbol}${item.amount.toFixed(2)}</td>
-                  </tr>
-                `
-                }).join("")}
-              </tbody>
+                    : item.cappedAmount
+                      ? `<div style="font-size: 11px; color: #1e40af; background-color: #dbeafe; padding: 4px 8px; border-radius: 4px; margin-top: 4px; display: inline-block; margin-left: 8px;">
+                          Capped at ${currencySymbol}${item.cappedAmount.toFixed(2)}
+                        </div>`
+                      : "")
+                : ""
+              const unitPriceDisplay = item.rate 
+                ? `${currencySymbol}${item.rate.toFixed(2)}/hr` 
+                : item.unitPrice 
+                  ? `${currencySymbol}${item.unitPrice.toFixed(2)}` 
+                  : "-"
+              const discountDisplay = item.discountPercent 
+                ? `${item.discountPercent}%` 
+                : item.discountAmount 
+                  ? `${currencySymbol}${item.discountAmount.toFixed(2)}` 
+                  : "-"
+              return `
+                <tr>
+                  <td>
+                    <div>${isExpense ? '<span style="background-color: #e9d5ff; color: #6b21a8; padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-right: 8px;">Expense</span>' : ''}${item.description || "-"}</div>
+                    ${estimateInfo}
+                    ${cappedInfo}
+                  </td>
+                  <td style="text-align: right;">${item.quantity || "-"}</td>
+                  <td style="text-align: right;">${unitPriceDisplay}</td>
+                  <td style="text-align: right;">${discountDisplay}</td>
+                  <td style="text-align: right;">${currencySymbol}${item.amount.toFixed(2)}</td>
+                </tr>
+              `
+            }
+            
+            let html = ""
+            
+            // Services Section
+            if (servicesItems.length > 0) {
+              html += `
+                <h2 style="margin-top: 30px; margin-bottom: 15px; font-size: 18px; font-weight: bold;">Services</h2>
+                <table class="items-table">
+                  <thead>
+                    <tr>
+                      <th>Description</th>
+                      <th style="text-align: right;">Quantity</th>
+                      <th style="text-align: right;">Unit Price</th>
+                      <th style="text-align: right;">Discount</th>
+                      <th style="text-align: right;">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${servicesItems.map((item: any) => renderItemRow(item, false)).join("")}
+                  </tbody>
+                </table>
+              `
+            }
+            
+            // Expenses Section
+            if (expensesItems.length > 0) {
+              html += `
+                <h2 style="margin-top: 30px; margin-bottom: 15px; font-size: 18px; font-weight: bold;">Expenses</h2>
+                <table class="items-table">
+                  <thead>
+                    <tr>
+                      <th>Description</th>
+                      <th style="text-align: right;">Quantity</th>
+                      <th style="text-align: right;">Unit Price</th>
+                      <th style="text-align: right;">Discount</th>
+                      <th style="text-align: right;">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${expensesItems.map((item: any) => renderItemRow(item, true)).join("")}
+                  </tbody>
+                </table>
+              `
+            }
+            
+            return html
+          })() : ""}
+
+          ${proposal.items.length > 0 ? `
               <tfoot>
                 ${(() => {
-                  const subtotal = proposal.amount || proposal.items.reduce((sum: number, item: any) => sum + item.amount, 0)
+                  const servicesSubtotal = proposal.items
+                    .filter((item: any) => !item.expenseId)
+                    .reduce((sum: number, item: any) => sum + item.amount, 0)
+                  const expensesSubtotal = proposal.items
+                    .filter((item: any) => item.expenseId !== null)
+                    .reduce((sum: number, item: any) => sum + item.amount, 0)
+                  const subtotal = servicesSubtotal + expensesSubtotal
                   const hasEstimated = proposal.items.some((item: any) => item.isEstimate === true || item.isEstimated === true)
                   const hasCapped = proposal.items.some((item: any) => item.isCapped === true)
                   let cappedAmount = 0
@@ -295,15 +340,58 @@ export async function GET(
                     })
                   }
                   
+                  // Calculate tax only on services
+                  const clientDiscount = proposal.clientDiscountPercent 
+                    ? servicesSubtotal * (proposal.clientDiscountPercent / 100)
+                    : proposal.clientDiscountAmount || 0
+                  const servicesAfterDiscount = servicesSubtotal - clientDiscount
+                  const tax = proposal.taxRate && proposal.taxRate > 0
+                    ? (proposal.taxInclusive 
+                        ? servicesAfterDiscount * (proposal.taxRate / (100 + proposal.taxRate))
+                        : servicesAfterDiscount * (proposal.taxRate / 100))
+                    : 0
+                  
                   return `
-                    <tr>
-                      <td colspan="4" style="text-align: right; font-weight: bold;">
-                        ${hasEstimated ? "Subtotal (Estimated):" : "Subtotal:"}
-                      </td>
-                      <td style="text-align: right; font-size: 18px;">
-                        ${currencySymbol}${subtotal.toFixed(2)}
-                      </td>
-                    </tr>
+                    ${servicesSubtotal > 0 ? `
+                      <tr>
+                        <td colspan="4" style="text-align: right; font-weight: bold;">
+                          Services Subtotal${hasEstimated ? " (Estimated):" : ":"}
+                        </td>
+                        <td style="text-align: right; font-size: 18px;">
+                          ${currencySymbol}${servicesSubtotal.toFixed(2)}
+                        </td>
+                      </tr>
+                    ` : ""}
+                    ${expensesSubtotal > 0 ? `
+                      <tr>
+                        <td colspan="4" style="text-align: right; font-weight: bold;">
+                          Expenses Subtotal:
+                        </td>
+                        <td style="text-align: right; font-size: 18px;">
+                          ${currencySymbol}${expensesSubtotal.toFixed(2)}
+                        </td>
+                      </tr>
+                    ` : ""}
+                    ${clientDiscount > 0 ? `
+                      <tr>
+                        <td colspan="4" style="text-align: right; font-weight: bold; color: #059669;">
+                          Client Discount (on services):
+                        </td>
+                        <td style="text-align: right; font-size: 18px; color: #059669;">
+                          -${currencySymbol}${clientDiscount.toFixed(2)}
+                        </td>
+                      </tr>
+                    ` : ""}
+                    ${tax > 0 ? `
+                      <tr>
+                        <td colspan="4" style="text-align: right; font-weight: bold;">
+                          Tax (${proposal.taxRate}%) on services:
+                        </td>
+                        <td style="text-align: right; font-size: 18px;">
+                          ${currencySymbol}${tax.toFixed(2)}
+                        </td>
+                      </tr>
+                    ` : ""}
                     ${hasCapped && cappedAmount > 0 ? `
                       <tr>
                         <td colspan="4" style="text-align: right; font-weight: bold; color: #1e40af; padding-top: 10px; border-top: 1px solid #dbeafe;">
@@ -314,6 +402,14 @@ export async function GET(
                         </td>
                       </tr>
                     ` : ""}
+                    <tr>
+                      <td colspan="4" style="text-align: right; font-weight: bold; font-size: 20px; padding-top: 10px; border-top: 2px solid #000;">
+                        Grand Total:
+                      </td>
+                      <td style="text-align: right; font-size: 20px; font-weight: bold; padding-top: 10px; border-top: 2px solid #000;">
+                        ${currencySymbol}${(proposal.taxInclusive ? servicesAfterDiscount + expensesSubtotal : servicesAfterDiscount + tax + expensesSubtotal).toFixed(2)}
+                      </td>
+                    </tr>
                   `
                 })()}
               </tfoot>

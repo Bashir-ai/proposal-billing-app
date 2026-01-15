@@ -531,6 +531,13 @@ export async function PUT(
                 recurringFrequency: item.recurringFrequency || null,
                 recurringCustomMonths: item.recurringCustomMonths || null,
                 recurringStartDate: item.recurringStartDate ? new Date(item.recurringStartDate) : null,
+                // Estimate and capped fields
+                isEstimate: item.isEstimate ?? false,
+                isCapped: item.isCapped ?? false,
+                cappedHours: item.cappedHours || null,
+                cappedAmount: item.cappedAmount || null,
+                // Expense flag
+                isEstimated: item.isEstimated ?? false,
                 milestones: actualMilestoneIds.length > 0 ? {
                   connect: actualMilestoneIds.map(id => ({ id })),
                 } : undefined,
