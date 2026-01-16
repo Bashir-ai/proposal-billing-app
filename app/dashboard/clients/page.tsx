@@ -1,12 +1,13 @@
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { Plus, Upload } from "lucide-react"
 import { isClientActive } from "@/lib/client-activity"
 import { ClientSearch } from "@/components/clients/ClientSearch"
+import { ClientsList } from "@/components/clients/ClientsList"
 
 export const dynamic = 'force-dynamic'
 
@@ -207,32 +208,10 @@ export default async function ClientsPage({
           )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {clients.map((client) => (
-            <Link key={client.id} href={`/dashboard/clients/${client.id}`}>
-              <Card className={`hover:shadow-lg transition-shadow ${!client.kycCompleted ? "border-yellow-500" : ""}`}>
-                <CardHeader>
-                  <CardTitle>{client.name}</CardTitle>
-                  {client.company && (
-                    <p className="text-sm text-gray-600">{client.company}</p>
-                  )}
-                </CardHeader>
-                <CardContent>
-                  {client.email && (
-                    <p className="text-sm text-gray-600 mb-2">{client.email}</p>
-                  )}
-                  <div className="flex justify-between text-sm text-gray-500">
-                    <span>{client._count.proposals} proposals</span>
-                    <span>{client._count.bills} invoices</span>
-                    {client._count.projects > 0 && (
-                      <span>{client._count.projects} projects</span>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
-        </div>
+        <ClientsList 
+          clients={clients} 
+          isAdmin={session.user.role === "ADMIN"} 
+        />
 
         {clients.length === 0 && (
           <Card>
