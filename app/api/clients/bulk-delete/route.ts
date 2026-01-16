@@ -29,6 +29,36 @@ export async function POST(request: Request) {
     const { clientIds, action } = bulkDeleteSchema.parse(body)
 
     if (action === "validate") {
+      // Quick check: Try to validate the first client to detect database connection issues early
+      if (clientIds.length > 0) {
+        try {
+          await canDeleteClient(clientIds[0])
+        } catch (error) {
+          // Check if it's a database connection error
+          if (error && typeof error === 'object' && 'name' in error) {
+            const prismaError = error as { name: string; message: string }
+            if (prismaError.name === 'PrismaClientInitializationError' || 
+                prismaError.message?.includes("Can't reach database server") ||
+                prismaError.message?.includes("database server")) {
+              // Database is unreachable - return early without processing all clients
+              return NextResponse.json(
+                { 
+                  error: "Database connection error",
+                  message: "Unable to connect to the database. Please check your database connection and try again.",
+                  deletable: [],
+                  nonDeletable: clientIds.map(id => ({
+                    id,
+                    name: "Unknown",
+                    reason: "Database connection error",
+                  })),
+                },
+                { status: 503 }
+              )
+            }
+          }
+        }
+      }
+
       // Validate which clients can be deleted
       // Use Promise.allSettled to handle individual failures gracefully
       const validationResults = await Promise.allSettled(
@@ -51,7 +81,15 @@ export async function POST(request: Request) {
             }
           } catch (error) {
             // If validation fails for a specific client, mark it as non-deletable
-            console.error(`Error validating client ${clientId}:`, error)
+            // Only log if it's not a database connection error (to reduce noise)
+            const isDbError = error && typeof error === 'object' && 'name' in error &&
+              ((error as { name: string; message: string }).name === 'PrismaClientInitializationError' ||
+               (error as { name: string; message: string }).message?.includes("Can't reach database server"))
+            
+            if (!isDbError) {
+              console.error(`Error validating client ${clientId}:`, error)
+            }
+            
             return {
               id: clientId,
               name: "Unknown",
