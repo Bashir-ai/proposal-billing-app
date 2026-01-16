@@ -16,13 +16,14 @@ import { QuickTodoButton } from "@/components/dashboard/QuickTodoButton"
 export const dynamic = 'force-dynamic'
 
 export default async function DashboardPage() {
-  try {
-    const session = await getServerSession(authOptions)
+  const session = await getServerSession(authOptions)
 
-    // Redirect EXTERNAL users to accounts page
-    if (session?.user.role === "EXTERNAL") {
-      redirect("/dashboard/accounts")
-    }
+  // Redirect EXTERNAL users to accounts page (must be outside try-catch)
+  if (session?.user.role === "EXTERNAL") {
+    redirect("/dashboard/accounts")
+  }
+
+  try {
 
     // Fetch notifications server-side
     let notificationsData: { count: number; notifications: Notification[] } = { count: 0, notifications: [] }
@@ -272,6 +273,10 @@ export default async function DashboardPage() {
     </div>
     )
   } catch (error) {
+    // Re-throw Next.js redirect errors
+    if (error && typeof error === 'object' && 'digest' in error && typeof error.digest === 'string' && error.digest.startsWith('NEXT_REDIRECT')) {
+      throw error
+    }
     console.error("Error loading dashboard:", error)
     return (
       <div className="space-y-6">
