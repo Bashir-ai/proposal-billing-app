@@ -30,40 +30,86 @@ export async function POST(request: Request) {
 
     if (action === "validate") {
       // Validate which clients can be deleted
-      const validationResults = await Promise.all(
+      // Use Promise.allSettled to handle individual failures gracefully
+      const validationResults = await Promise.allSettled(
         clientIds.map(async (clientId) => {
-          const deletionCheck = await canDeleteClient(clientId)
-          const client = await prisma.client.findUnique({
-            where: { id: clientId },
-            select: { id: true, name: true },
-          })
+          try {
+            const deletionCheck = await canDeleteClient(clientId)
+            const client = await prisma.client.findUnique({
+              where: { id: clientId },
+              select: { id: true, name: true },
+            })
 
-          return {
-            id: clientId,
-            name: client?.name || "Unknown",
-            canDelete: deletionCheck.canDelete,
-            reason: deletionCheck.reason,
-            ongoingProjects: deletionCheck.ongoingProjects,
-            openInvoices: deletionCheck.openInvoices,
-            openProposals: deletionCheck.openProposals,
+            return {
+              id: clientId,
+              name: client?.name || "Unknown",
+              canDelete: deletionCheck.canDelete,
+              reason: deletionCheck.reason,
+              ongoingProjects: deletionCheck.ongoingProjects,
+              openInvoices: deletionCheck.openInvoices,
+              openProposals: deletionCheck.openProposals,
+            }
+          } catch (error) {
+            // If validation fails for a specific client, mark it as non-deletable
+            console.error(`Error validating client ${clientId}:`, error)
+            return {
+              id: clientId,
+              name: "Unknown",
+              canDelete: false,
+              reason: "Unable to validate client. Database connection error.",
+              ongoingProjects: 0,
+              openInvoices: 0,
+              openProposals: 0,
+            }
           }
         })
       )
+      
+      // Extract results from Promise.allSettled
+      const results = validationResults.map((result) => 
+        result.status === 'fulfilled' ? result.value : {
+          id: 'unknown',
+          name: "Unknown",
+          canDelete: false,
+          reason: "Validation failed due to database error",
+          ongoingProjects: 0,
+          openInvoices: 0,
+          openProposals: 0,
+        }
+      )
 
-      const deletable = validationResults
+      const deletable = results
         .filter((result) => result.canDelete)
         .map((result) => ({
           id: result.id,
           name: result.name,
         }))
 
-      const nonDeletable = validationResults
+      const nonDeletable = results
         .filter((result) => !result.canDelete)
         .map((result) => ({
           id: result.id,
           name: result.name,
           reason: result.reason || "Unknown reason",
         }))
+      
+      // Check if all validations failed due to database errors
+      const allFailed = results.every((result) => 
+        result.reason?.includes("Database connection error") || 
+        result.reason?.includes("Unable to validate")
+      )
+      
+      if (allFailed && results.length > 0) {
+        return NextResponse.json(
+          { 
+            error: "Database connection error",
+            message: "Unable to connect to the database. Please check your database connection and try again.",
+            deletable: [],
+            nonDeletable: nonDeletable,
+          },
+          { status: 503 }
+        )
+      }
 
       return NextResponse.json({
         deletable,
@@ -71,19 +117,47 @@ export async function POST(request: Request) {
       })
     } else if (action === "delete") {
       // Validate again before deletion
-      const validationResults = await Promise.all(
+      const validationResults = await Promise.allSettled(
         clientIds.map(async (clientId) => {
-          const deletionCheck = await canDeleteClient(clientId)
-          return {
-            id: clientId,
-            canDelete: deletionCheck.canDelete,
+          try {
+            const deletionCheck = await canDeleteClient(clientId)
+            return {
+              id: clientId,
+              canDelete: deletionCheck.canDelete,
+            }
+          } catch (error) {
+            console.error(`Error validating client ${clientId} for deletion:`, error)
+            return {
+              id: clientId,
+              canDelete: false,
+            }
           }
         })
       )
+      
+      const results = validationResults.map((result) => 
+        result.status === 'fulfilled' ? result.value : {
+          id: 'unknown',
+          canDelete: false,
+        }
+      )
 
-      const deletableIds = validationResults
+      const deletableIds = results
         .filter((result) => result.canDelete)
         .map((result) => result.id)
+      
+      // Check if all validations failed
+      const allFailed = results.every((result) => !result.canDelete && result.id === 'unknown')
+      
+      if (allFailed && results.length > 0) {
+        return NextResponse.json(
+          { 
+            error: "Database connection error",
+            message: "Unable to connect to the database. Please check your database connection and try again."
+          },
+          { status: 503 }
+        )
+      }
 
       if (deletableIds.length === 0) {
         return NextResponse.json(
