@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import { canDeleteClient } from "@/lib/client-deletion-check"
+import { isDatabaseConnectionError, getDatabaseErrorMessage } from "@/lib/database-error-handler"
 
 const bulkDeleteSchema = z.object({
   clientIds: z.array(z.string().min(1)),
@@ -35,26 +36,21 @@ export async function POST(request: Request) {
           await canDeleteClient(clientIds[0])
         } catch (error) {
           // Check if it's a database connection error
-          if (error && typeof error === 'object' && 'name' in error) {
-            const prismaError = error as { name: string; message: string }
-            if (prismaError.name === 'PrismaClientInitializationError' || 
-                prismaError.message?.includes("Can't reach database server") ||
-                prismaError.message?.includes("database server")) {
-              // Database is unreachable - return early without processing all clients
-              return NextResponse.json(
-                { 
-                  error: "Database connection error",
-                  message: "Unable to connect to the database. Please check your database connection and try again.",
-                  deletable: [],
-                  nonDeletable: clientIds.map(id => ({
-                    id,
-                    name: "Unknown",
-                    reason: "Database connection error",
-                  })),
-                },
-                { status: 503 }
-              )
-            }
+          if (isDatabaseConnectionError(error)) {
+            // Database is unreachable - return early without processing all clients
+            return NextResponse.json(
+              { 
+                error: "Database connection error",
+                message: getDatabaseErrorMessage(),
+                deletable: [],
+                nonDeletable: clientIds.map(id => ({
+                  id,
+                  name: "Unknown",
+                  reason: "Database connection error",
+                })),
+              },
+              { status: 503 }
+            )
           }
         }
       }
@@ -82,11 +78,7 @@ export async function POST(request: Request) {
           } catch (error) {
             // If validation fails for a specific client, mark it as non-deletable
             // Only log if it's not a database connection error (to reduce noise)
-            const isDbError = error && typeof error === 'object' && 'name' in error &&
-              ((error as { name: string; message: string }).name === 'PrismaClientInitializationError' ||
-               (error as { name: string; message: string }).message?.includes("Can't reach database server"))
-            
-            if (!isDbError) {
+            if (!isDatabaseConnectionError(error)) {
               console.error(`Error validating client ${clientId}:`, error)
             }
             
@@ -237,19 +229,14 @@ export async function POST(request: Request) {
     }
     
     // Check for Prisma database connection errors
-    if (error && typeof error === 'object' && 'name' in error) {
-      const prismaError = error as { name: string; message: string }
-      if (prismaError.name === 'PrismaClientInitializationError' || 
-          prismaError.message?.includes("Can't reach database server") ||
-          prismaError.message?.includes("database server")) {
-        return NextResponse.json(
-          { 
-            error: "Database connection error", 
-            message: "Unable to connect to the database. Please try again in a moment." 
-          },
-          { status: 503 }
-        )
-      }
+    if (isDatabaseConnectionError(error)) {
+      return NextResponse.json(
+        { 
+          error: "Database connection error", 
+          message: getDatabaseErrorMessage()
+        },
+        { status: 503 }
+      )
     }
     
     return NextResponse.json(

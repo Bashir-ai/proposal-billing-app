@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
+import { isDatabaseConnectionError, getDatabaseErrorMessage } from "@/lib/database-error-handler"
 
 const contactPersonSchema = z.object({
   id: z.string().optional(),
@@ -106,8 +107,21 @@ export async function GET(
 
     return NextResponse.json(client)
   } catch (error) {
+    if (isDatabaseConnectionError(error)) {
+      return NextResponse.json(
+        { 
+          error: "Database connection error",
+          message: getDatabaseErrorMessage()
+        },
+        { status: 503 }
+      )
+    }
+    console.error("Error fetching client:", error)
     return NextResponse.json(
-      { error: "Internal server error" },
+      { 
+        error: "Internal server error",
+        message: error instanceof Error ? error.message : "Unknown error"
+      },
       { status: 500 }
     )
   }
@@ -306,7 +320,15 @@ export async function PUT(
         { status: 400 }
       )
     }
-
+    if (isDatabaseConnectionError(error)) {
+      return NextResponse.json(
+        { 
+          error: "Database connection error",
+          message: getDatabaseErrorMessage()
+        },
+        { status: 503 }
+      )
+    }
     console.error("Error updating client:", error)
     if (error instanceof Error) {
       console.error("Error message:", error.message)
@@ -364,6 +386,15 @@ export async function DELETE(
 
     return NextResponse.json({ message: "Client deleted" })
   } catch (error) {
+    if (isDatabaseConnectionError(error)) {
+      return NextResponse.json(
+        { 
+          error: "Database connection error",
+          message: getDatabaseErrorMessage()
+        },
+        { status: 503 }
+      )
+    }
     console.error("Error deleting client:", error)
     if (error instanceof Error) {
       console.error("Error message:", error.message)
@@ -420,6 +451,15 @@ export async function POST(
       )
     }
   } catch (error) {
+    if (isDatabaseConnectionError(error)) {
+      return NextResponse.json(
+        { 
+          error: "Database connection error",
+          message: getDatabaseErrorMessage()
+        },
+        { status: 503 }
+      )
+    }
     console.error("Error archiving/unarchiving client:", error)
     if (error instanceof Error) {
       console.error("Error message:", error.message)

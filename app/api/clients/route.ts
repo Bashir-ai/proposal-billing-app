@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
+import { isDatabaseConnectionError, getDatabaseErrorMessage } from "@/lib/database-error-handler"
 
 const contactPersonSchema = z.object({
   id: z.string().optional(),
@@ -72,8 +73,21 @@ export async function GET(request: Request) {
 
     return NextResponse.json(clients)
   } catch (error) {
+    if (isDatabaseConnectionError(error)) {
+      return NextResponse.json(
+        { 
+          error: "Database connection error",
+          message: getDatabaseErrorMessage()
+        },
+        { status: 503 }
+      )
+    }
+    console.error("Error fetching clients:", error)
     return NextResponse.json(
-      { error: "Internal server error" },
+      { 
+        error: "Internal server error",
+        message: error instanceof Error ? error.message : "Unknown error"
+      },
       { status: 500 }
     )
   }
@@ -155,9 +169,21 @@ export async function POST(request: Request) {
         { status: 400 }
       )
     }
-
+    if (isDatabaseConnectionError(error)) {
+      return NextResponse.json(
+        { 
+          error: "Database connection error",
+          message: getDatabaseErrorMessage()
+        },
+        { status: 503 }
+      )
+    }
+    console.error("Error creating client:", error)
     return NextResponse.json(
-      { error: "Internal server error" },
+      { 
+        error: "Internal server error",
+        message: error instanceof Error ? error.message : "Unknown error"
+      },
       { status: 500 }
     )
   }
