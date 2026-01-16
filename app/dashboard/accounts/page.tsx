@@ -159,14 +159,13 @@ export default function AccountsPage() {
   const isExternal = session.user.role === "EXTERNAL"
   const targetUserId = isAdmin && selectedUserId ? selectedUserId : session.user.id
 
-  const finderClientsTab: TabType = "finderClients"
-  const tabs = [
-    { id: "compensation" as TabType, label: "Compensation", icon: DollarSign },
-    { id: "advances" as TabType, label: "Advances", icon: Wallet },
-    { id: "benefits" as TabType, label: "Benefits", icon: Gift },
-    { id: "transactions" as TabType, label: "Transactions", icon: ArrowUpDown },
-    { id: "finderFees" as TabType, label: "Finder Fees", icon: TrendingUp },
-    ...(isExternal ? [{ id: finderClientsTab, label: "Finder Clients", icon: Users }] : []),
+  const tabs: Array<{ id: TabType; label: string; icon: any }> = [
+    { id: "compensation", label: "Compensation", icon: DollarSign },
+    { id: "advances", label: "Advances", icon: Wallet },
+    { id: "benefits", label: "Benefits", icon: Gift },
+    { id: "transactions", label: "Transactions", icon: ArrowUpDown },
+    { id: "finderFees", label: "Finder Fees", icon: TrendingUp },
+    ...(isExternal ? [{ id: "finderClients" as TabType, label: "Finder Clients", icon: Users }] : []),
   ]
 
   return (
@@ -489,7 +488,7 @@ export default function AccountsPage() {
                 </div>
               )}
 
-              {isExternal && activeTab === finderClientsTab && (
+              {isExternal && (activeTab as TabType) === ("finderClients" as TabType) && (
                 <FinderClientsSection clients={finderClients} loading={finderClientsLoading} />
               )}
             </div>
