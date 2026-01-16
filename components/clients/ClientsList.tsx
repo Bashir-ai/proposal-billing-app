@@ -167,7 +167,7 @@ export function ClientsList({ clients, isAdmin }: ClientsListProps) {
           <div key={client.id} className="relative">
             {isAdmin && (
               <div
-                className="absolute top-2 left-2 z-50 bg-white rounded border shadow-sm p-1"
+                className="absolute top-2 right-2 z-50 bg-white rounded border shadow-sm p-1"
                 onClick={(e) => {
                   e.preventDefault()
                   e.stopPropagation()
