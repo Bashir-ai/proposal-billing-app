@@ -116,14 +116,35 @@ export async function POST(request: Request) {
     }
   } catch (error) {
     console.error("Error in bulk delete:", error)
+    
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: "Invalid request data", details: error.errors },
         { status: 400 }
       )
     }
+    
+    // Check for Prisma database connection errors
+    if (error && typeof error === 'object' && 'name' in error) {
+      const prismaError = error as { name: string; message: string }
+      if (prismaError.name === 'PrismaClientInitializationError' || 
+          prismaError.message?.includes("Can't reach database server") ||
+          prismaError.message?.includes("database server")) {
+        return NextResponse.json(
+          { 
+            error: "Database connection error", 
+            message: "Unable to connect to the database. Please try again in a moment." 
+          },
+          { status: 503 }
+        )
+      }
+    }
+    
     return NextResponse.json(
-      { error: "Internal server error", message: error instanceof Error ? error.message : "Unknown error" },
+      { 
+        error: "Internal server error", 
+        message: error instanceof Error ? error.message : "Unknown error" 
+      },
       { status: 500 }
     )
   }
