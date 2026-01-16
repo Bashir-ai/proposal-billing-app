@@ -88,7 +88,7 @@ export function BulkDeleteDialog({
         <DialogHeader>
           <DialogTitle>Confirm Bulk Delete</DialogTitle>
           <DialogDescription>
-            Review the clients below. You can deselect any clients you don't want to delete.
+            Review the clients below. You can deselect any clients you don&apos;t want to delete.
           </DialogDescription>
         </DialogHeader>
 
