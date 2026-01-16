@@ -95,7 +95,7 @@ const proposalUpdateSchema = z.object({
   retainerDurationMonths: z.number().nullable().optional(),
   retainerProjectScope: z.enum(["ALL_PROJECTS", "SPECIFIC_PROJECTS"]).optional(),
   retainerProjectIds: z.array(z.string()).optional(),
-  retainerExcessBillingType: z.enum(["ADDITIONAL_HOURS_RATE", "STANDARD_HOURLY_RATES", "BLENDED_RATE"]).optional(),
+  retainerExcessBillingType: z.enum(["ADDITIONAL_HOURS_RATE", "STANDARD_HOURLY_RATES", "BLENDED_RATE"]).nullable().optional(),
   retainerUnusedBalancePolicy: z.enum(["EXPIRE", "ROLLOVER"]).optional(),
   retainerUnusedBalanceExpiryMonths: z.number().nullable().optional(),
   retainerHourlyTableRates: z.any().optional(), // JSON object
