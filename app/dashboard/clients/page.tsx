@@ -212,6 +212,12 @@ export default async function ClientsPage({
           clients={clients} 
           isAdmin={session.user.role === "ADMIN"} 
         />
+        {/* Debug: Remove after testing */}
+        {process.env.NODE_ENV === "development" && (
+          <div className="hidden">
+            Debug - User role: {session.user.role}, isAdmin: {String(session.user.role === "ADMIN")}
+          </div>
+        )}
 
         {clients.length === 0 && (
           <Card>

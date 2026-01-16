@@ -28,6 +28,9 @@ interface ClientsListProps {
 }
 
 export function ClientsList({ clients, isAdmin }: ClientsListProps) {
+  // Debug: Remove this after testing
+  console.log("ClientsList - isAdmin:", isAdmin, "clients count:", clients.length)
+  
   const router = useRouter()
   const [selectedClients, setSelectedClients] = useState<Set<string>>(new Set())
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -164,12 +167,23 @@ export function ClientsList({ clients, isAdmin }: ClientsListProps) {
           <div key={client.id} className="relative">
             {isAdmin && (
               <div
-                className="absolute top-2 left-2 z-10"
-                onClick={(e) => e.stopPropagation()}
+                className="absolute top-2 left-2 z-50 bg-white rounded border shadow-sm p-1"
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                }}
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                }}
               >
                 <Checkbox
                   checked={selectedClients.has(client.id)}
                   onCheckedChange={() => handleToggle(client.id)}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                  }}
                 />
               </div>
             )}
