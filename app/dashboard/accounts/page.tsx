@@ -159,12 +159,14 @@ export default function AccountsPage() {
   const isExternal = session.user.role === "EXTERNAL"
   const targetUserId = isAdmin && selectedUserId ? selectedUserId : session.user.id
 
+  const finderClientsTab: TabType = "finderClients"
   const tabs = [
     { id: "compensation" as TabType, label: "Compensation", icon: DollarSign },
     { id: "advances" as TabType, label: "Advances", icon: Wallet },
     { id: "benefits" as TabType, label: "Benefits", icon: Gift },
     { id: "transactions" as TabType, label: "Transactions", icon: ArrowUpDown },
     { id: "finderFees" as TabType, label: "Finder Fees", icon: TrendingUp },
+    ...(isExternal ? [{ id: finderClientsTab, label: "Finder Clients", icon: Users }] : []),
   ]
 
   return (
@@ -487,7 +489,7 @@ export default function AccountsPage() {
                 </div>
               )}
 
-              {activeTab === "finderClients" && (
+              {isExternal && activeTab === finderClientsTab && (
                 <FinderClientsSection clients={finderClients} loading={finderClientsLoading} />
               )}
             </div>
