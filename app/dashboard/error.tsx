@@ -15,6 +15,10 @@ export default function DashboardError({ error, reset }: ErrorProps) {
   const router = useRouter()
 
   useEffect(() => {
+    // Don't log Next.js redirect errors - they're expected behavior
+    if (error.digest && error.digest.startsWith('NEXT_REDIRECT')) {
+      return
+    }
     // Log the error to an error reporting service
     console.error("Dashboard error:", error)
   }, [error])

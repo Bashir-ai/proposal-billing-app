@@ -14,6 +14,7 @@ import { PaymentTermsWizard } from "./PaymentTermsWizard"
 import { ProposalFormWizard } from "./ProposalFormWizard"
 import { AddExpenseButton } from "./AddExpenseButton"
 import { RetainerPaymentTerms } from "./RetainerPaymentTerms"
+import { FixedFeeConfig, HourlyConfig, RetainerConfig, SuccessFeeConfig } from "./MixedModelConfigs"
 
 interface ProposalFormProps {
   onSubmit: (data: any) => Promise<void>
@@ -255,7 +256,7 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
   // Fetch projects for selected client when retainer proposal
   useEffect(() => {
     const fetchProjects = async () => {
-      if (formData.type === "RETAINER" && formData.clientId) {
+      if ((formData.type === "RETAINER" || (formData.type === "MIXED_MODEL" && formData.mixedModelMethods.includes("RETAINER"))) && formData.clientId) {
         try {
           const response = await fetch(`/api/projects?clientId=${formData.clientId}`)
           if (response.ok) {
@@ -271,7 +272,7 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
       }
     }
     fetchProjects()
-  }, [formData.clientId, formData.type])
+  }, [formData.clientId, formData.type, formData.mixedModelMethods])
   
   // Wizard step validation
   const validateCurrentStep = (): boolean => {
@@ -284,6 +285,72 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
         setErrors(newErrors)
         return false
       }
+      
+      // For mixed model proposals, validate selected methods
+      if (formData.type === "MIXED_MODEL") {
+        if (formData.mixedModelMethods.length === 0) {
+          newErrors.mixedModelMethods = "Please select at least one billing method"
+          setErrors(newErrors)
+          return false
+        }
+        
+        // Validate each selected method's required fields
+        if (formData.mixedModelMethods.includes("RETAINER")) {
+          if (!formData.retainerMonthlyAmount || formData.retainerMonthlyAmount <= 0) {
+            newErrors.retainerMonthlyAmount = "Please specify monthly retainer amount"
+            setErrors(newErrors)
+            return false
+          }
+          if (!formData.retainerHoursPerMonth || formData.retainerHoursPerMonth <= 0) {
+            newErrors.retainerHoursPerMonth = "Please specify hours per month"
+            setErrors(newErrors)
+            return false
+          }
+          if (formData.retainerProjectScope === "SPECIFIC_PROJECTS" && formData.retainerProjectIds.length === 0) {
+            newErrors.retainerProjectIds = "Please select at least one project"
+            setErrors(newErrors)
+            return false
+          }
+        }
+        
+        if (formData.mixedModelMethods.includes("SUCCESS_FEE")) {
+          if (formData.successFeeBaseType === "FIXED_AMOUNT" && (!formData.successFeeBaseAmount || formData.successFeeBaseAmount <= 0)) {
+            newErrors.successFeeBaseAmount = "Please specify base fee amount"
+            setErrors(newErrors)
+            return false
+          }
+          if (formData.successFeeBaseType === "HOURLY_RATE") {
+            if (!formData.successFeeBaseHourlyRate || formData.successFeeBaseHourlyRate <= 0) {
+              newErrors.successFeeBaseHourlyRate = "Please specify base hourly rate"
+              setErrors(newErrors)
+              return false
+            }
+            if (!formData.successFeeBaseHourlyDescription) {
+              newErrors.successFeeBaseHourlyDescription = "Please provide a description for the hourly rate"
+              setErrors(newErrors)
+              return false
+            }
+          }
+          if (formData.successFeeType === "PERCENTAGE") {
+            if (!formData.successFeePercent || formData.successFeePercent <= 0) {
+              newErrors.successFeePercent = "Please specify success fee percentage"
+              setErrors(newErrors)
+              return false
+            }
+            if (!formData.successFeeValue || formData.successFeeValue <= 0) {
+              newErrors.successFeeValue = "Please specify transaction/deal value"
+              setErrors(newErrors)
+              return false
+            }
+          }
+          if (formData.successFeeType === "FIXED_AMOUNT" && (!formData.successFeeAmount || formData.successFeeAmount <= 0)) {
+            newErrors.successFeeAmount = "Please specify fixed success fee amount"
+            setErrors(newErrors)
+            return false
+          }
+        }
+      }
+      
       // For retainer proposals, validate project selection if specific projects is chosen
       if (formData.type === "RETAINER" && formData.retainerProjectScope === "SPECIFIC_PROJECTS" && formData.retainerProjectIds.length === 0) {
         newErrors.retainerProjectIds = "Please select at least one project"
@@ -295,8 +362,8 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
     }
     
     if (currentStepId === "payment") {
-      // For retainer proposals, validate retainer payment terms
-      if (formData.type === "RETAINER") {
+      // For retainer proposals or mixed model with retainer, validate retainer payment terms
+      if (formData.type === "RETAINER" || (formData.type === "MIXED_MODEL" && formData.mixedModelMethods.includes("RETAINER"))) {
         if (!formData.retainerUnusedBalancePolicy) {
           newErrors.paymentTerms = "Please select unused balance policy"
           setErrors(newErrors)
@@ -309,7 +376,17 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
           setErrors(newErrors)
           return false
         }
-      } else {
+      }
+      
+      // For mixed model proposals without retainer, or non-retainer proposals, validate standard payment terms
+      if (formData.type === "MIXED_MODEL" && !formData.mixedModelMethods.includes("RETAINER")) {
+        // Mixed model without retainer needs standard payment terms
+        if (!proposalPaymentTerm) {
+          newErrors.paymentTerms = "Please configure payment terms using the wizard above"
+          setErrors(newErrors)
+          return false
+        }
+      } else if (formData.type !== "RETAINER") {
         // For non-retainer proposals, validate standard payment terms
         if (!proposalPaymentTerm) {
           newErrors.paymentTerms = "Please configure payment terms using the wizard above"
@@ -1931,123 +2008,48 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                           </div>
                         </div>
 
-                        {/* Show configuration fields for selected methods */}
-                        {formData.mixedModelMethods.includes("FIXED_FEE") && (
-                          <div className="space-y-2 p-4 border rounded">
-                            <Label className="font-semibold">Fixed Fee Configuration</Label>
-                            <Input
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              placeholder="Fixed amount"
-                              value={formData.fixedAmount}
-                              onChange={(e) => setFormData({ ...formData, fixedAmount: parseFloat(e.target.value) || 0 })}
+                        {/* Show full configuration panels for selected methods */}
+                        <div className="space-y-4 pt-4 border-t">
+                          {formData.mixedModelMethods.includes("FIXED_FEE") && (
+                            <FixedFeeConfig
+                              formData={formData}
+                              setFormData={setFormData}
+                              selectedCurrency={selectedCurrency}
+                              clientProjects={clientProjects}
+                              clientId={formData.clientId}
                             />
-                          </div>
-                        )}
+                          )}
 
-                        {formData.mixedModelMethods.includes("HOURLY") && (
-                          <div className="space-y-2 p-4 border rounded">
-                            <Label className="font-semibold">Hourly Configuration</Label>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                              <Input
-                                type="number"
-                                step="0.25"
-                                min="0"
-                                placeholder="Estimated hours"
-                                value={formData.estimatedHours}
-                                onChange={(e) => setFormData({ ...formData, estimatedHours: parseFloat(e.target.value) || 0 })}
-                              />
-                              <Input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                placeholder="Min rate"
-                                value={formData.hourlyRateRangeMin}
-                                onChange={(e) => setFormData({ ...formData, hourlyRateRangeMin: parseFloat(e.target.value) || 0 })}
-                              />
-                              <Input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                placeholder="Max rate"
-                                value={formData.hourlyRateRangeMax}
-                                onChange={(e) => setFormData({ ...formData, hourlyRateRangeMax: parseFloat(e.target.value) || 0 })}
-                              />
-                            </div>
-                          </div>
-                        )}
-
-                        {formData.mixedModelMethods.includes("RETAINER") && (
-                          <div className="space-y-2 p-4 border rounded">
-                            <Label className="font-semibold">Retainer Configuration</Label>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                              <Input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                placeholder="Monthly amount"
-                                value={formData.retainerMonthlyAmount}
-                                onChange={(e) => setFormData({ ...formData, retainerMonthlyAmount: parseFloat(e.target.value) || 0 })}
-                              />
-                              <Input
-                                type="number"
-                                step="0.25"
-                                min="0"
-                                placeholder="Hours per month"
-                                value={formData.retainerHoursPerMonth}
-                                onChange={(e) => setFormData({ ...formData, retainerHoursPerMonth: parseFloat(e.target.value) || 0 })}
-                              />
-                            </div>
-                          </div>
-                        )}
-
-                        {formData.type === "MIXED_MODEL" && formData.mixedModelMethods.includes("BLENDED_RATE") && (
-                          <div className="space-y-2 p-4 border rounded">
-                            <Label className="font-semibold">Blended Rate Configuration</Label>
-                            <Input
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              placeholder="Blended rate"
-                              value={formData.blendedRate}
-                              onChange={(e) => setFormData({ ...formData, blendedRate: parseFloat(e.target.value) || 0 })}
+                          {formData.mixedModelMethods.includes("HOURLY") && (
+                            <HourlyConfig
+                              formData={formData}
+                              setFormData={setFormData}
+                              selectedCurrency={selectedCurrency}
+                              clientProjects={clientProjects}
+                              clientId={formData.clientId}
                             />
-                          </div>
-                        )}
+                          )}
 
-                        {formData.mixedModelMethods.includes("SUCCESS_FEE") && (
-                          <div className="space-y-2 p-4 border rounded">
-                            <Label className="font-semibold">Success Fee Configuration</Label>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                              <Input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                max="100"
-                                placeholder="Success fee %"
-                                value={formData.successFeePercent}
-                                onChange={(e) => setFormData({ ...formData, successFeePercent: parseFloat(e.target.value) || 0 })}
-                              />
-                              <Input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                placeholder="Fixed success fee"
-                                value={formData.successFeeAmount}
-                                onChange={(e) => setFormData({ ...formData, successFeeAmount: parseFloat(e.target.value) || 0 })}
-                              />
-                              <Input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                placeholder="Transaction value"
-                                value={formData.successFeeValue}
-                                onChange={(e) => setFormData({ ...formData, successFeeValue: parseFloat(e.target.value) || 0 })}
-                              />
-                            </div>
-                          </div>
-                        )}
+                          {formData.mixedModelMethods.includes("RETAINER") && (
+                            <RetainerConfig
+                              formData={formData}
+                              setFormData={setFormData}
+                              selectedCurrency={selectedCurrency}
+                              clientProjects={clientProjects}
+                              clientId={formData.clientId}
+                            />
+                          )}
+
+                          {formData.mixedModelMethods.includes("SUCCESS_FEE") && (
+                            <SuccessFeeConfig
+                              formData={formData}
+                              setFormData={setFormData}
+                              selectedCurrency={selectedCurrency}
+                              clientProjects={clientProjects}
+                              clientId={formData.clientId}
+                            />
+                          )}
+                        </div>
 
                         {formData.mixedModelMethods.length === 0 && (
                           <p className="text-sm text-gray-500 text-center py-4">

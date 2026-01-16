@@ -12,6 +12,10 @@ interface ErrorProps {
 
 export default function Error({ error, reset }: ErrorProps) {
   useEffect(() => {
+    // Don't log Next.js redirect errors - they're expected behavior
+    if (error.digest && error.digest.startsWith('NEXT_REDIRECT')) {
+      return
+    }
     // Log the error to an error reporting service
     console.error("Application error:", error)
   }, [error])
