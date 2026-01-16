@@ -63,6 +63,9 @@ export function ClientsList({ clients, isAdmin }: ClientsListProps) {
 
     setIsDeleting(true)
     try {
+      const clientIds = Array.from(selectedClients)
+      console.log("Validating clients for deletion:", clientIds)
+      
       // First, validate which clients can be deleted
       const response = await fetch("/api/clients/bulk-delete", {
         method: "POST",
@@ -70,13 +73,18 @@ export function ClientsList({ clients, isAdmin }: ClientsListProps) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          clientIds: Array.from(selectedClients),
+          clientIds,
           action: "validate",
         }),
       })
+      
+      console.log("Validation response status:", response.status, response.statusText)
 
       if (!response.ok) {
-        throw new Error("Failed to validate clients")
+        const errorData = await response.json().catch(() => ({ error: "Unknown error" }))
+        const errorMessage = errorData.error || `Server returned ${response.status}`
+        console.error("Validation error:", errorData)
+        throw new Error(errorMessage)
       }
 
       const data = await response.json()
@@ -84,7 +92,8 @@ export function ClientsList({ clients, isAdmin }: ClientsListProps) {
       setShowDeleteConfirm(true)
     } catch (error) {
       console.error("Error validating clients:", error)
-      alert("Failed to validate clients. Please try again.")
+      const errorMessage = error instanceof Error ? error.message : "Failed to validate clients. Please try again."
+      alert(errorMessage)
     } finally {
       setIsDeleting(false)
     }
