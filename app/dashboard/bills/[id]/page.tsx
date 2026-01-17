@@ -20,7 +20,7 @@ import Image from "next/image"
 import { CompensationEligibilityManager } from "@/components/accounts/CompensationEligibilityManager"
 import { BillItemsTable } from "@/components/invoices/BillItemsTable"
 import { InvoiceInteractionTimeline } from "@/components/invoices/InvoiceInteractionTimeline"
-import { QuickInvoiceInteractionButton } from "@/components/invoices/QuickInvoiceInteractionButton"
+import { QuickInvoiceInteractionWrapper } from "@/components/invoices/QuickInvoiceInteractionWrapper"
 import { WriteOffInvoiceButton } from "@/components/invoices/WriteOffInvoiceButton"
 import { CancelInvoiceButton } from "@/components/invoices/CancelInvoiceButton"
 import { InteractionType } from "@prisma/client"
@@ -417,23 +417,15 @@ export default async function BillDetailPage({
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <QuickInvoiceInteractionButton
+                <QuickInvoiceInteractionWrapper
                   billId={bill.id}
                   interactionType={InteractionType.EMAIL_SENT}
                   label="Log Email Follow-up"
-                  onInteractionCreated={() => {
-                    // Refresh the page to show new interaction
-                    window.location.reload()
-                  }}
                 />
-                <QuickInvoiceInteractionButton
+                <QuickInvoiceInteractionWrapper
                   billId={bill.id}
                   interactionType={InteractionType.PHONE_CALL}
                   label="Log Phone Call"
-                  onInteractionCreated={() => {
-                    // Refresh the page to show new interaction
-                    window.location.reload()
-                  }}
                 />
               </div>
             </CardContent>
