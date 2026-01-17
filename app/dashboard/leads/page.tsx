@@ -8,6 +8,7 @@ import { Plus } from "lucide-react"
 import { LeadSearch } from "@/components/leads/LeadSearch"
 import { Suspense } from "react"
 import { UserRole } from "@prisma/client"
+import { LeadsList } from "@/components/leads/LeadsList"
 
 export const dynamic = 'force-dynamic'
 
@@ -223,75 +224,8 @@ export default async function LeadsPage({
         </CardContent>
       </Card>
 
-      {/* Leads Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>All Leads</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {leads.length === 0 ? (
-            <p className="text-gray-500 text-center py-8">No leads found</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left p-2">Name</th>
-                    <th className="text-left p-2">Company</th>
-                    <th className="text-left p-2">Email</th>
-                    <th className="text-left p-2">Status</th>
-                    <th className="text-left p-2">Area of Law</th>
-                    <th className="text-left p-2">Sector</th>
-                    <th className="text-left p-2">Interactions</th>
-                    <th className="text-left p-2">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {leads.map((lead) => (
-                    <tr key={lead.id} className="border-b hover:bg-gray-50">
-                      <td className="p-2">
-                        <Link
-                          href={`/dashboard/leads/${lead.id}`}
-                          className="text-blue-600 hover:underline"
-                        >
-                          {lead.name}
-                        </Link>
-                      </td>
-                      <td className="p-2">{lead.company || "-"}</td>
-                      <td className="p-2">{lead.email || "-"}</td>
-                      <td className="p-2">
-                        <span
-                          className={`px-2 py-1 rounded text-xs font-medium ${
-                            lead.status === "CONVERTED"
-                              ? "bg-green-100 text-green-800"
-                              : lead.status === "LOST"
-                              ? "bg-red-100 text-red-800"
-                              : lead.status === "NEW"
-                              ? "bg-blue-100 text-blue-800"
-                              : "bg-gray-100 text-gray-800"
-                          }`}
-                        >
-                          {lead.status.replace("_", " ")}
-                        </span>
-                      </td>
-                      <td className="p-2">{lead.areaOfLaw?.name || "-"}</td>
-                      <td className="p-2">{lead.sectorOfActivity?.name || "-"}</td>
-                      <td className="p-2">{lead._count.interactions}</td>
-                      <td className="p-2">
-                        <Link href={`/dashboard/leads/${lead.id}`}>
-                          <Button variant="outline" size="sm">
-                            View
-                          </Button>
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* Leads List */}
+      <LeadsList leads={leads} isAdmin={session.user.role === "ADMIN"} />
     </div>
   )
 }

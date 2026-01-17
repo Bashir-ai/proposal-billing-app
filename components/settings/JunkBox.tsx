@@ -3,6 +3,14 @@
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { formatDate, formatCurrency } from "@/lib/utils"
 import { Trash2, RotateCcw, AlertCircle } from "lucide-react"
 
@@ -65,6 +73,8 @@ export function JunkBox() {
   const [deleting, setDeleting] = useState<string | null>(null)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
+  const [showEmptyDialog, setShowEmptyDialog] = useState(false)
+  const [emptying, setEmptying] = useState(false)
 
   const fetchJunkBox = async () => {
     try {
@@ -155,6 +165,32 @@ export function JunkBox() {
     }
   }
 
+  const handleEmptyJunkBox = async () => {
+    setEmptying(true)
+    setError("")
+    setSuccess("")
+
+    try {
+      const response = await fetch("/api/junkbox/empty", {
+        method: "POST",
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || data.message || "Failed to empty junk box")
+      }
+
+      const result = await response.json()
+      setSuccess(result.message || "Junk box emptied successfully")
+      setShowEmptyDialog(false)
+      fetchJunkBox()
+    } catch (err: any) {
+      setError(err.message || "Failed to empty junk box")
+    } finally {
+      setEmptying(false)
+    }
+  }
+
   if (loading) {
     return <div>Loading junk box...</div>
   }
@@ -171,6 +207,19 @@ export function JunkBox() {
       {success && (
         <div className="p-4 bg-green-50 border border-green-200 rounded text-green-700">
           {success}
+        </div>
+      )}
+
+      {totalItems > 0 && (
+        <div className="flex justify-end">
+          <Button
+            variant="destructive"
+            onClick={() => setShowEmptyDialog(true)}
+            disabled={emptying}
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Empty Junk Box
+          </Button>
         </div>
       )}
 
@@ -363,6 +412,52 @@ export function JunkBox() {
           )}
         </>
       )}
+
+      <Dialog open={showEmptyDialog} onOpenChange={setShowEmptyDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Empty Junk Box</DialogTitle>
+            <DialogDescription>
+              This will permanently delete all items in the junk box. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-gray-600 mb-4">
+              The following items will be permanently deleted:
+            </p>
+            <ul className="list-disc list-inside space-y-2 text-sm">
+              {data.proposals.length > 0 && (
+                <li>{data.proposals.length} proposal(s)</li>
+              )}
+              {data.projects.length > 0 && (
+                <li>{data.projects.length} project(s)</li>
+              )}
+              {data.bills.length > 0 && (
+                <li>{data.bills.length} invoice(s)</li>
+              )}
+            </ul>
+            {totalItems === 0 && (
+              <p className="text-sm text-gray-500 mt-4">No items to delete.</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowEmptyDialog(false)}
+              disabled={emptying}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleEmptyJunkBox}
+              disabled={emptying || totalItems === 0}
+            >
+              {emptying ? "Emptying..." : "Empty Junk Box"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

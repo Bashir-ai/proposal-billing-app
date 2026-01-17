@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useSession } from "next-auth/react"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -11,6 +12,7 @@ import { Plus, X } from "lucide-react"
 import { formatDate, formatCurrency } from "@/lib/utils"
 import { ProjectStatus } from "@prisma/client"
 import { LoadingState } from "@/components/shared/LoadingState"
+import { ProjectsList } from "@/components/projects/ProjectsList"
 
 interface Project {
   id: string
@@ -43,6 +45,7 @@ interface Client {
 }
 
 export default function ProjectsPage() {
+  const { data: session } = useSession()
   const [projects, setProjects] = useState<Project[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
@@ -51,6 +54,8 @@ export default function ProjectsPage() {
     name: "",
     status: "",
   })
+  
+  const isAdmin = session?.user?.role === "ADMIN"
 
   useEffect(() => {
     fetchClients()
@@ -218,75 +223,7 @@ export default function ProjectsPage() {
         </CardContent>
       </Card>
 
-      <div className="space-y-6">
-        {projects.map((project) => {
-          const totalBilled = calculateTotalBilled(project.bills)
-          const proposedAmount = project.proposal?.amount || 0
-          const variance = proposedAmount - totalBilled
-
-          return (
-            <Link key={project.id} href={`/dashboard/projects/${project.id}`}>
-              <Card className="hover:shadow-lg transition-shadow">
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-3 mb-2">
-                        <h3 className="text-lg font-semibold">{project.name}</h3>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(project.status)}`}>
-                          {project.status}
-                        </span>
-                        {project.proposal && (
-                          <span className="px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                            From Proposal
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-sm text-gray-600 mb-2">
-                        Client: {project.client.name}
-                        {project.client.company && ` (${project.client.company})`}
-                      </p>
-                      {project.description && (
-                        <p className="text-sm text-gray-500 line-clamp-2 mb-2">{project.description}</p>
-                      )}
-                      {project.proposal && (
-                        <div className="mt-3 space-y-1 text-sm">
-                          <div className="flex justify-between">
-                            <span className="text-gray-600">Proposed:</span>
-                            <span className="font-semibold">{formatCurrency(proposedAmount)}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-600">Billed:</span>
-                            <span className="font-semibold">{formatCurrency(totalBilled)}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-600">Variance:</span>
-                            <span className={`font-semibold ${variance >= 0 ? "text-green-600" : "text-red-600"}`}>
-                              {formatCurrency(variance)}
-                            </span>
-                          </div>
-                        </div>
-                      )}
-                      <div className="flex items-center space-x-4 mt-3 text-xs text-gray-500">
-                        {project.startDate && (
-                          <>
-                            <span>Started: {formatDate(project.startDate)}</span>
-                            {project.endDate && (
-                              <>
-                                <span>•</span>
-                                <span>Ended: {formatDate(project.endDate)}</span>
-                              </>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          )
-        })}
-      </div>
+      <ProjectsList projects={projects} isAdmin={isAdmin} />
 
       {projects.length === 0 && !loading && (
         <Card>

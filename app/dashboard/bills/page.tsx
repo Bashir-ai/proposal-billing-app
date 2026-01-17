@@ -11,6 +11,7 @@ import { BillStatus } from "@prisma/client"
 import { InvoiceStatusFilter } from "@/components/invoices/InvoiceStatusFilter"
 import { InvoiceClientFilter } from "@/components/invoices/InvoiceClientFilter"
 import { InvoiceProjectFilter } from "@/components/invoices/InvoiceProjectFilter"
+import { InvoicesList } from "@/components/invoices/InvoicesList"
 
 export const dynamic = 'force-dynamic'
 
@@ -220,61 +221,7 @@ export default async function BillsPage({
           )}
         </div>
 
-        <div className="space-y-6">
-          {filteredBills.map((bill) => (
-            <Link key={bill.id} href={`/dashboard/bills/${bill.id}`}>
-              <Card className="hover:shadow-lg transition-shadow">
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-3 mb-2">
-                        <h3 className="text-lg font-semibold">
-                          {formatCurrency(bill.amount)}
-                        </h3>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(bill.status)}`}>
-                          {bill.status}
-                        </span>
-                        {bill.status !== "PAID" && bill.dueDate && new Date(bill.dueDate) < new Date() && (
-                          <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                            Outstanding
-                          </span>
-                        )}
-                      </div>
-                      {bill.invoiceNumber && (
-                        <p className="text-sm font-medium text-gray-700 mb-1">
-                          Invoice #{bill.invoiceNumber}
-                        </p>
-                      )}
-                      <p className="text-sm text-gray-600 mb-2">
-                        Client: {bill.client.name}
-                        {bill.client.company && ` (${bill.client.company})`}
-                      </p>
-                      {bill.proposal && (
-                        <p className="text-sm text-gray-500">
-                          From proposal: {bill.proposal.title}
-                        </p>
-                      )}
-                      {bill.project && (
-                        <p className="text-sm text-gray-500">
-                          Project: {bill.project.name}
-                        </p>
-                      )}
-                      <div className="flex items-center space-x-4 mt-3 text-xs text-gray-500">
-                        {bill.dueDate && (
-                          <>
-                            <span>Due: {formatDate(bill.dueDate)}</span>
-                            <span>•</span>
-                          </>
-                        )}
-                        <span>Created: {formatDate(bill.createdAt)}</span>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
-        </div>
+        <InvoicesList bills={filteredBills} isAdmin={session.user.role === "ADMIN"} />
 
         {filteredBills.length === 0 && (
           <Card>

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
+import { useSession } from "next-auth/react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
@@ -10,6 +11,7 @@ import { Select } from "@/components/ui/select"
 import { formatCurrency, formatDate } from "@/lib/utils"
 import { ProposalStatus, ProposalType, ClientApprovalStatus } from "@prisma/client"
 import { LoadingState } from "@/components/shared/LoadingState"
+import { ProposalsList } from "@/components/proposals/ProposalsList"
 
 interface Proposal {
   id: string
@@ -42,6 +44,7 @@ interface Proposal {
 }
 
 export default function ProposalsPage() {
+  const { data: session } = useSession()
   const [proposals, setProposals] = useState<Proposal[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
@@ -51,6 +54,8 @@ export default function ProposalsPage() {
   const [tagFilter, setTagFilter] = useState<string>("")
   const [clients, setClients] = useState<Array<{ id: string; name: string }>>([])
   const [tags, setTags] = useState<Array<{ id: string; name: string }>>([])
+  
+  const isAdmin = session?.user?.role === "ADMIN"
 
   // Read query parameters from URL on mount
   useEffect(() => {
@@ -319,69 +324,7 @@ export default function ProposalsPage() {
         </CardContent>
       </Card>
 
-      <div className="space-y-6">
-        {filteredProposals.map((proposal) => (
-          <Link key={proposal.id} href={`/dashboard/proposals/${proposal.id}`}>
-            <Card className="hover:shadow-lg transition-shadow">
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-3 mb-2 flex-wrap">
-                      {proposal.proposalNumber && (
-                        <span className="text-sm text-gray-600">#{proposal.proposalNumber}</span>
-                      )}
-                      <h3 className="text-lg font-semibold">{proposal.title}</h3>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(proposal.status)}`}>
-                        {proposal.status}
-                      </span>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getClientApprovalColor(proposal.clientApprovalStatus)}`}>
-                        Client: {proposal.clientApprovalStatus}
-                      </span>
-                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                        {getTypeLabel(proposal.type)}
-                      </span>
-                      {proposal.tags.slice(0, 3).map((tag) => (
-                        <span
-                          key={tag.id}
-                          className="px-2 py-1 rounded-full text-xs font-medium"
-                          style={{
-                            backgroundColor: tag.color ? `${tag.color}20` : "#3B82F620",
-                            color: tag.color || "#3B82F6",
-                          }}
-                        >
-                          {tag.name}
-                        </span>
-                      ))}
-                    </div>
-                    <p className="text-sm text-gray-600 mb-2">
-                      {proposal.client ? (
-                        <>Client: {proposal.client.name}{proposal.client.company && ` (${proposal.client.company})`}</>
-                      ) : proposal.lead ? (
-                        <>Lead: {proposal.lead.name}{proposal.lead.company && ` (${proposal.lead.company})`}</>
-                      ) : (
-                        <>No client or lead assigned</>
-                      )}
-                    </p>
-                    {proposal.description && (
-                      <p className="text-sm text-gray-500 line-clamp-2">{proposal.description}</p>
-                    )}
-                    <div className="flex items-center space-x-4 mt-3 text-xs text-gray-500">
-                      <span>Created by {proposal.creator.name}</span>
-                      <span>•</span>
-                      <span>{formatDate(proposal.createdAt)}</span>
-                    </div>
-                  </div>
-                  <div className="text-right ml-4">
-                    {proposal.amount && (
-                      <p className="text-xl font-bold">{formatCurrency(proposal.amount)}</p>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
-      </div>
+      <ProposalsList proposals={filteredProposals} isAdmin={isAdmin} />
 
       {filteredProposals.length === 0 && (
         <Card>
