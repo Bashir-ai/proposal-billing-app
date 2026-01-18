@@ -49,6 +49,7 @@ export default function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
+  const [showArchived, setShowArchived] = useState(false)
   const [filters, setFilters] = useState({
     clientId: "",
     name: "",
@@ -67,7 +68,7 @@ export default function ProjectsPage() {
   useEffect(() => {
     fetchProjects()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters])
+  }, [filters, showArchived])
 
   const fetchClients = async () => {
     try {
@@ -88,6 +89,7 @@ export default function ProjectsPage() {
       if (filters.clientId) params.set("clientId", filters.clientId)
       if (filters.name) params.set("name", filters.name)
       if (filters.status) params.set("status", filters.status)
+      if (showArchived) params.set("includeArchived", "true")
 
       const response = await fetch(`/api/projects?${params.toString()}`)
       if (response.ok) {
@@ -151,12 +153,23 @@ export default function ProjectsPage() {
           <h1 className="text-3xl font-bold">Projects</h1>
           <p className="text-gray-600 mt-2">Manage your active projects</p>
         </div>
-        <Link href="/dashboard/projects/new">
-          <Button>
-            <Plus className="h-4 w-4 mr-2" />
-            New Project
-          </Button>
-        </Link>
+        <div className="flex items-center gap-4">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showArchived}
+              onChange={(e) => setShowArchived(e.target.checked)}
+              className="rounded border-gray-300 text-primary focus:ring-primary"
+            />
+            <span className="text-sm text-gray-600">Show archived projects</span>
+          </label>
+          <Link href="/dashboard/projects/new">
+            <Button>
+              <Plus className="h-4 w-4 mr-2" />
+              New Project
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Filters */}

@@ -31,10 +31,14 @@ export async function GET(request: Request) {
     const name = searchParams.get("name")
     const responsiblePersonId = searchParams.get("responsiblePersonId")
     const projectManagerId = searchParams.get("projectManagerId")
+    const includeArchived = searchParams.get("includeArchived") === "true"
 
     const where: any = {
       deletedAt: null, // Exclude deleted items
-      archivedAt: null, // Exclude archived items by default
+    }
+    // Only exclude archived items if includeArchived is not true
+    if (!includeArchived) {
+      where.archivedAt = null
     }
     if (status) {
       // Support comma-separated status values
