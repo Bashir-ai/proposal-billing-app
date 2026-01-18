@@ -1,9 +1,12 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { formatDate, formatCurrency } from "@/lib/utils"
-import { Clock, DollarSign } from "lucide-react"
+import { Clock, DollarSign, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
 
@@ -70,10 +73,15 @@ interface TimesheetListProps {
 }
 
 export function TimesheetList({ initialFilters, currentUserId, userRole }: TimesheetListProps) {
+  const router = useRouter()
   const [timesheetEntries, setTimesheetEntries] = useState<TimesheetEntry[]>([])
   const [charges, setCharges] = useState<Charge[]>([])
   const [loading, setLoading] = useState(true)
   const [filters, setFilters] = useState(initialFilters || {})
+  const [selectedEntryIds, setSelectedEntryIds] = useState<Set<string>>(new Set())
+  const [isDeleting, setIsDeleting] = useState(false)
+  
+  const isAdmin = userRole === "ADMIN"
 
   useEffect(() => {
     fetchData()
@@ -128,6 +136,91 @@ export function TimesheetList({ initialFilters, currentUserId, userRole }: Times
     })
   }, [timesheetEntries, charges])
 
+  // Filter only timesheet entries for bulk deletion
+  const timesheetItems = useMemo(() => {
+    return allItems.filter((item) => item.type === "timesheet") as TimesheetEntry[]
+  }, [allItems])
+
+  const handleToggle = (entryId: string) => {
+    const newSelected = new Set(selectedEntryIds)
+    if (newSelected.has(entryId)) {
+      newSelected.delete(entryId)
+    } else {
+      newSelected.add(entryId)
+    }
+    setSelectedEntryIds(newSelected)
+  }
+
+  const handleSelectAll = () => {
+    if (selectedEntryIds.size === timesheetItems.length && timesheetItems.length > 0) {
+      setSelectedEntryIds(new Set())
+    } else {
+      setSelectedEntryIds(new Set(timesheetItems.map((item) => item.id)))
+    }
+  }
+
+  const handleIndividualDelete = async (entryId: string, projectId: string) => {
+    if (!confirm("Are you sure you want to delete this timesheet entry?")) {
+      return
+    }
+
+    setIsDeleting(true)
+    try {
+      const response = await fetch(`/api/projects/${projectId}/timesheet/${entryId}`, {
+        method: "DELETE",
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || "Failed to delete timesheet entry")
+      }
+
+      router.refresh()
+      alert("Timesheet entry deleted successfully")
+    } catch (error) {
+      console.error("Error deleting timesheet entry:", error)
+      alert(error instanceof Error ? error.message : "Failed to delete timesheet entry. Please try again.")
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
+  const handleBulkDelete = async () => {
+    if (selectedEntryIds.size === 0) return
+
+    if (!confirm(`Are you sure you want to delete ${selectedEntryIds.size} timesheet entr${selectedEntryIds.size !== 1 ? "ies" : "y"}?`)) {
+      return
+    }
+
+    setIsDeleting(true)
+    try {
+      const response = await fetch("/api/timesheets/bulk-delete", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          entryIds: Array.from(selectedEntryIds),
+        }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || "Failed to delete timesheet entries")
+      }
+
+      const result = await response.json()
+      setSelectedEntryIds(new Set())
+      router.refresh()
+      alert(result.message || `Successfully deleted ${selectedEntryIds.size} timesheet entr${selectedEntryIds.size !== 1 ? "ies" : "y"}`)
+    } catch (error) {
+      console.error("Error deleting timesheet entries:", error)
+      alert(error instanceof Error ? error.message : "Failed to delete timesheet entries. Please try again.")
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
   if (loading) {
     return (
       <Card>
@@ -141,7 +234,34 @@ export function TimesheetList({ initialFilters, currentUserId, userRole }: Times
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Timesheet Entries & Charges</CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle>Timesheet Entries & Charges</CardTitle>
+          {isAdmin && timesheetItems.length > 0 && (
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={selectedEntryIds.size === timesheetItems.length && timesheetItems.length > 0}
+                  onCheckedChange={handleSelectAll}
+                  disabled={timesheetItems.length === 0 || isDeleting}
+                />
+                <span className="text-sm text-gray-600">
+                  Select all ({timesheetItems.length} entries)
+                </span>
+              </div>
+              {selectedEntryIds.size > 0 && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleBulkDelete}
+                  disabled={isDeleting}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Selected ({selectedEntryIds.size})
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
       </CardHeader>
       <CardContent>
         {allItems.length === 0 ? (
@@ -153,6 +273,7 @@ export function TimesheetList({ initialFilters, currentUserId, userRole }: Times
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b">
+                  {isAdmin && <th className="text-left p-2 w-12"></th>}
                   <th className="text-left p-2">Type</th>
                   <th className="text-left p-2">Date</th>
                   <th className="text-left p-2">User</th>
@@ -164,6 +285,7 @@ export function TimesheetList({ initialFilters, currentUserId, userRole }: Times
                   <th className="text-right p-2">Amount</th>
                   <th className="text-center p-2">Billable</th>
                   <th className="text-center p-2">Billed</th>
+                  {isAdmin && <th className="text-center p-2 w-20">Actions</th>}
                 </tr>
               </thead>
               <tbody>
@@ -177,9 +299,19 @@ export function TimesheetList({ initialFilters, currentUserId, userRole }: Times
                         className={cn(
                           "border-b hover:bg-gray-50",
                           entry.billed && "bg-green-50",
-                          !entry.billed && entry.billable && "bg-blue-50"
+                          !entry.billed && entry.billable && "bg-blue-50",
+                          selectedEntryIds.has(entry.id) && "bg-blue-100"
                         )}
                       >
+                        {isAdmin && (
+                          <td className="p-2">
+                            <Checkbox
+                              checked={selectedEntryIds.has(entry.id)}
+                              onCheckedChange={() => handleToggle(entry.id)}
+                              disabled={isDeleting}
+                            />
+                          </td>
+                        )}
                         <td className="p-2">
                           <div className="flex items-center gap-1">
                             <Clock className="h-4 w-4 text-blue-600" />
@@ -228,6 +360,23 @@ export function TimesheetList({ initialFilters, currentUserId, userRole }: Times
                             <span className="text-gray-400">—</span>
                           )}
                         </td>
+                        {isAdmin && (
+                          <td className="p-2 text-center">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                handleIndividualDelete(entry.id, entry.project.id)
+                              }}
+                              disabled={isDeleting}
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </td>
+                        )}
                       </tr>
                     )
                   } else {
@@ -241,6 +390,7 @@ export function TimesheetList({ initialFilters, currentUserId, userRole }: Times
                           !charge.billed && "bg-orange-50"
                         )}
                       >
+                        {isAdmin && <td className="p-2"></td>}
                         <td className="p-2">
                           <div className="flex items-center gap-1">
                             <DollarSign className="h-4 w-4 text-purple-600" />
@@ -278,6 +428,7 @@ export function TimesheetList({ initialFilters, currentUserId, userRole }: Times
                             <span className="text-gray-400">—</span>
                           )}
                         </td>
+                        {isAdmin && <td className="p-2"></td>}
                       </tr>
                     )
                   }

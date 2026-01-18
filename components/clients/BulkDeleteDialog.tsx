@@ -30,8 +30,9 @@ interface BulkDeleteDialogProps {
   onOpenChange: (open: boolean) => void
   deletable: DeletableClient[]
   nonDeletable: NonDeletableClient[]
-  onConfirm: (selectedIds: string[]) => Promise<void>
+  onConfirm: (selectedIds: string[], force?: boolean) => Promise<void>
   isDeleting?: boolean
+  showForceDelete?: boolean // Show force delete option for admins
 }
 
 export function BulkDeleteDialog({
@@ -41,10 +42,12 @@ export function BulkDeleteDialog({
   nonDeletable,
   onConfirm,
   isDeleting = false,
+  showForceDelete = false,
 }: BulkDeleteDialogProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(
     new Set(deletable.map((c) => c.id))
   )
+  const [forceDelete, setForceDelete] = useState(false)
 
   // Update selectedIds when deletable list changes
   useEffect(() => {
@@ -73,14 +76,23 @@ export function BulkDeleteDialog({
 
   const handleConfirm = async () => {
     if (selectedIds.size === 0) return
-    await onConfirm(Array.from(selectedIds))
+    await onConfirm(Array.from(selectedIds), forceDelete)
     setSelectedIds(new Set(deletable.map((c) => c.id)))
+    setForceDelete(false)
   }
 
   const handleCancel = () => {
     setSelectedIds(new Set(deletable.map((c) => c.id)))
+    setForceDelete(false)
     onOpenChange(false)
   }
+
+  // Reset force delete when dialog opens/closes
+  useEffect(() => {
+    if (!open) {
+      setForceDelete(false)
+    }
+  }, [open])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -159,6 +171,30 @@ export function BulkDeleteDialog({
               </AlertDescription>
             </Alert>
           )}
+
+          {showForceDelete && nonDeletable.length > 0 && (
+            <Alert className="border-yellow-200 bg-yellow-50">
+              <AlertTriangle className="h-4 w-4 text-yellow-600" />
+              <AlertDescription className="text-sm text-yellow-800">
+                <div className="flex items-start gap-2">
+                  <Checkbox
+                    id="force-delete"
+                    checked={forceDelete}
+                    onCheckedChange={(checked) => setForceDelete(checked === true)}
+                    disabled={isDeleting}
+                  />
+                  <div className="flex-1">
+                    <label htmlFor="force-delete" className="font-semibold cursor-pointer">
+                      Force Delete (Permanent)
+                    </label>
+                    <p className="text-xs mt-1">
+                      By checking this, you agree to permanently delete all selected items including those with dependencies. This action cannot be undone.
+                    </p>
+                  </div>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
         </div>
 
         <DialogFooter>
@@ -176,6 +212,8 @@ export function BulkDeleteDialog({
           >
             {isDeleting
               ? "Deleting..."
+              : forceDelete
+              ? `Force Delete ${selectedIds.size + nonDeletable.length} item${selectedIds.size + nonDeletable.length !== 1 ? "s" : ""}`
               : `Delete ${selectedIds.size} client${selectedIds.size !== 1 ? "s" : ""}`}
           </Button>
         </DialogFooter>

@@ -99,17 +99,23 @@ export function ClientsList({ clients, isAdmin }: ClientsListProps) {
     }
   }
 
-  const handleConfirmDelete = async (selectedIds: string[]) => {
+  const handleConfirmDelete = async (selectedIds: string[], force?: boolean) => {
     setIsDeleting(true)
     try {
+      // If force delete, include all non-deletable items too
+      const allIds = force && validationData 
+        ? [...selectedIds, ...validationData.nonDeletable.map(c => c.id)]
+        : selectedIds
+
       const response = await fetch("/api/clients/bulk-delete", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          clientIds: selectedIds,
+          clientIds: allIds,
           action: "delete",
+          force: force || false,
         }),
       })
 
@@ -176,7 +182,7 @@ export function ClientsList({ clients, isAdmin }: ClientsListProps) {
           <div key={client.id} className="relative">
             {isAdmin && (
               <div
-                className="absolute top-2 right-2 z-50 bg-white rounded border shadow-sm p-1"
+                className="absolute bottom-2 right-2 z-50 bg-white rounded border shadow-sm p-1"
                 onClick={(e) => {
                   e.preventDefault()
                   e.stopPropagation()
@@ -234,6 +240,7 @@ export function ClientsList({ clients, isAdmin }: ClientsListProps) {
           nonDeletable={validationData.nonDeletable}
           onConfirm={handleConfirmDelete}
           isDeleting={isDeleting}
+          showForceDelete={validationData.nonDeletable.length > 0}
         />
       )}
     </>

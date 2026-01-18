@@ -113,17 +113,23 @@ export function ProjectsList({ projects, isAdmin, isManager = false }: ProjectsL
     }
   }
 
-  const handleConfirmDelete = async (selectedIds: string[]) => {
+  const handleConfirmDelete = async (selectedIds: string[], force?: boolean) => {
     setIsDeleting(true)
     try {
+      // If force delete, include all non-deletable items too
+      const allIds = force && validationData 
+        ? [...selectedIds, ...validationData.nonDeletable.map(p => p.id)]
+        : selectedIds
+
       const response = await fetch("/api/projects/bulk-delete", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          projectIds: selectedIds,
+          projectIds: allIds,
           action: "delete",
+          force: force || false,
         }),
       })
 
@@ -324,7 +330,7 @@ export function ProjectsList({ projects, isAdmin, isManager = false }: ProjectsL
           return (
             <div key={project.id} className="relative">
               <div
-                className="absolute top-2 right-2 z-50 flex items-center gap-1"
+                className="absolute bottom-2 right-2 z-50 flex items-center gap-1"
                 onClick={(e) => {
                   e.preventDefault()
                   e.stopPropagation()
@@ -426,6 +432,7 @@ export function ProjectsList({ projects, isAdmin, isManager = false }: ProjectsL
           nonDeletable={validationData.nonDeletable}
           onConfirm={handleConfirmDelete}
           isDeleting={isDeleting}
+          showForceDelete={validationData.nonDeletable.length > 0}
         />
       )}
 
