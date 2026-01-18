@@ -323,31 +323,19 @@ export function ProjectsList({ projects, isAdmin, isManager = false }: ProjectsL
 
           return (
             <div key={project.id} className="relative">
-              {isAdmin && (
-                <div
-                  className="absolute top-2 right-2 z-50 bg-white rounded border shadow-sm p-1"
-                  onClick={(e) => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                  }}
-                  onMouseDown={(e) => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                  }}
-                >
-                  <Checkbox
-                    checked={selectedProjects.has(project.id)}
-                    onCheckedChange={() => handleToggle(project.id)}
-                    onClick={(e) => {
-                      e.preventDefault()
-                      e.stopPropagation()
-                    }}
-                  />
-                </div>
-              )}
-              <div className="relative">
+              <div
+                className="absolute top-2 right-2 z-50 flex items-center gap-1"
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                }}
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                }}
+              >
                 {canArchive && (
-                  <div className="absolute top-2 left-2 z-50 flex gap-1">
+                  <div className="bg-white rounded border shadow-sm p-1">
                     <Button
                       variant="outline"
                       size="sm"
@@ -356,13 +344,26 @@ export function ProjectsList({ projects, isAdmin, isManager = false }: ProjectsL
                         e.stopPropagation()
                         handleIndividualArchive(project.id)
                       }}
-                      className="bg-white"
+                      className="bg-white h-7 w-7 p-0"
                     >
                       <Archive className="h-3 w-3" />
                     </Button>
                   </div>
                 )}
-                <Link href={`/dashboard/projects/${project.id}`}>
+                {isAdmin && (
+                  <div className="bg-white rounded border shadow-sm p-1">
+                    <Checkbox
+                      checked={selectedProjects.has(project.id)}
+                      onCheckedChange={() => handleToggle(project.id)}
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+              <Link href={`/dashboard/projects/${project.id}`}>
                   <Card
                     className={`hover:shadow-lg transition-shadow ${
                       selectedProjects.has(project.id) ? "ring-2 ring-primary" : ""
