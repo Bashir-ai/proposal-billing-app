@@ -208,7 +208,7 @@ export function BulkDeleteDialog({
           <Button
             variant="destructive"
             onClick={handleConfirm}
-            disabled={selectedIds.size === 0 || isDeleting}
+            disabled={(selectedIds.size === 0 && !(forceDelete && nonDeletable.length > 0)) || isDeleting}
           >
             {isDeleting
               ? "Deleting..."

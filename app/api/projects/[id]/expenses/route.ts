@@ -4,18 +4,16 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
-import { UserRole } from "@prisma/client"
+import { isDatabaseConnectionError, getDatabaseErrorMessage } from "@/lib/database-error-handler"
 
 const expenseSchema = z.object({
   description: z.string().min(1),
-  amount: z.number().positive(),
-  currency: z.string().default("EUR"),
-  expenseDate: z.string().transform((str) => new Date(str)),
-  category: z.string().nullable().optional(),
-  receiptPath: z.string().nullable().optional(),
-  isBillable: z.boolean().default(false),
-  isReimbursement: z.boolean().default(false),
-  projectId: z.string().nullable().optional(),
+  amount: z.number().min(0),
+  currency: z.string().optional().default("EUR"),
+  expenseDate: z.string(),
+  category: z.string().optional(),
+  isBillable: z.boolean().optional().default(false),
+  isReimbursement: z.boolean().optional().default(false),
 })
 
 export async function GET(
@@ -23,51 +21,49 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const session = await getServerSession(authOptions)
+    
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { id } = await params
-    const projectId = id
-
-    // Verify project exists and user has access
     const project = await prisma.project.findUnique({
-      where: { id: projectId },
-      select: { id: true, clientId: true },
+      where: { id },
     })
 
     if (!project) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 })
     }
 
-    // Check permissions: staff can view, clients can view their own projects
-    if (session.user.role === UserRole.CLIENT) {
-      // Clients can only view their own projects
-      const client = await prisma.client.findUnique({
-        where: { id: project.clientId },
-      })
-      // TODO: Check if client matches user (would need client-user relation)
-    }
-
     const expenses = await prisma.projectExpense.findMany({
-      where: { projectId },
-      orderBy: { expenseDate: 'desc' },
+      where: { projectId: id },
       include: {
         creator: {
-          select: { id: true, name: true, email: true },
-        },
-        bill: {
-          select: { id: true, invoiceNumber: true, amount: true },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
         },
       },
+      orderBy: { expenseDate: "desc" },
     })
 
-    return NextResponse.json({ expenses })
-  } catch (error: any) {
+    return NextResponse.json(expenses)
+  } catch (error) {
+    if (isDatabaseConnectionError(error)) {
+      return NextResponse.json(
+        {
+          error: "Database connection error",
+          message: getDatabaseErrorMessage()
+        },
+        { status: 503 }
+      )
+    }
     console.error("Error fetching expenses:", error)
     return NextResponse.json(
-      { error: error.message || "Failed to fetch expenses" },
+      { error: "Internal server error" },
       { status: 500 }
     )
   }
@@ -78,54 +74,76 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const session = await getServerSession(authOptions)
+    
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Only staff can create expenses
-    if (session.user.role === UserRole.CLIENT) {
-      return NextResponse.json({ error: "Forbidden - Staff access required" }, { status: 403 })
+    if (session.user.role === "CLIENT" || session.user.role === "EXTERNAL") {
+      return NextResponse.json(
+        { error: "Forbidden" },
+        { status: 403 }
+      )
     }
 
-    const { id } = await params
-    const projectId = id
-    const body = await request.json()
-    const validatedData = expenseSchema.parse(body)
-
-    // Verify project exists
     const project = await prisma.project.findUnique({
-      where: { id: projectId },
+      where: { id },
     })
 
     if (!project) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 })
     }
 
-    // Create expense
+    const body = await request.json()
+    const validatedData = expenseSchema.parse(body)
+
     const expense = await prisma.projectExpense.create({
       data: {
-        projectId: validatedData.projectId || projectId,
+        projectId: id,
         description: validatedData.description,
         amount: validatedData.amount,
         currency: validatedData.currency,
-        expenseDate: validatedData.expenseDate,
-        category: validatedData.category ?? null,
-        receiptPath: validatedData.receiptPath ?? null,
+        expenseDate: new Date(validatedData.expenseDate),
+        category: validatedData.category || null,
         isBillable: validatedData.isBillable,
         isReimbursement: validatedData.isReimbursement,
         createdBy: session.user.id,
       },
+      include: {
+        creator: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
     })
 
-    return NextResponse.json({ expense }, { status: 201 })
+    return NextResponse.json(expense, { status: 201 })
   } catch (error: any) {
-    console.error("Error creating expense:", error)
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: "Invalid input", details: error.errors }, { status: 400 })
+      return NextResponse.json(
+        { error: "Invalid input", details: error.errors },
+        { status: 400 }
+      )
     }
+
+    if (isDatabaseConnectionError(error)) {
+      return NextResponse.json(
+        {
+          error: "Database connection error",
+          message: getDatabaseErrorMessage()
+        },
+        { status: 503 }
+      )
+    }
+
+    console.error("Error creating expense:", error)
     return NextResponse.json(
-      { error: error.message || "Failed to create expense" },
+      { error: "Internal server error", message: error.message },
       { status: 500 }
     )
   }

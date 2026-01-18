@@ -359,32 +359,45 @@ export async function DELETE(
       )
     }
 
-    // Check if client can be deleted (not just archived)
-    const { canDeleteClient } = await import("@/lib/client-deletion-check")
-    const deletionCheck = await canDeleteClient(id)
+    // Check if force deletion is requested
+    const url = new URL(request.url)
+    const forceDelete = url.searchParams.get("force") === "true"
 
-    if (!deletionCheck.canDelete) {
-      return NextResponse.json(
-        { 
-          error: "Cannot delete client",
-          message: deletionCheck.reason,
-          ongoingProjects: deletionCheck.ongoingProjects,
-          openInvoices: deletionCheck.openInvoices,
-          openProposals: deletionCheck.openProposals,
+    if (forceDelete) {
+      // Hard delete: permanently delete the client and all related data
+      // Prisma cascade will handle related records based on schema
+      await prisma.client.delete({
+        where: { id },
+      })
+      return NextResponse.json({ message: "Client permanently deleted" })
+    } else {
+      // Check if client can be deleted (not just archived)
+      const { canDeleteClient } = await import("@/lib/client-deletion-check")
+      const deletionCheck = await canDeleteClient(id)
+
+      if (!deletionCheck.canDelete) {
+        return NextResponse.json(
+          { 
+            error: "Cannot delete client",
+            message: deletionCheck.reason,
+            ongoingProjects: deletionCheck.ongoingProjects,
+            openInvoices: deletionCheck.openInvoices,
+            openProposals: deletionCheck.openProposals,
+          },
+          { status: 400 }
+        )
+      }
+
+      // Soft delete: set deletedAt timestamp
+      await prisma.client.update({
+        where: { id },
+        data: {
+          deletedAt: new Date(),
         },
-        { status: 400 }
-      )
+      })
+
+      return NextResponse.json({ message: "Client deleted" })
     }
-
-    // Soft delete: set deletedAt timestamp
-    await prisma.client.update({
-      where: { id },
-      data: {
-        deletedAt: new Date(),
-      },
-    })
-
-    return NextResponse.json({ message: "Client deleted" })
   } catch (error) {
     if (isDatabaseConnectionError(error)) {
       return NextResponse.json(

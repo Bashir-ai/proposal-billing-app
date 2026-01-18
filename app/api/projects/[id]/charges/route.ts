@@ -5,16 +5,17 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import { ChargeType, RecurringFrequency } from "@prisma/client"
+import { isDatabaseConnectionError, getDatabaseErrorMessage } from "@/lib/database-error-handler"
 
-const projectChargeSchema = z.object({
+const chargeSchema = z.object({
   description: z.string().min(1),
-  amount: z.number().min(0).optional(),
+  amount: z.number().min(0),
   quantity: z.number().min(0).optional(),
   unitPrice: z.number().min(0).optional(),
   chargeType: z.nativeEnum(ChargeType).default(ChargeType.ONE_TIME),
-  recurringFrequency: z.nativeEnum(RecurringFrequency).optional(),
-  startDate: z.string().optional(),
-  endDate: z.string().optional(),
+  recurringFrequency: z.nativeEnum(RecurringFrequency).optional().nullable(),
+  startDate: z.string().optional().nullable(),
+  endDate: z.string().optional().nullable(),
 })
 
 export async function GET(
@@ -37,19 +38,6 @@ export async function GET(
       return NextResponse.json({ error: "Project not found" }, { status: 404 })
     }
 
-    // Check access permissions
-    if (session.user.role === "CLIENT") {
-      const client = await prisma.client.findFirst({
-        where: { 
-          email: session.user.email,
-          deletedAt: null, // Exclude deleted clients
-        },
-      })
-      if (!client || project.clientId !== client.id) {
-        return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-      }
-    }
-
     const charges = await prisma.projectCharge.findMany({
       where: { projectId: id },
       orderBy: { createdAt: "desc" },
@@ -57,7 +45,16 @@ export async function GET(
 
     return NextResponse.json(charges)
   } catch (error) {
-    console.error("Error fetching project charges:", error)
+    if (isDatabaseConnectionError(error)) {
+      return NextResponse.json(
+        {
+          error: "Database connection error",
+          message: getDatabaseErrorMessage()
+        },
+        { status: 503 }
+      )
+    }
+    console.error("Error fetching charges:", error)
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
@@ -77,7 +74,7 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    if (session.user.role === "CLIENT") {
+    if (session.user.role === "CLIENT" || session.user.role === "EXTERNAL") {
       return NextResponse.json(
         { error: "Forbidden" },
         { status: 403 }
@@ -93,45 +90,17 @@ export async function POST(
     }
 
     const body = await request.json()
-    const validatedData = projectChargeSchema.parse(body)
-
-    // Calculate amount if quantity and unitPrice provided
-    let amount = validatedData.amount
-    if (!amount && validatedData.quantity && validatedData.unitPrice) {
-      amount = validatedData.quantity * validatedData.unitPrice
-    }
-    if (!amount) {
-      return NextResponse.json(
-        { error: "Amount is required (either directly or via quantity × unitPrice)" },
-        { status: 400 }
-      )
-    }
-
-    // Validate recurring charge requirements
-    if (validatedData.chargeType === ChargeType.RECURRING) {
-      if (!validatedData.recurringFrequency) {
-        return NextResponse.json(
-          { error: "Recurring frequency is required for recurring charges" },
-          { status: 400 }
-        )
-      }
-      if (!validatedData.startDate) {
-        return NextResponse.json(
-          { error: "Start date is required for recurring charges" },
-          { status: 400 }
-        )
-      }
-    }
+    const validatedData = chargeSchema.parse(body)
 
     const charge = await prisma.projectCharge.create({
       data: {
         projectId: id,
         description: validatedData.description,
-        amount,
-        quantity: validatedData.quantity || 1,
-        unitPrice: validatedData.unitPrice || amount,
+        amount: validatedData.amount,
+        quantity: validatedData.quantity ?? 1,
+        unitPrice: validatedData.unitPrice ?? null,
         chargeType: validatedData.chargeType,
-        recurringFrequency: validatedData.recurringFrequency || null,
+        recurringFrequency: validatedData.recurringFrequency ?? null,
         startDate: validatedData.startDate ? new Date(validatedData.startDate) : null,
         endDate: validatedData.endDate ? new Date(validatedData.endDate) : null,
       },
@@ -146,13 +115,20 @@ export async function POST(
       )
     }
 
-    console.error("Error creating project charge:", error)
+    if (isDatabaseConnectionError(error)) {
+      return NextResponse.json(
+        {
+          error: "Database connection error",
+          message: getDatabaseErrorMessage()
+        },
+        { status: 503 }
+      )
+    }
+
+    console.error("Error creating charge:", error)
     return NextResponse.json(
       { error: "Internal server error", message: error.message },
       { status: 500 }
     )
   }
 }
-
-
-

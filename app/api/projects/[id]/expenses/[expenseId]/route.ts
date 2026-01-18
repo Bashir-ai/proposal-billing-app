@@ -4,15 +4,14 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
-import { UserRole } from "@prisma/client"
+import { isDatabaseConnectionError, getDatabaseErrorMessage } from "@/lib/database-error-handler"
 
-const updateExpenseSchema = z.object({
+const expenseUpdateSchema = z.object({
   description: z.string().min(1).optional(),
-  amount: z.number().positive().optional(),
+  amount: z.number().min(0).optional(),
   currency: z.string().optional(),
-  expenseDate: z.string().transform((str) => new Date(str)).optional(),
-  category: z.string().nullable().optional(),
-  receiptPath: z.string().nullable().optional(),
+  expenseDate: z.string().optional(),
+  category: z.string().optional().nullable(),
   isBillable: z.boolean().optional(),
   isReimbursement: z.boolean().optional(),
 })
@@ -22,61 +21,90 @@ export async function PUT(
   { params }: { params: Promise<{ id: string; expenseId: string }> }
 ) {
   try {
+    const { id, expenseId } = await params
     const session = await getServerSession(authOptions)
+    
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Only staff can update expenses
-    if (session.user.role === UserRole.CLIENT) {
-      return NextResponse.json({ error: "Forbidden - Staff access required" }, { status: 403 })
+    if (session.user.role === "CLIENT" || session.user.role === "EXTERNAL") {
+      return NextResponse.json(
+        { error: "Forbidden" },
+        { status: 403 }
+      )
     }
 
-    const { id, expenseId } = await params
-    const projectId = id
-    const body = await request.json()
-    const validatedData = updateExpenseSchema.parse(body)
-
-    // Verify expense belongs to project
-    const existingExpense = await prisma.projectExpense.findFirst({
-      where: {
-        id: expenseId,
-        projectId,
-      },
+    const expense = await prisma.projectExpense.findUnique({
+      where: { id: expenseId },
     })
 
-    if (!existingExpense) {
+    if (!expense || expense.projectId !== id) {
       return NextResponse.json({ error: "Expense not found" }, { status: 404 })
     }
 
-    // Don't allow editing if already billed
-    if (existingExpense.billedAt) {
-      return NextResponse.json({ error: "Cannot edit expense that has already been billed" }, { status: 400 })
+    const body = await request.json()
+    const validatedData = expenseUpdateSchema.parse(body)
+
+    const updateData: any = {}
+    if (validatedData.description !== undefined) {
+      updateData.description = validatedData.description
+    }
+    if (validatedData.amount !== undefined) {
+      updateData.amount = validatedData.amount
+    }
+    if (validatedData.currency !== undefined) {
+      updateData.currency = validatedData.currency
+    }
+    if (validatedData.expenseDate !== undefined) {
+      updateData.expenseDate = new Date(validatedData.expenseDate)
+    }
+    if (validatedData.category !== undefined) {
+      updateData.category = validatedData.category
+    }
+    if (validatedData.isBillable !== undefined) {
+      updateData.isBillable = validatedData.isBillable
+    }
+    if (validatedData.isReimbursement !== undefined) {
+      updateData.isReimbursement = validatedData.isReimbursement
     }
 
-    // Update expense
-    const expense = await prisma.projectExpense.update({
+    const updatedExpense = await prisma.projectExpense.update({
       where: { id: expenseId },
-      data: {
-        description: validatedData.description,
-        amount: validatedData.amount,
-        currency: validatedData.currency,
-        expenseDate: validatedData.expenseDate,
-        category: validatedData.category,
-        receiptPath: validatedData.receiptPath,
-        isBillable: validatedData.isBillable,
-        isReimbursement: validatedData.isReimbursement,
+      data: updateData,
+      include: {
+        creator: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
       },
     })
 
-    return NextResponse.json({ expense })
+    return NextResponse.json(updatedExpense)
   } catch (error: any) {
-    console.error("Error updating expense:", error)
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: "Invalid input", details: error.errors }, { status: 400 })
+      return NextResponse.json(
+        { error: "Invalid input", details: error.errors },
+        { status: 400 }
+      )
     }
+
+    if (isDatabaseConnectionError(error)) {
+      return NextResponse.json(
+        {
+          error: "Database connection error",
+          message: getDatabaseErrorMessage()
+        },
+        { status: 503 }
+      )
+    }
+
+    console.error("Error updating expense:", error)
     return NextResponse.json(
-      { error: error.message || "Failed to update expense" },
+      { error: "Internal server error", message: error.message },
       { status: 500 }
     )
   }
@@ -87,46 +115,47 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string; expenseId: string }> }
 ) {
   try {
+    const { id, expenseId } = await params
     const session = await getServerSession(authOptions)
+    
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Only admins and managers can delete expenses
-    if (session.user.role !== UserRole.ADMIN && session.user.role !== UserRole.MANAGER) {
-      return NextResponse.json({ error: "Forbidden - Admin or Manager access required" }, { status: 403 })
+    // Only ADMIN can delete expenses
+    if (session.user.role !== "ADMIN") {
+      return NextResponse.json(
+        { error: "Forbidden. Only admins can delete expenses." },
+        { status: 403 }
+      )
     }
 
-    const { id, expenseId } = await params
-    const projectId = id
-
-    // Verify expense belongs to project
-    const existingExpense = await prisma.projectExpense.findFirst({
-      where: {
-        id: expenseId,
-        projectId,
-      },
+    const expense = await prisma.projectExpense.findUnique({
+      where: { id: expenseId },
     })
 
-    if (!existingExpense) {
+    if (!expense || expense.projectId !== id) {
       return NextResponse.json({ error: "Expense not found" }, { status: 404 })
     }
 
-    // Don't allow deleting if already billed
-    if (existingExpense.billedAt) {
-      return NextResponse.json({ error: "Cannot delete expense that has already been billed" }, { status: 400 })
-    }
-
-    // Delete expense
     await prisma.projectExpense.delete({
       where: { id: expenseId },
     })
 
-    return NextResponse.json({ message: "Expense deleted successfully" })
+    return NextResponse.json({ success: true, message: "Expense deleted" })
   } catch (error: any) {
+    if (isDatabaseConnectionError(error)) {
+      return NextResponse.json(
+        {
+          error: "Database connection error",
+          message: getDatabaseErrorMessage()
+        },
+        { status: 503 }
+      )
+    }
     console.error("Error deleting expense:", error)
     return NextResponse.json(
-      { error: error.message || "Failed to delete expense" },
+      { error: "Internal server error", message: error.message },
       { status: 500 }
     )
   }

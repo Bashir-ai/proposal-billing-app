@@ -198,15 +198,45 @@ export async function DELETE(
       return NextResponse.json({ error: "Project not found" }, { status: 404 })
     }
 
-    // Soft delete: set deletedAt timestamp
-    await prisma.project.update({
-      where: { id },
-      data: {
-        deletedAt: new Date(),
-      },
-    })
+    // Check if force deletion is requested
+    const url = new URL(request.url)
+    const forceDelete = url.searchParams.get("force") === "true"
 
-    return NextResponse.json({ message: "Project moved to junk box successfully" })
+    if (forceDelete) {
+      // Hard delete: permanently delete the project and all related data
+      // Prisma cascade will handle related records based on schema
+      await prisma.project.delete({
+        where: { id },
+      })
+      return NextResponse.json({ message: "Project permanently deleted" })
+    } else {
+      // Check validation before soft delete
+      const { canDeleteProject } = await import("@/lib/project-deletion-check")
+      const deletionCheck = await canDeleteProject(id)
+
+      if (!deletionCheck.canDelete) {
+        return NextResponse.json(
+          {
+            error: "Cannot delete project",
+            message: deletionCheck.reason,
+            activeTimesheets: deletionCheck.activeTimesheets,
+            unpaidInvoices: deletionCheck.unpaidInvoices,
+            isActive: deletionCheck.isActive,
+          },
+          { status: 400 }
+        )
+      }
+
+      // Soft delete: set deletedAt timestamp
+      await prisma.project.update({
+        where: { id },
+        data: {
+          deletedAt: new Date(),
+        },
+      })
+
+      return NextResponse.json({ message: "Project moved to junk box successfully" })
+    }
   } catch (error) {
     if (isDatabaseConnectionError(error)) {
       return NextResponse.json(
