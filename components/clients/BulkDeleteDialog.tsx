@@ -75,7 +75,8 @@ export function BulkDeleteDialog({
   }
 
   const handleConfirm = async () => {
-    if (selectedIds.size === 0) return
+    // Allow proceed if force delete is checked and there are non-deletable items
+    if (selectedIds.size === 0 && !(forceDelete && nonDeletable.length > 0)) return
     await onConfirm(Array.from(selectedIds), forceDelete)
     setSelectedIds(new Set(deletable.map((c) => c.id)))
     setForceDelete(false)
