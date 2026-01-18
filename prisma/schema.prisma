@@ -654,11 +654,13 @@ model Project {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
   deletedAt   DateTime?
+  archivedAt  DateTime? // Archive (different from delete - can be unarchived)
 
   @@index([clientId])
   @@index([proposalId])
   @@index([status])
   @@index([deletedAt])
+  @@index([archivedAt])
 
   // Relations
   proposal         Proposal?        @relation(fields: [proposalId], references: [id])

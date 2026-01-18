@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import { ProjectStatus } from "@prisma/client"
+import { isDatabaseConnectionError, getDatabaseErrorMessage } from "@/lib/database-error-handler"
 
 const projectUpdateSchema = z.object({
   name: z.string().min(1).optional(),
@@ -207,6 +208,15 @@ export async function DELETE(
 
     return NextResponse.json({ message: "Project moved to junk box successfully" })
   } catch (error) {
+    if (isDatabaseConnectionError(error)) {
+      return NextResponse.json(
+        { 
+          error: "Database connection error",
+          message: getDatabaseErrorMessage()
+        },
+        { status: 503 }
+      )
+    }
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
@@ -214,3 +224,67 @@ export async function DELETE(
   }
 }
 
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params
+    const session = await getServerSession(authOptions)
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    if (session.user.role !== "ADMIN" && session.user.role !== "MANAGER") {
+      return NextResponse.json(
+        { error: "Forbidden" },
+        { status: 403 }
+      )
+    }
+
+    const body = await request.json()
+    const action = body.action // "archive" or "unarchive"
+
+    if (action === "archive") {
+      await prisma.project.update({
+        where: { id },
+        data: {
+          archivedAt: new Date(),
+        },
+      })
+      return NextResponse.json({ message: "Project archived" })
+    } else if (action === "unarchive") {
+      await prisma.project.update({
+        where: { id },
+        data: {
+          archivedAt: null,
+        },
+      })
+      return NextResponse.json({ message: "Project unarchived" })
+    } else {
+      return NextResponse.json(
+        { error: "Invalid action. Use 'archive' or 'unarchive'" },
+        { status: 400 }
+      )
+    }
+  } catch (error) {
+    if (isDatabaseConnectionError(error)) {
+      return NextResponse.json(
+        { 
+          error: "Database connection error",
+          message: getDatabaseErrorMessage()
+        },
+        { status: 503 }
+      )
+    }
+    console.error("Error archiving/unarchiving project:", error)
+    if (error instanceof Error) {
+      console.error("Error message:", error.message)
+      console.error("Error stack:", error.stack)
+    }
+    return NextResponse.json(
+      { error: "Internal server error", message: error instanceof Error ? error.message : "Unknown error" },
+      { status: 500 }
+    )
+  }
+}

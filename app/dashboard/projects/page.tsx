@@ -56,6 +56,7 @@ export default function ProjectsPage() {
   })
   
   const isAdmin = session?.user?.role === "ADMIN"
+  const isManager = session?.user?.role === "MANAGER" || isAdmin
 
   useEffect(() => {
     fetchClients()
@@ -223,7 +224,7 @@ export default function ProjectsPage() {
         </CardContent>
       </Card>
 
-      <ProjectsList projects={projects} isAdmin={isAdmin} />
+      <ProjectsList projects={projects} isAdmin={isAdmin} isManager={isManager} />
 
       {projects.length === 0 && !loading && (
         <Card>

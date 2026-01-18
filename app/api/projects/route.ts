@@ -34,6 +34,7 @@ export async function GET(request: Request) {
 
     const where: any = {
       deletedAt: null, // Exclude deleted items
+      archivedAt: null, // Exclude archived items by default
     }
     if (status) {
       // Support comma-separated status values
