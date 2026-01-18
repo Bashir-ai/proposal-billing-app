@@ -413,7 +413,6 @@ export function ProjectsList({ projects, isAdmin, isManager = false }: ProjectsL
                     </CardContent>
                   </Card>
                 </Link>
-              </div>
             </div>
           )
         })}
