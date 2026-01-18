@@ -10,6 +10,7 @@ import { isDatabaseConnectionError, getDatabaseErrorMessage } from "@/lib/databa
 const bulkDeleteSchema = z.object({
   clientIds: z.array(z.string().min(1)),
   action: z.enum(["validate", "delete"]),
+  force: z.boolean().optional().default(false),
 })
 
 export async function POST(request: Request) {
@@ -27,7 +28,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { clientIds, action } = bulkDeleteSchema.parse(body)
+    const { clientIds, action, force } = bulkDeleteSchema.parse(body)
 
     if (action === "validate") {
       // Quick check: Try to validate the first client to detect database connection issues early
@@ -146,72 +147,88 @@ export async function POST(request: Request) {
         nonDeletable,
       })
     } else if (action === "delete") {
-      // Validate again before deletion
-      const validationResults = await Promise.allSettled(
-        clientIds.map(async (clientId) => {
-          try {
-            const deletionCheck = await canDeleteClient(clientId)
-            return {
-              id: clientId,
-              canDelete: deletionCheck.canDelete,
-            }
-          } catch (error) {
-            console.error(`Error validating client ${clientId} for deletion:`, error)
-            return {
-              id: clientId,
-              canDelete: false,
-            }
-          }
+      if (force) {
+        // Force delete: permanently delete all clients (hard delete)
+        await prisma.$transaction(
+          clientIds.map((id) =>
+            prisma.client.delete({
+              where: { id },
+            })
+          )
+        )
+
+        return NextResponse.json({
+          message: `Successfully permanently deleted ${clientIds.length} client(s)`,
+          deletedCount: clientIds.length,
         })
-      )
-      
-      const results = validationResults.map((result) => 
-        result.status === 'fulfilled' ? result.value : {
-          id: 'unknown',
-          canDelete: false,
-        }
-      )
-
-      const deletableIds = results
-        .filter((result) => result.canDelete)
-        .map((result) => result.id)
-      
-      // Check if all validations failed
-      const allFailed = results.every((result) => !result.canDelete && result.id === 'unknown')
-      
-      if (allFailed && results.length > 0) {
-        return NextResponse.json(
-          { 
-            error: "Database connection error",
-            message: "Unable to connect to the database. Please check your database connection and try again."
-          },
-          { status: 503 }
-        )
-      }
-
-      if (deletableIds.length === 0) {
-        return NextResponse.json(
-          { error: "No clients can be deleted" },
-          { status: 400 }
-        )
-      }
-
-      // Perform bulk deletion in a transaction
-      const result = await prisma.$transaction(
-        deletableIds.map((id) =>
-          prisma.client.update({
-            where: { id },
-            data: {
-              deletedAt: new Date(),
-            },
+      } else {
+        // Normal delete: validate and soft delete
+        const validationResults = await Promise.allSettled(
+          clientIds.map(async (clientId) => {
+            try {
+              const deletionCheck = await canDeleteClient(clientId)
+              return {
+                id: clientId,
+                canDelete: deletionCheck.canDelete,
+              }
+            } catch (error) {
+              console.error(`Error validating client ${clientId} for deletion:`, error)
+              return {
+                id: clientId,
+                canDelete: false,
+              }
+            }
           })
         )
-      )
+        
+        const results = validationResults.map((result) => 
+          result.status === 'fulfilled' ? result.value : {
+            id: 'unknown',
+            canDelete: false,
+          }
+        )
 
-      return NextResponse.json({
-        message: `Successfully deleted ${result.length} client(s)`,
-        deletedCount: result.length,
-      })
+        const deletableIds = results
+          .filter((result) => result.canDelete)
+          .map((result) => result.id)
+        
+        // Check if all validations failed
+        const allFailed = results.every((result) => !result.canDelete && result.id === 'unknown')
+        
+        if (allFailed && results.length > 0) {
+          return NextResponse.json(
+            { 
+              error: "Database connection error",
+              message: "Unable to connect to the database. Please check your database connection and try again."
+            },
+            { status: 503 }
+          )
+        }
+
+        if (deletableIds.length === 0) {
+          return NextResponse.json(
+            { error: "No clients can be deleted" },
+            { status: 400 }
+          )
+        }
+
+        // Perform bulk deletion in a transaction
+        const result = await prisma.$transaction(
+          deletableIds.map((id) =>
+            prisma.client.update({
+              where: { id },
+              data: {
+                deletedAt: new Date(),
+              },
+            })
+          )
+        )
+
+        return NextResponse.json({
+          message: `Successfully deleted ${result.length} client(s)`,
+          deletedCount: result.length,
+        })
+      }
     } else {
       return NextResponse.json(
         { error: "Invalid action. Use 'validate' or 'delete'" },
