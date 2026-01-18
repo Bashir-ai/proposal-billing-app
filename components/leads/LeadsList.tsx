@@ -99,17 +99,23 @@ export function LeadsList({ leads, isAdmin }: LeadsListProps) {
     }
   }
 
-  const handleConfirmDelete = async (selectedIds: string[]) => {
+  const handleConfirmDelete = async (selectedIds: string[], force?: boolean) => {
     setIsDeleting(true)
     try {
+      // If force delete, include all non-deletable items too
+      const allIds = force && validationData 
+        ? [...selectedIds, ...validationData.nonDeletable.map(l => l.id)]
+        : selectedIds
+
       const response = await fetch("/api/leads/bulk-delete", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          leadIds: selectedIds,
+          leadIds: allIds,
           action: "delete",
+          force: force || false,
         }),
       })
 
@@ -260,6 +266,7 @@ export function LeadsList({ leads, isAdmin }: LeadsListProps) {
           nonDeletable={validationData.nonDeletable}
           onConfirm={handleConfirmDelete}
           isDeleting={isDeleting}
+          showForceDelete={validationData.nonDeletable.length > 0}
         />
       )}
     </>

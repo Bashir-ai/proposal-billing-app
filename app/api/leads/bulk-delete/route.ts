@@ -10,6 +10,7 @@ import { isDatabaseConnectionError, getDatabaseErrorMessage } from "@/lib/databa
 const bulkDeleteSchema = z.object({
   leadIds: z.array(z.string().min(1)),
   action: z.enum(["validate", "delete"]),
+  force: z.boolean().optional().default(false),
 })
 
 export async function POST(request: Request) {
@@ -27,7 +28,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { leadIds, action } = bulkDeleteSchema.parse(body)
+    const { leadIds, action, force } = bulkDeleteSchema.parse(body)
 
     if (action === "validate") {
       if (leadIds.length > 0) {
@@ -128,69 +129,86 @@ export async function POST(request: Request) {
         nonDeletable,
       })
     } else if (action === "delete") {
-      const validationResults = await Promise.allSettled(
-        leadIds.map(async (leadId) => {
-          try {
-            const deletionCheck = await canDeleteLead(leadId)
-            return {
-              id: leadId,
-              canDelete: deletionCheck.canDelete,
-            }
-          } catch (error) {
-            console.error(`Error validating lead ${leadId} for deletion:`, error)
-            return {
-              id: leadId,
-              canDelete: false,
-            }
-          }
+      if (force) {
+        // Force delete: permanently delete all leads (hard delete)
+        await prisma.$transaction(
+          leadIds.map((id) =>
+            prisma.lead.delete({
+              where: { id },
+            })
+          )
+        )
+
+        return NextResponse.json({
+          message: `Successfully permanently deleted ${leadIds.length} lead(s)`,
+          deletedCount: leadIds.length,
         })
-      )
-      
-      const results = validationResults.map((result) => 
-        result.status === 'fulfilled' ? result.value : {
-          id: 'unknown',
-          canDelete: false,
-        }
-      )
-
-      const deletableIds = results
-        .filter((result) => result.canDelete)
-        .map((result) => result.id)
-      
-      const allFailed = results.every((result) => !result.canDelete && result.id === 'unknown')
-      
-      if (allFailed && results.length > 0) {
-        return NextResponse.json(
-          { 
-            error: "Database connection error",
-            message: "Unable to connect to the database. Please check your database connection and try again."
-          },
-          { status: 503 }
-        )
-      }
-
-      if (deletableIds.length === 0) {
-        return NextResponse.json(
-          { error: "No leads can be deleted" },
-          { status: 400 }
-        )
-      }
-
-      const result = await prisma.$transaction(
-        deletableIds.map((id) =>
-          prisma.lead.update({
-            where: { id },
-            data: {
-              deletedAt: new Date(),
-            },
+      } else {
+        // Normal delete: validate and soft delete
+        const validationResults = await Promise.allSettled(
+          leadIds.map(async (leadId) => {
+            try {
+              const deletionCheck = await canDeleteLead(leadId)
+              return {
+                id: leadId,
+                canDelete: deletionCheck.canDelete,
+              }
+            } catch (error) {
+              console.error(`Error validating lead ${leadId} for deletion:`, error)
+              return {
+                id: leadId,
+                canDelete: false,
+              }
+            }
           })
         )
-      )
+        
+        const results = validationResults.map((result) => 
+          result.status === 'fulfilled' ? result.value : {
+            id: 'unknown',
+            canDelete: false,
+          }
+        )
 
-      return NextResponse.json({
-        message: `Successfully deleted ${result.length} lead(s)`,
-        deletedCount: result.length,
-      })
+        const deletableIds = results
+          .filter((result) => result.canDelete)
+          .map((result) => result.id)
+        
+        const allFailed = results.every((result) => !result.canDelete && result.id === 'unknown')
+        
+        if (allFailed && results.length > 0) {
+          return NextResponse.json(
+            { 
+              error: "Database connection error",
+              message: "Unable to connect to the database. Please check your database connection and try again."
+            },
+            { status: 503 }
+          )
+        }
+
+        if (deletableIds.length === 0) {
+          return NextResponse.json(
+            { error: "No leads can be deleted" },
+            { status: 400 }
+          )
+        }
+
+        const result = await prisma.$transaction(
+          deletableIds.map((id) =>
+            prisma.lead.update({
+              where: { id },
+              data: {
+                deletedAt: new Date(),
+              },
+            })
+          )
+        )
+
+        return NextResponse.json({
+          message: `Successfully deleted ${result.length} lead(s)`,
+          deletedCount: result.length,
+        })
+      }
     } else {
       return NextResponse.json(
         { error: "Invalid action. Use 'validate' or 'delete'" },
