@@ -130,13 +130,16 @@ export default function NewTimesheetEntryPage() {
       return
     }
 
+    // Date input always gives us a string in YYYY-MM-DD format
+    const dateValue = formData.date.split('T')[0] // Handle ISO strings if any
+
     try {
       const response = await fetch(`/api/projects/${projectId}/timesheet`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId: formData.userId,
-          date: formData.date,
+          date: dateValue,
           hours: hours,
           rate: formData.rate ? parseFloat(formData.rate) : null,
           description: formData.description || null,

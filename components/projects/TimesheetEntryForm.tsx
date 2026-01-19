@@ -110,11 +110,47 @@ export function TimesheetEntryForm({
     return 0
   }
 
+  // Helper function to format date for date input (YYYY-MM-DD)
+  const formatDateForInput = (date: Date | string | null): string => {
+    if (!date) return new Date().toISOString().split('T')[0]
+    
+    if (date instanceof Date) {
+      // Use local date components to avoid timezone issues
+      const year = date.getFullYear()
+      const month = String(date.getMonth() + 1).padStart(2, '0')
+      const day = String(date.getDate()).padStart(2, '0')
+      return `${year}-${month}-${day}`
+    }
+    
+    if (typeof date === 'string') {
+      // If it's already YYYY-MM-DD, use it
+      if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return date
+      }
+      // If it's an ISO string, extract the date part
+      const datePart = date.split('T')[0]
+      if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+        return datePart
+      }
+      // Otherwise, parse it
+      const d = new Date(date)
+      const year = d.getFullYear()
+      const month = String(d.getMonth() + 1).padStart(2, '0')
+      const day = String(d.getDate()).padStart(2, '0')
+      return `${year}-${month}-${day}`
+    }
+    
+    return new Date().toISOString().split('T')[0]
+  }
+
   useEffect(() => {
     if (entry) {
+      // Format date correctly - ensure it's a string in YYYY-MM-DD format
+      const dateValue = formatDateForInput(entry.date)
+      
       setFormData({
         userId: entry.userId,
-        date: entry.date,
+        date: dateValue,
         hours: entry.hours,
         rate: entry.rate,
         description: entry.description || "",
@@ -175,21 +211,32 @@ export function TimesheetEntryForm({
       return
     }
 
-    // Only try to parse if the input looks complete (has minutes after colon or is a complete decimal)
+    // Try to parse the input - allow partial input like "1:" but try to parse when possible
     const trimmed = value.trim()
-    const hasColon = trimmed.includes(":")
     
-    // If it has a colon but no minutes yet (e.g., "1:"), don't try to parse yet
-    if (hasColon) {
+    // If it has a colon, check if we can parse it
+    if (trimmed.includes(":")) {
       const parts = trimmed.split(":")
+      // If there's a colon but no minutes yet (e.g., "1:"), don't parse yet
       if (parts.length === 2 && parts[1] === "") {
-        // User is still typing, don't parse yet
+        return
+      }
+      // If there are minutes, try to parse
+      if (parts.length === 2 && parts[1] !== "") {
+        try {
+          const parsedHours = parseHoursInput(trimmed)
+          setFormData(prev => ({ ...prev, hours: parsedHours }))
+        } catch (err: any) {
+          // Don't show error while typing - allow user to continue typing
+          setHoursError(null)
+        }
         return
       }
     }
 
+    // For decimal format, try to parse immediately
     try {
-      const parsedHours = parseHoursInput(value)
+      const parsedHours = parseHoursInput(trimmed)
       setFormData(prev => ({ ...prev, hours: parsedHours }))
     } catch (err: any) {
       // Don't show error while user is typing - only on blur or submit
@@ -212,8 +259,17 @@ export function TimesheetEntryForm({
         return
       }
       
-      // Update formData with parsed hours
-      const submitData = { ...formData, hours: parsedHours }
+      // Ensure date is in YYYY-MM-DD format (string) - date input always gives us a string
+      const dateValue = typeof formData.date === 'string' 
+        ? formData.date.split('T')[0] // Handle ISO strings if any
+        : formatDateForInput(formData.date)
+      
+      // Update formData with parsed hours and formatted date
+      const submitData = { 
+        ...formData, 
+        hours: parsedHours,
+        date: dateValue
+      }
       
       const url = entry?.id
         ? `/api/projects/${projectId}/timesheet/${entry.id}`
@@ -295,7 +351,7 @@ export function TimesheetEntryForm({
                 <Input
                   id="date"
                   type="date"
-                  value={formData.date instanceof Date ? formData.date.toISOString().split('T')[0] : formData.date}
+                  value={typeof formData.date === 'string' ? formData.date : formatDateForInput(formData.date)}
                   onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                   required
                 />

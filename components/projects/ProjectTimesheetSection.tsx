@@ -233,19 +233,17 @@ export function ProjectTimesheetSection({ projectId, initialEntries, proposal }:
                         </td>
                         <td className="p-2 text-right">
                           <div className="flex justify-end gap-2">
-                            {selectedEntries.has(entry.id) && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => { 
-                                  setEditingEntry(entry); 
-                                  setShowForm(true);
-                                  setSelectedEntries(new Set());
-                                }}
-                              >
-                                <Pencil className="h-4 w-4" />
-                              </Button>
-                            )}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => { 
+                                setEditingEntry(entry); 
+                                setShowForm(true);
+                                setSelectedEntries(new Set());
+                              }}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
                             <Button
                               variant="ghost"
                               size="sm"
