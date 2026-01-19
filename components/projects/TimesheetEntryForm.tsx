@@ -146,7 +146,29 @@ export function TimesheetEntryForm({
   useEffect(() => {
     if (entry) {
       // Format date correctly - ensure it's a string in YYYY-MM-DD format
-      const dateValue = formatDateForInput(entry.date)
+      // Handle both Date objects and string dates
+      let dateValue: string
+      if (entry.date instanceof Date) {
+        // Use local date components to avoid timezone issues
+        const year = entry.date.getFullYear()
+        const month = String(entry.date.getMonth() + 1).padStart(2, '0')
+        const day = String(entry.date.getDate()).padStart(2, '0')
+        dateValue = `${year}-${month}-${day}`
+      } else if (typeof entry.date === 'string') {
+        // If it's already YYYY-MM-DD, use it directly
+        if (/^\d{4}-\d{2}-\d{2}$/.test(entry.date)) {
+          dateValue = entry.date
+        } else {
+          // Parse ISO string and extract date part
+          const d = new Date(entry.date)
+          const year = d.getFullYear()
+          const month = String(d.getMonth() + 1).padStart(2, '0')
+          const day = String(d.getDate()).padStart(2, '0')
+          dateValue = `${year}-${month}-${day}`
+        }
+      } else {
+        dateValue = formatDateForInput(entry.date)
+      }
       
       setFormData({
         userId: entry.userId,
@@ -178,9 +200,16 @@ export function TimesheetEntryForm({
           defaultRate = user.defaultHourlyRate
         }
         
+        // Use local date components to avoid timezone issues
+        const today = new Date()
+        const year = today.getFullYear()
+        const month = String(today.getMonth() + 1).padStart(2, '0')
+        const day = String(today.getDate()).padStart(2, '0')
+        const todayString = `${year}-${month}-${day}`
+        
         setFormData({
           userId: defaultUserId,
-          date: new Date().toISOString().split("T")[0],
+          date: todayString,
           hours: 0,
           rate: defaultRate,
           description: "",
@@ -260,9 +289,28 @@ export function TimesheetEntryForm({
       }
       
       // Ensure date is in YYYY-MM-DD format (string) - date input always gives us a string
-      const dateValue = typeof formData.date === 'string' 
-        ? formData.date.split('T')[0] // Handle ISO strings if any
-        : formatDateForInput(formData.date)
+      // Date input type always returns YYYY-MM-DD format, so we can use it directly
+      let dateValue: string
+      if (typeof formData.date === 'string') {
+        // Extract just the date part (YYYY-MM-DD) if it's an ISO string
+        dateValue = formData.date.split('T')[0].split(' ')[0]
+        // Ensure it's in the correct format
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
+          // If somehow it's not in the right format, parse it
+          const d = new Date(formData.date)
+          const year = d.getFullYear()
+          const month = String(d.getMonth() + 1).padStart(2, '0')
+          const day = String(d.getDate()).padStart(2, '0')
+          dateValue = `${year}-${month}-${day}`
+        }
+      } else {
+        // If it's a Date object, format it using local components
+        const d = formData.date instanceof Date ? formData.date : new Date(formData.date)
+        const year = d.getFullYear()
+        const month = String(d.getMonth() + 1).padStart(2, '0')
+        const day = String(d.getDate()).padStart(2, '0')
+        dateValue = `${year}-${month}-${day}`
+      }
       
       // Update formData with parsed hours and formatted date
       const submitData = { 

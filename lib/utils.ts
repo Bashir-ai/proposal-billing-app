@@ -30,11 +30,12 @@ export function parseLocalDate(dateString: string): Date {
 }
 
 /**
- * Parse hours input that can be in decimal format (1.5) or hours:minutes format (1:30)
+ * Parse hours input that can be in decimal format (1.5 or 1,5) or hours:minutes format (1:30)
  * Examples:
  * - "1:30" -> 1.5
  * - "2:15" -> 2.25
  * - "1.5" -> 1.5
+ * - "1,5" -> 1.5 (European decimal format)
  * - "2" -> 2
  * @param input - String input that can be decimal or H:MM format
  * @returns Number of hours as decimal
@@ -63,10 +64,12 @@ export function parseHoursInput(input: string): number {
     }
   }
 
-  // Otherwise, treat as decimal format
-  const decimal = parseFloat(trimmed)
+  // Handle decimal format - support both period (1.5) and comma (1,5) as decimal separators
+  // Replace comma with period for parsing
+  const normalizedInput = trimmed.replace(',', '.')
+  const decimal = parseFloat(normalizedInput)
   if (isNaN(decimal)) {
-    throw new Error("Invalid hours format. Use decimal (1.5) or hours:minutes (1:30)")
+    throw new Error("Invalid hours format. Use decimal (1.5 or 1,5) or hours:minutes (1:30)")
   }
 
   return decimal
