@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { X } from "lucide-react"
+import { parseHoursInput } from "@/lib/utils"
 
 interface User {
   id: string
@@ -64,6 +65,8 @@ export function TimesheetEntryForm({
     description: entry?.description || "",
     billable: entry?.billable ?? true,
   })
+  const [hoursInput, setHoursInput] = useState<string>(entry?.hours?.toString() || "0")
+  const [hoursError, setHoursError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -117,6 +120,7 @@ export function TimesheetEntryForm({
         description: entry.description || "",
         billable: entry.billable,
       })
+      setHoursInput(entry.hours.toString())
     } else {
       const defaultUserId = usersWithRates[0]?.id || ""
       if (defaultUserId) {
@@ -146,6 +150,7 @@ export function TimesheetEntryForm({
           description: "",
           billable: true,
         })
+        setHoursInput("0")
       }
     }
   }, [entry, usersWithRates, proposal])
@@ -160,12 +165,42 @@ export function TimesheetEntryForm({
     }))
   }
 
+  const handleHoursInputChange = (value: string) => {
+    setHoursInput(value)
+    setHoursError(null)
+    
+    if (!value || value.trim() === "") {
+      setFormData(prev => ({ ...prev, hours: 0 }))
+      return
+    }
+
+    try {
+      const parsedHours = parseHoursInput(value)
+      setFormData(prev => ({ ...prev, hours: parsedHours }))
+    } catch (err: any) {
+      setHoursError(err.message)
+      // Still allow typing, but don't update formData
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError(null)
+    setHoursError(null)
 
+    // Validate hours input before submitting
     try {
+      const parsedHours = parseHoursInput(hoursInput)
+      if (parsedHours <= 0) {
+        setHoursError("Hours must be greater than 0")
+        setLoading(false)
+        return
+      }
+      
+      // Update formData with parsed hours
+      const submitData = { ...formData, hours: parsedHours }
+      
       const url = entry?.id
         ? `/api/projects/${projectId}/timesheet/${entry.id}`
         : `/api/projects/${projectId}/timesheet`
@@ -175,7 +210,7 @@ export function TimesheetEntryForm({
       const response = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(submitData),
       })
 
       if (!response.ok) {
@@ -186,7 +221,11 @@ export function TimesheetEntryForm({
       onSuccess()
       onClose()
     } catch (err: any) {
-      setError(err.message || "An error occurred. Please try again.")
+      if (err.message.includes("Invalid hours format") || err.message.includes("Minutes must be")) {
+        setHoursError(err.message)
+      } else {
+        setError(err.message || "An error occurred. Please try again.")
+      }
     } finally {
       setLoading(false)
     }
@@ -252,13 +291,24 @@ export function TimesheetEntryForm({
                 <Label htmlFor="hours">Hours *</Label>
                 <Input
                   id="hours"
-                  type="number"
-                  step="0.25"
-                  min="0"
-                  value={formData.hours}
-                  onChange={(e) => setFormData({ ...formData, hours: parseFloat(e.target.value) || 0 })}
+                  type="text"
+                  placeholder="1.5 or 1:30"
+                  value={hoursInput}
+                  onChange={(e) => handleHoursInputChange(e.target.value)}
                   required
                 />
+                {hoursError && (
+                  <p className="text-sm text-red-600">{hoursError}</p>
+                )}
+                {!hoursError && hoursInput && formData.hours > 0 && (
+                  <p className="text-sm text-gray-500">
+                    {hoursInput.includes(":") 
+                      ? `${formData.hours.toFixed(2)} hours` 
+                      : formData.hours !== parseFloat(hoursInput) 
+                        ? `${formData.hours.toFixed(2)} hours (${Math.floor(formData.hours)}:${Math.round((formData.hours % 1) * 60).toString().padStart(2, "0")})`
+                        : ""}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">

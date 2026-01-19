@@ -1,6 +1,8 @@
 "use client"
 
+import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { InteractionType } from "@prisma/client"
 // Format date helper
 const formatDate = (dateString: string) => {
@@ -13,7 +15,8 @@ const formatDate = (dateString: string) => {
     minute: "2-digit",
   })
 }
-import { Mail, MapPin, Users, FileText, ClipboardList, Phone, MoreHorizontal } from "lucide-react"
+import { Mail, MapPin, Users, FileText, ClipboardList, Phone, MoreHorizontal, Pencil } from "lucide-react"
+import { EditInteractionForm } from "./EditInteractionForm"
 
 interface LeadInteraction {
   id: string
@@ -30,6 +33,9 @@ interface LeadInteraction {
 
 interface LeadInteractionTimelineProps {
   interactions: LeadInteraction[]
+  currentUserId: string
+  leadId: string
+  onInteractionUpdated: () => void
 }
 
 const getInteractionIcon = (type: InteractionType) => {
@@ -55,7 +61,9 @@ const getInteractionLabel = (type: InteractionType) => {
   return type.replace("_", " ")
 }
 
-export function LeadInteractionTimeline({ interactions }: LeadInteractionTimelineProps) {
+export function LeadInteractionTimeline({ interactions, currentUserId, leadId, onInteractionUpdated }: LeadInteractionTimelineProps) {
+  const [editingInteractionId, setEditingInteractionId] = useState<string | null>(null)
+
   if (interactions.length === 0) {
     return (
       <Card>
@@ -76,33 +84,63 @@ export function LeadInteractionTimeline({ interactions }: LeadInteractionTimelin
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          {interactions.map((interaction) => (
-            <div
-              key={interaction.id}
-              className="flex items-start space-x-4 pb-4 border-b last:border-b-0 last:pb-0"
-            >
-              <div className="flex-shrink-0 mt-1">
-                <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
-                  {getInteractionIcon(interaction.interactionType)}
-                </div>
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium text-sm">
-                      {getInteractionLabel(interaction.interactionType)}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      by {interaction.creator.name} on {formatDate(interaction.date)}
-                    </p>
+          {interactions.map((interaction) => {
+            const isOwnInteraction = interaction.creator.id === currentUserId
+            const isEditing = editingInteractionId === interaction.id
+
+            if (isEditing) {
+              return (
+                <EditInteractionForm
+                  key={interaction.id}
+                  leadId={leadId}
+                  interaction={interaction}
+                  onSuccess={() => {
+                    setEditingInteractionId(null)
+                    onInteractionUpdated()
+                  }}
+                  onCancel={() => setEditingInteractionId(null)}
+                />
+              )
+            }
+
+            return (
+              <div
+                key={interaction.id}
+                className="flex items-start space-x-4 pb-4 border-b last:border-b-0 last:pb-0"
+              >
+                <div className="flex-shrink-0 mt-1">
+                  <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
+                    {getInteractionIcon(interaction.interactionType)}
                   </div>
                 </div>
-                {interaction.notes && (
-                  <p className="text-sm text-gray-700 mt-2">{interaction.notes}</p>
-                )}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-sm">
+                        {getInteractionLabel(interaction.interactionType)}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        by {interaction.creator.name} on {formatDate(interaction.date)}
+                      </p>
+                    </div>
+                    {isOwnInteraction && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setEditingInteractionId(interaction.id)}
+                        className="h-8 w-8 p-0"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                  {interaction.notes && (
+                    <p className="text-sm text-gray-700 mt-2">{interaction.notes}</p>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </CardContent>
     </Card>

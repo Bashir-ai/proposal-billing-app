@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import { InteractionType } from "@prisma/client"
+import { parseLocalDate } from "@/lib/utils"
 
 const interactionUpdateSchema = z.object({
   interactionType: z.nativeEnum(InteractionType).optional(),
@@ -42,6 +43,14 @@ export async function PUT(
       )
     }
 
+    // Check if user is the creator of this interaction (allow admins/managers to edit any)
+    if (interaction.createdBy !== session.user.id && session.user.role !== "ADMIN" && session.user.role !== "MANAGER") {
+      return NextResponse.json(
+        { error: "You can only edit your own interactions" },
+        { status: 403 }
+      )
+    }
+
     const body = await request.json()
     const validatedData = interactionUpdateSchema.parse(body)
 
@@ -55,8 +64,7 @@ export async function PUT(
     if (validatedData.date !== undefined) {
       // Parse date in local timezone to preserve the date as entered
       if (validatedData.date) {
-        const [year, month, day] = validatedData.date.split('-').map(Number)
-        updateData.date = new Date(year, month - 1, day)
+        updateData.date = parseLocalDate(validatedData.date)
       } else {
         updateData.date = new Date()
       }
@@ -120,6 +128,14 @@ export async function DELETE(
       return NextResponse.json(
         { error: "Interaction not found" },
         { status: 404 }
+      )
+    }
+
+    // Check if user is the creator of this interaction (allow admins/managers to delete any)
+    if (interaction.createdBy !== session.user.id && session.user.role !== "ADMIN" && session.user.role !== "MANAGER") {
+      return NextResponse.json(
+        { error: "You can only delete your own interactions" },
+        { status: 403 }
       )
     }
 

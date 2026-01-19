@@ -167,6 +167,9 @@ export function LeadDetailClient({ lead, session }: LeadDetailClientProps) {
           <LeadInteractionTimeline
             key={refreshKey}
             interactions={lead.interactions}
+            currentUserId={session.user.id}
+            leadId={lead.id}
+            onInteractionUpdated={handleInteractionCreated}
           />
 
           {/* Related Todos */}

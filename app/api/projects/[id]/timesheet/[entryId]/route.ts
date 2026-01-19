@@ -11,7 +11,7 @@ const timesheetEntryUpdateSchema = z.object({
   date: z.string().optional(),
   hours: z.number().min(0).optional(),
   rate: z.number().min(0).optional().nullable(),
-  description: z.string().optional(),
+  description: z.string().optional().or(z.literal("")).nullable(),
   billable: z.boolean().optional(),
   billed: z.boolean().optional(),
 })
