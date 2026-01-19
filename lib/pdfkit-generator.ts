@@ -37,6 +37,16 @@ function formatDate(date: Date | string | null): string {
   })
 }
 
+// Helper function to convert hex color to RGB (0-1 range for PDFKit)
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
+  return result ? {
+    r: parseInt(result[1], 16) / 255,
+    g: parseInt(result[2], 16) / 255,
+    b: parseInt(result[3], 16) / 255
+  } : { r: 0, g: 0, b: 0 }
+}
+
 // Helper function to add logo
 function addLogo(doc: PDFDoc, logoBase64: string | null, y: number): number {
   if (!logoBase64) return y
@@ -78,21 +88,23 @@ function drawTableRow(
   columns.forEach((col, index) => {
     // Draw cell background for header
     if (isHeader) {
+      const bgColor = hexToRgb('#f3f4f6')
       doc.rect(x, y, col.width, rowHeight)
-        .fillColor('#f3f4f6')
+        .fillColor(bgColor.r, bgColor.g, bgColor.b)
         .fill()
-        .fillColor('#000000')
     }
     
     // Draw border
+    const borderColor = hexToRgb('#e5e7eb')
     doc.rect(x, y, col.width, rowHeight)
-      .strokeColor('#e5e7eb')
+      .strokeColor(borderColor.r, borderColor.g, borderColor.b)
       .lineWidth(0.5)
       .stroke()
     
     // Add text
+    const textColor = hexToRgb(isHeader ? '#374151' : '#111827')
     doc.fontSize(isHeader ? 10 : 9)
-      .fillColor(isHeader ? '#374151' : '#111827')
+      .fillColor(textColor.r, textColor.g, textColor.b)
       .text(col.text, x + 5, y + (rowHeight / 2) - 5, {
         width: col.width - 10,
         align: col.align || 'left',
@@ -183,58 +195,62 @@ export async function generateProposalPdf(proposal: any, logoBase64: string | nu
       doc.moveDown(0.5)
       
       // Header
+      const titleColor = hexToRgb('#111827')
       doc.fontSize(24)
-        .fillColor('#111827')
+        .fillColor(titleColor.r, titleColor.g, titleColor.b)
         .text(proposal.title, MARGIN, y)
       
       y = doc.y + 10
       
       if (proposal.proposalNumber) {
+        const subtitleColor = hexToRgb('#6b7280')
         doc.fontSize(14)
-          .fillColor('#6b7280')
+          .fillColor(subtitleColor.r, subtitleColor.g, subtitleColor.b)
           .text(`Proposal #${proposal.proposalNumber}`, MARGIN, y)
         y = doc.y + 20
       }
       
       // Draw header border
+      const borderColor = hexToRgb('#2563eb')
       doc.moveTo(MARGIN, y)
         .lineTo(PAGE_WIDTH - MARGIN, y)
-        .strokeColor('#2563eb')
+        .strokeColor(borderColor.r, borderColor.g, borderColor.b)
         .lineWidth(2)
         .stroke()
       
       y += 20
       
       // Details section
+      const labelColor = hexToRgb('#374151')
+      const textColor = hexToRgb('#111827')
       doc.fontSize(10)
-        
-        .fillColor('#374151')
+        .fillColor(labelColor.r, labelColor.g, labelColor.b)
       
       if (recipient) {
         doc.text(`${proposal.client ? "Client" : "Lead"}:`, MARGIN, y)
-          .fillColor('#111827')
+          .fillColor(textColor.r, textColor.g, textColor.b)
           .text(`${recipient.name}${recipient.company ? ` (${recipient.company})` : ""}`, MARGIN + 80, y)
         y = doc.y + 8
       }
       
-      doc.fillColor('#374151')
+      doc.fillColor(labelColor.r, labelColor.g, labelColor.b)
         .text("Created by:", MARGIN, y)
-        .fillColor('#111827')
+        .fillColor(textColor.r, textColor.g, textColor.b)
         .text(proposal.creator.name, MARGIN + 80, y)
       y = doc.y + 8
       
       if (proposal.issueDate) {
-        doc.fillColor('#374151')
+        doc.fillColor(labelColor.r, labelColor.g, labelColor.b)
           .text("Issue Date:", MARGIN, y)
-          .fillColor('#111827')
+          .fillColor(textColor.r, textColor.g, textColor.b)
           .text(formatDate(proposal.issueDate), MARGIN + 80, y)
         y = doc.y + 8
       }
       
       if (proposal.expiryDate) {
-        doc.fillColor('#374151')
+        doc.fillColor(labelColor.r, labelColor.g, labelColor.b)
           .text("Expiry Date:", MARGIN, y)
-          .fillColor('#111827')
+          .fillColor(textColor.r, textColor.g, textColor.b)
           .text(formatDate(proposal.expiryDate), MARGIN + 80, y)
         y = doc.y + 20
       }
@@ -243,14 +259,14 @@ export async function generateProposalPdf(proposal: any, logoBase64: string | nu
       if (proposal.description) {
         checkPageBreak(doc, 50)
         doc.fontSize(12)
-          .fillColor('#374151')
+          .fillColor(labelColor.r, labelColor.g, labelColor.b)
           .text("Description", MARGIN, doc.y)
         
         y = doc.y + 10
         
         const descLines = wrapText(proposal.description, CONTENT_WIDTH, doc)
         doc.fontSize(10)
-          .fillColor('#111827')
+          .fillColor(textColor.r, textColor.g, textColor.b)
         
         descLines.forEach(line => {
           checkPageBreak(doc, 15)
@@ -265,13 +281,16 @@ export async function generateProposalPdf(proposal: any, logoBase64: string | nu
       const hasEstimated = proposal.items?.some((item: any) => item.isEstimate === true || item.isEstimated === true)
       if (hasEstimated) {
         checkPageBreak(doc, 60)
+        const warningBgColor = hexToRgb('#fef3c7')
+        const warningBorderColor = hexToRgb('#fbbf24')
+        const warningTextColor = hexToRgb('#92400e')
         doc.rect(MARGIN, doc.y, CONTENT_WIDTH, 50)
-          .fillColor('#fef3c7')
+          .fillColor(warningBgColor.r, warningBgColor.g, warningBgColor.b)
           .fill()
-          .strokeColor('#fbbf24')
+          .strokeColor(warningBorderColor.r, warningBorderColor.g, warningBorderColor.b)
           .lineWidth(2)
           .stroke()
-          .fillColor('#92400e')
+          .fillColor(warningTextColor.r, warningTextColor.g, warningTextColor.b)
           .fontSize(12)
           .text("⚠️ Proposed fees are estimated", MARGIN + 10, doc.y + 10)
         
@@ -286,7 +305,7 @@ export async function generateProposalPdf(proposal: any, logoBase64: string | nu
       if (servicesItems.length > 0) {
         checkPageBreak(doc, 100)
         doc.fontSize(14)
-          .fillColor('#111827')
+          .fillColor(textColor.r, textColor.g, textColor.b)
           .text("Services", MARGIN, doc.y + 10)
         
         y = doc.y + 15
@@ -340,8 +359,7 @@ export async function generateProposalPdf(proposal: any, logoBase64: string | nu
       if (expensesItems.length > 0) {
         checkPageBreak(doc, 100)
         doc.fontSize(14)
-          
-          .fillColor('#111827')
+          .fillColor(textColor.r, textColor.g, textColor.b)
           .text("Expenses", MARGIN, doc.y + 10)
         
         y = doc.y + 15
@@ -418,7 +436,7 @@ export async function generateProposalPdf(proposal: any, logoBase64: string | nu
         
         if (servicesSubtotal > 0) {
           doc.fontSize(10)
-            .fillColor('#111827')
+            .fillColor(textColor.r, textColor.g, textColor.b)
             .text("Services Subtotal:", PAGE_WIDTH - MARGIN - 150, totalsY, { align: 'right', width: 150 })
             .text(formatCurrency(servicesSubtotal, proposal.currency), PAGE_WIDTH - MARGIN, totalsY, { align: 'right' })
           y = doc.y + 8
@@ -431,10 +449,11 @@ export async function generateProposalPdf(proposal: any, logoBase64: string | nu
         }
         
         if (clientDiscount > 0) {
-          doc.fillColor('#059669')
+          const discountColor = hexToRgb('#059669')
+          doc.fillColor(discountColor.r, discountColor.g, discountColor.b)
             .text("Client Discount (on services):", PAGE_WIDTH - MARGIN - 150, y, { align: 'right', width: 150 })
             .text(`-${formatCurrency(clientDiscount, proposal.currency)}`, PAGE_WIDTH - MARGIN, y, { align: 'right' })
-            .fillColor('#111827')
+            .fillColor(textColor.r, textColor.g, textColor.b)
           y = doc.y + 8
         }
         
@@ -445,22 +464,22 @@ export async function generateProposalPdf(proposal: any, logoBase64: string | nu
         }
         
         // Grand total
+        const blackColor = hexToRgb('#000000')
         doc.moveTo(PAGE_WIDTH - MARGIN - 150, y)
           .lineTo(PAGE_WIDTH - MARGIN, y)
-          .strokeColor('#000000')
+          .strokeColor(blackColor.r, blackColor.g, blackColor.b)
           .lineWidth(1)
           .stroke()
         
         y += 10
         
         doc.fontSize(14)
-          
           .text("Grand Total:", PAGE_WIDTH - MARGIN - 150, y, { align: 'right', width: 150 })
           .text(formatCurrency(grandTotal, proposal.currency), PAGE_WIDTH - MARGIN, y, { align: 'right' })
       } else if (proposal.amount) {
         checkPageBreak(doc, 30)
         doc.fontSize(14)
-          .fillColor('#111827')
+          .fillColor(textColor.r, textColor.g, textColor.b)
           .text(`Total: ${formatCurrency(proposal.amount, proposal.currency)}`, PAGE_WIDTH - MARGIN, doc.y + 10, { align: 'right' })
       }
       
@@ -470,25 +489,25 @@ export async function generateProposalPdf(proposal: any, logoBase64: string | nu
         const paymentTerm = proposal.paymentTerms[0]
         y = doc.y + 20
         
+        const paymentBgColor = hexToRgb('#f9fafb')
+        const paymentBorderColor = hexToRgb('#e5e7eb')
         doc.rect(MARGIN, y, CONTENT_WIDTH, 80)
-          .fillColor('#f9fafb')
+          .fillColor(paymentBgColor.r, paymentBgColor.g, paymentBgColor.b)
           .fill()
-          .strokeColor('#e5e7eb')
+          .strokeColor(paymentBorderColor.r, paymentBorderColor.g, paymentBorderColor.b)
           .lineWidth(1)
           .stroke()
         
         y += 10
         
         doc.fontSize(12)
-          
-          .fillColor('#374151')
+          .fillColor(labelColor.r, labelColor.g, labelColor.b)
           .text("Payment Terms", MARGIN + 10, y)
         
         y = doc.y + 15
         
         doc.fontSize(10)
-          
-          .fillColor('#111827')
+          .fillColor(textColor.r, textColor.g, textColor.b)
         
         const { upfrontType, upfrontValue, balancePaymentType, balanceDueDate, installmentType, installmentCount, installmentFrequency, recurringEnabled, recurringFrequency, recurringCustomMonths, recurringStartDate } = paymentTerm
         
@@ -548,15 +567,16 @@ export async function generateProposalPdf(proposal: any, logoBase64: string | nu
       
       // Footer
       checkPageBreak(doc, 30)
+      const proposalFooterBorder = hexToRgb('#e5e7eb')
+      const proposalFooterText = hexToRgb('#6b7280')
       doc.moveTo(MARGIN, PAGE_HEIGHT - MARGIN - 20)
         .lineTo(PAGE_WIDTH - MARGIN, PAGE_HEIGHT - MARGIN - 20)
-        .strokeColor('#e5e7eb')
+        .strokeColor(proposalFooterBorder.r, proposalFooterBorder.g, proposalFooterBorder.b)
         .lineWidth(0.5)
         .stroke()
       
       doc.fontSize(9)
-        
-        .fillColor('#6b7280')
+        .fillColor(proposalFooterText.r, proposalFooterText.g, proposalFooterText.b)
         .text(`Generated on ${formatDate(new Date())}`, MARGIN, PAGE_HEIGHT - MARGIN - 15)
       
       doc.end()
@@ -600,45 +620,48 @@ export async function generateInvoicePdf(bill: any, logoBase64: string | null): 
       doc.moveDown(0.5)
       
       // Header
+      const invoiceTitleColor = hexToRgb('#2563eb')
+      const invoiceTextColor = hexToRgb('#111827')
+      const invoiceLabelColor = hexToRgb('#374151')
       doc.fontSize(24)
-        
-        .fillColor('#2563eb')
+        .fillColor(invoiceTitleColor.r, invoiceTitleColor.g, invoiceTitleColor.b)
         .text("INVOICE", MARGIN, y)
       
       y = doc.y + 10
       
       if (bill.invoiceNumber) {
         doc.fontSize(12)
-          
-          .fillColor('#111827')
+          .fillColor(invoiceTextColor.r, invoiceTextColor.g, invoiceTextColor.b)
           .text(`Invoice Number: ${bill.invoiceNumber}`, MARGIN, y)
         y = doc.y + 10
       }
       
       // Status badge
       if (bill.status) {
-        const statusColors: Record<string, string> = {
-          DRAFT: '#f3f4f6',
-          SUBMITTED: '#dbeafe',
-          APPROVED: '#d1fae5',
-          PAID: '#d1fae5',
+        const statusColors: Record<string, { r: number; g: number; b: number }> = {
+          DRAFT: hexToRgb('#f3f4f6'),
+          SUBMITTED: hexToRgb('#dbeafe'),
+          APPROVED: hexToRgb('#d1fae5'),
+          PAID: hexToRgb('#d1fae5'),
         }
-        const statusTextColors: Record<string, string> = {
-          DRAFT: '#374151',
-          SUBMITTED: '#1e40af',
-          APPROVED: '#065f46',
-          PAID: '#065f46',
+        const statusTextColors: Record<string, { r: number; g: number; b: number }> = {
+          DRAFT: hexToRgb('#374151'),
+          SUBMITTED: hexToRgb('#1e40af'),
+          APPROVED: hexToRgb('#065f46'),
+          PAID: hexToRgb('#065f46'),
         }
         
+        const statusBg = statusColors[bill.status] || hexToRgb('#f3f4f6')
+        const statusText = statusTextColors[bill.status] || hexToRgb('#374151')
+        const statusBorder = hexToRgb('#e5e7eb')
         doc.rect(MARGIN, y, 80, 20)
-          .fillColor(statusColors[bill.status] || '#f3f4f6')
+          .fillColor(statusBg.r, statusBg.g, statusBg.b)
           .fill()
-          .strokeColor('#e5e7eb')
+          .strokeColor(statusBorder.r, statusBorder.g, statusBorder.b)
           .lineWidth(0.5)
           .stroke()
           .fontSize(9)
-          
-          .fillColor(statusTextColors[bill.status] || '#374151')
+          .fillColor(statusText.r, statusText.g, statusText.b)
           .text(bill.status, MARGIN + 5, y + 5)
         
         y = doc.y + 10
@@ -646,22 +669,22 @@ export async function generateInvoicePdf(bill: any, logoBase64: string | null): 
       
       // Description
       if (bill.description) {
+        const descBgColor = hexToRgb('#f9fafb')
+        const descBorderColor = hexToRgb('#2563eb')
         doc.rect(MARGIN, y, CONTENT_WIDTH, 60)
-          .fillColor('#f9fafb')
+          .fillColor(descBgColor.r, descBgColor.g, descBgColor.b)
           .fill()
-          .strokeColor('#2563eb')
+          .strokeColor(descBorderColor.r, descBorderColor.g, descBorderColor.b)
           .lineWidth(2)
           .stroke()
         
         doc.fontSize(12)
-          
-          .fillColor('#111827')
+          .fillColor(invoiceTextColor.r, invoiceTextColor.g, invoiceTextColor.b)
           .text("Invoice Description", MARGIN + 10, y + 10)
         
         const descLines = wrapText(bill.description, CONTENT_WIDTH - 20, doc)
         doc.fontSize(10)
-          
-          .fillColor('#374151')
+          .fillColor(invoiceLabelColor.r, invoiceLabelColor.g, invoiceLabelColor.b)
         
         let descY = y + 25
         descLines.forEach(line => {
@@ -675,7 +698,7 @@ export async function generateInvoicePdf(bill: any, logoBase64: string | null): 
       // Draw header border
       doc.moveTo(MARGIN, y)
         .lineTo(PAGE_WIDTH - MARGIN, y)
-        .strokeColor('#2563eb')
+        .strokeColor(invoiceTitleColor.r, invoiceTitleColor.g, invoiceTitleColor.b)
         .lineWidth(2)
         .stroke()
       
@@ -683,40 +706,38 @@ export async function generateInvoicePdf(bill: any, logoBase64: string | null): 
       
       // Invoice Information
       doc.fontSize(12)
-        
-        .fillColor('#111827')
+        .fillColor(invoiceTextColor.r, invoiceTextColor.g, invoiceTextColor.b)
         .text("Invoice Information", MARGIN, y)
       
       y = doc.y + 10
       
       doc.fontSize(10)
-        
-        .fillColor('#374151')
+        .fillColor(invoiceLabelColor.r, invoiceLabelColor.g, invoiceLabelColor.b)
         .text("Invoice Date:", MARGIN, y)
-        .fillColor('#111827')
+        .fillColor(invoiceTextColor.r, invoiceTextColor.g, invoiceTextColor.b)
         .text(formatDate(bill.createdAt), MARGIN + 100, y)
       y = doc.y + 8
       
       if (bill.dueDate) {
-        doc.fillColor('#374151')
+        doc.fillColor(invoiceLabelColor.r, invoiceLabelColor.g, invoiceLabelColor.b)
           .text("Due Date:", MARGIN, y)
-          .fillColor('#111827')
+          .fillColor(invoiceTextColor.r, invoiceTextColor.g, invoiceTextColor.b)
           .text(formatDate(bill.dueDate), MARGIN + 100, y)
         y = doc.y + 8
       }
       
       if (bill.paidAt) {
-        doc.fillColor('#374151')
+        doc.fillColor(invoiceLabelColor.r, invoiceLabelColor.g, invoiceLabelColor.b)
           .text("Paid Date:", MARGIN, y)
-          .fillColor('#111827')
+          .fillColor(invoiceTextColor.r, invoiceTextColor.g, invoiceTextColor.b)
           .text(formatDate(bill.paidAt), MARGIN + 100, y)
         y = doc.y + 8
       }
       
       if (bill.isUpfrontPayment) {
-        doc.fillColor('#374151')
+        doc.fillColor(invoiceLabelColor.r, invoiceLabelColor.g, invoiceLabelColor.b)
           .text("Type:", MARGIN, y)
-          .fillColor('#111827')
+          .fillColor(invoiceTextColor.r, invoiceTextColor.g, invoiceTextColor.b)
           .text("Upfront Payment", MARGIN + 100, y)
         y = doc.y + 20
       } else {
@@ -725,48 +746,46 @@ export async function generateInvoicePdf(bill: any, logoBase64: string | null): 
       
       // Bill To section
       doc.fontSize(12)
-        
-        .fillColor('#111827')
+        .fillColor(invoiceTextColor.r, invoiceTextColor.g, invoiceTextColor.b)
         .text("Bill To", MARGIN, y)
       
       y = doc.y + 10
       
       doc.fontSize(10)
-        
-        .fillColor('#374151')
+        .fillColor(invoiceLabelColor.r, invoiceLabelColor.g, invoiceLabelColor.b)
         .text("Client Name:", MARGIN, y)
-        .fillColor('#111827')
+        .fillColor(invoiceTextColor.r, invoiceTextColor.g, invoiceTextColor.b)
         .text(bill.client.name, MARGIN + 100, y)
       y = doc.y + 8
       
       if (bill.client.company) {
-        doc.fillColor('#374151')
+        doc.fillColor(invoiceLabelColor.r, invoiceLabelColor.g, invoiceLabelColor.b)
           .text("Company:", MARGIN, y)
-          .fillColor('#111827')
+          .fillColor(invoiceTextColor.r, invoiceTextColor.g, invoiceTextColor.b)
           .text(bill.client.company, MARGIN + 100, y)
         y = doc.y + 8
       }
       
       if (bill.client.email) {
-        doc.fillColor('#374151')
+        doc.fillColor(invoiceLabelColor.r, invoiceLabelColor.g, invoiceLabelColor.b)
           .text("Email:", MARGIN, y)
-          .fillColor('#111827')
+          .fillColor(invoiceTextColor.r, invoiceTextColor.g, invoiceTextColor.b)
           .text(bill.client.email, MARGIN + 100, y)
         y = doc.y + 8
       }
       
       if (bill.client.phone) {
-        doc.fillColor('#374151')
+        doc.fillColor(invoiceLabelColor.r, invoiceLabelColor.g, invoiceLabelColor.b)
           .text("Phone:", MARGIN, y)
-          .fillColor('#111827')
+          .fillColor(invoiceTextColor.r, invoiceTextColor.g, invoiceTextColor.b)
           .text(bill.client.phone, MARGIN + 100, y)
         y = doc.y + 8
       }
       
       if (bill.client.address) {
-        doc.fillColor('#374151')
+        doc.fillColor(invoiceLabelColor.r, invoiceLabelColor.g, invoiceLabelColor.b)
           .text("Address:", MARGIN, y)
-          .fillColor('#111827')
+          .fillColor(invoiceTextColor.r, invoiceTextColor.g, invoiceTextColor.b)
           .text(bill.client.address, MARGIN + 100, y)
         y = doc.y + 20
       } else {
@@ -778,8 +797,7 @@ export async function generateInvoicePdf(bill: any, logoBase64: string | null): 
         checkPageBreak(doc, 150)
         
         doc.fontSize(12)
-          
-          .fillColor('#111827')
+          .fillColor(invoiceTextColor.r, invoiceTextColor.g, invoiceTextColor.b)
           .text("Line Items", MARGIN, doc.y + 10)
         
         y = doc.y + 15
@@ -856,8 +874,7 @@ export async function generateInvoicePdf(bill: any, logoBase64: string | null): 
       
       if (subtotal > 0) {
         doc.fontSize(10)
-          
-          .fillColor('#111827')
+          .fillColor(invoiceTextColor.r, invoiceTextColor.g, invoiceTextColor.b)
           .text("Subtotal:", PAGE_WIDTH - MARGIN - 150, y, { align: 'right', width: 150 })
           .text(formatCurrency(subtotal, currency), PAGE_WIDTH - MARGIN, y, { align: 'right' })
         y = doc.y + 8
@@ -876,16 +893,16 @@ export async function generateInvoicePdf(bill: any, logoBase64: string | null): 
       }
       
       // Total
+      const totalBorderColor = hexToRgb('#e5e7eb')
       doc.moveTo(PAGE_WIDTH - MARGIN - 150, y)
         .lineTo(PAGE_WIDTH - MARGIN, y)
-        .strokeColor('#e5e7eb')
+        .strokeColor(totalBorderColor.r, totalBorderColor.g, totalBorderColor.b)
         .lineWidth(1)
         .stroke()
       
       y += 10
       
       doc.fontSize(14)
-        
         .text("Total:", PAGE_WIDTH - MARGIN - 150, y, { align: 'right', width: 150 })
         .text(formatCurrency(total, currency), PAGE_WIDTH - MARGIN, y, { align: 'right' })
       
@@ -895,15 +912,13 @@ export async function generateInvoicePdf(bill: any, logoBase64: string | null): 
       if (bill.proposal) {
         checkPageBreak(doc, 50)
         doc.fontSize(12)
-          
-          .fillColor('#111827')
+          .fillColor(invoiceTextColor.r, invoiceTextColor.g, invoiceTextColor.b)
           .text("Related Proposal", MARGIN, doc.y + 10)
         
         y = doc.y + 10
         
         doc.fontSize(10)
-          
-          .fillColor('#111827')
+          .fillColor(invoiceTextColor.r, invoiceTextColor.g, invoiceTextColor.b)
           .text(bill.proposal.title, MARGIN, y)
         
         if (bill.proposal.proposalNumber) {
@@ -918,15 +933,13 @@ export async function generateInvoicePdf(bill: any, logoBase64: string | null): 
       if (bill.project) {
         checkPageBreak(doc, 50)
         doc.fontSize(12)
-          
-          .fillColor('#111827')
+          .fillColor(invoiceTextColor.r, invoiceTextColor.g, invoiceTextColor.b)
           .text("Related Project", MARGIN, doc.y + 10)
         
         y = doc.y + 10
         
         doc.fontSize(10)
-          
-          .fillColor('#111827')
+          .fillColor(invoiceTextColor.r, invoiceTextColor.g, invoiceTextColor.b)
           .text(bill.project.name, MARGIN, y)
         
         y = doc.y + 15
@@ -935,32 +948,33 @@ export async function generateInvoicePdf(bill: any, logoBase64: string | null): 
       // Payment Details
       if (bill.paymentDetails) {
         checkPageBreak(doc, 80)
+        const paymentSectionBorder = hexToRgb('#e5e7eb')
         doc.moveTo(MARGIN, doc.y + 10)
           .lineTo(PAGE_WIDTH - MARGIN, doc.y + 10)
-          .strokeColor('#e5e7eb')
+          .strokeColor(paymentSectionBorder.r, paymentSectionBorder.g, paymentSectionBorder.b)
           .lineWidth(2)
           .stroke()
         
         y = doc.y + 20
         
         doc.fontSize(12)
-          
-          .fillColor('#111827')
+          .fillColor(invoiceTextColor.r, invoiceTextColor.g, invoiceTextColor.b)
           .text("Payment Details", MARGIN, y)
         
         y = doc.y + 15
         
+        const paymentBgColor = hexToRgb('#f9fafb')
+        const paymentBorderColor = hexToRgb('#2563eb')
         doc.rect(MARGIN, y, CONTENT_WIDTH, 60)
-          .fillColor('#f9fafb')
+          .fillColor(paymentBgColor.r, paymentBgColor.g, paymentBgColor.b)
           .fill()
-          .strokeColor('#2563eb')
+          .strokeColor(paymentBorderColor.r, paymentBorderColor.g, paymentBorderColor.b)
           .lineWidth(2)
           .stroke()
         
         const paymentLines = wrapText(bill.paymentDetails.details, CONTENT_WIDTH - 20, doc)
         doc.fontSize(10)
-          
-          .fillColor('#111827')
+          .fillColor(invoiceTextColor.r, invoiceTextColor.g, invoiceTextColor.b)
         
         let paymentY = y + 10
         paymentLines.forEach(line => {
@@ -971,15 +985,16 @@ export async function generateInvoicePdf(bill: any, logoBase64: string | null): 
       
       // Footer
       checkPageBreak(doc, 30)
+      const invoiceFooterBorder = hexToRgb('#e5e7eb')
+      const invoiceFooterText = hexToRgb('#6b7280')
       doc.moveTo(MARGIN, PAGE_HEIGHT - MARGIN - 20)
         .lineTo(PAGE_WIDTH - MARGIN, PAGE_HEIGHT - MARGIN - 20)
-        .strokeColor('#e5e7eb')
+        .strokeColor(invoiceFooterBorder.r, invoiceFooterBorder.g, invoiceFooterBorder.b)
         .lineWidth(0.5)
         .stroke()
       
       doc.fontSize(9)
-        
-        .fillColor('#6b7280')
+        .fillColor(invoiceFooterText.r, invoiceFooterText.g, invoiceFooterText.b)
         .text(`Generated on ${formatDate(new Date())}`, MARGIN, PAGE_HEIGHT - MARGIN - 15)
       
       doc.end()
