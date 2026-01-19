@@ -49,6 +49,7 @@ export function ProjectTimesheetSection({ projectId, initialEntries, proposal }:
   const [showForm, setShowForm] = useState(false)
   const [editingEntry, setEditingEntry] = useState<TimesheetEntry | null>(null)
   const [loading, setLoading] = useState(false)
+  const [selectedEntries, setSelectedEntries] = useState<Set<string>>(new Set())
   const router = useRouter()
 
   useEffect(() => {
@@ -75,6 +76,42 @@ export function ProjectTimesheetSection({ projectId, initialEntries, proposal }:
         console.error("Failed to refresh timesheet entries:", err)
         setLoading(false)
       })
+  }
+
+  const handleToggleSelect = (entryId: string) => {
+    setSelectedEntries(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(entryId)) {
+        newSet.delete(entryId)
+      } else {
+        newSet.add(entryId)
+      }
+      return newSet
+    })
+  }
+
+  const handleSelectAll = () => {
+    if (selectedEntries.size === entries.length) {
+      setSelectedEntries(new Set())
+    } else {
+      setSelectedEntries(new Set(entries.map(e => e.id)))
+    }
+  }
+
+  const handleEditSelected = () => {
+    if (selectedEntries.size === 1) {
+      const entryId = Array.from(selectedEntries)[0]
+      const entry = entries.find(e => e.id === entryId)
+      if (entry) {
+        setEditingEntry(entry)
+        setShowForm(true)
+        setSelectedEntries(new Set())
+      }
+    } else if (selectedEntries.size > 1) {
+      alert("Please select only one entry to edit")
+    } else {
+      alert("Please select an entry to edit")
+    }
   }
 
   const handleDelete = async (entryId: string) => {
@@ -110,12 +147,27 @@ export function ProjectTimesheetSection({ projectId, initialEntries, proposal }:
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle>Timesheet Entries</CardTitle>
-            {users.length > 0 && (
-              <Button onClick={() => { setEditingEntry(null); setShowForm(true) }} size="sm">
-                <Plus className="h-4 w-4 mr-2" />
-                Add Entry
-              </Button>
-            )}
+            <div className="flex items-center gap-2">
+              {selectedEntries.size > 0 && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleEditSelected}
+                    disabled={selectedEntries.size !== 1}
+                  >
+                    <Pencil className="h-4 w-4 mr-2" />
+                    Edit Selected
+                  </Button>
+                </>
+              )}
+              {users.length > 0 && (
+                <Button onClick={() => { setEditingEntry(null); setShowForm(true) }} size="sm">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Entry
+                </Button>
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -129,6 +181,14 @@ export function ProjectTimesheetSection({ projectId, initialEntries, proposal }:
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b">
+                      <th className="text-left p-2 w-12">
+                        <input
+                          type="checkbox"
+                          checked={selectedEntries.size === entries.length && entries.length > 0}
+                          onChange={handleSelectAll}
+                          className="cursor-pointer"
+                        />
+                      </th>
                       <th className="text-left p-2">Date</th>
                       <th className="text-left p-2">Person</th>
                       <th className="text-right p-2">Hours</th>
@@ -143,6 +203,14 @@ export function ProjectTimesheetSection({ projectId, initialEntries, proposal }:
                   <tbody>
                     {entries.map((entry) => (
                       <tr key={entry.id} className="border-b">
+                        <td className="p-2">
+                          <input
+                            type="checkbox"
+                            checked={selectedEntries.has(entry.id)}
+                            onChange={() => handleToggleSelect(entry.id)}
+                            className="cursor-pointer"
+                          />
+                        </td>
                         <td className="p-2">{formatDate(entry.date)}</td>
                         <td className="p-2">{entry.user.name}</td>
                         <td className="p-2 text-right">{entry.hours.toFixed(2)}</td>
@@ -165,13 +233,19 @@ export function ProjectTimesheetSection({ projectId, initialEntries, proposal }:
                         </td>
                         <td className="p-2 text-right">
                           <div className="flex justify-end gap-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => { setEditingEntry(entry); setShowForm(true) }}
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
+                            {selectedEntries.has(entry.id) && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => { 
+                                  setEditingEntry(entry); 
+                                  setShowForm(true);
+                                  setSelectedEntries(new Set());
+                                }}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                            )}
                             <Button
                               variant="ghost"
                               size="sm"
@@ -186,18 +260,18 @@ export function ProjectTimesheetSection({ projectId, initialEntries, proposal }:
                   </tbody>
                   <tfoot>
                     <tr className="border-t-2 font-semibold">
-                      <td colSpan={2} className="p-2">Total</td>
+                      <td colSpan={3} className="p-2">Total</td>
                       <td className="p-2 text-right">{totalHours.toFixed(2)}</td>
                       <td className="p-2 text-right">-</td>
                       <td className="p-2 text-right">{formatCurrency(totalAmount)}</td>
-                      <td colSpan={4}></td>
+                      <td colSpan={5}></td>
                     </tr>
                     <tr className="border-t">
-                      <td colSpan={2} className="p-2 text-sm text-gray-600">Billable Total</td>
+                      <td colSpan={3} className="p-2 text-sm text-gray-600">Billable Total</td>
                       <td className="p-2 text-right text-sm text-gray-600">{billableHours.toFixed(2)}</td>
                       <td className="p-2 text-right text-sm text-gray-600">-</td>
                       <td className="p-2 text-right text-sm text-gray-600">{formatCurrency(billableAmount)}</td>
-                      <td colSpan={4}></td>
+                      <td colSpan={5}></td>
                     </tr>
                   </tfoot>
                 </table>

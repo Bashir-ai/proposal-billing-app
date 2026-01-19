@@ -68,6 +68,7 @@ export default function NewTimesheetEntryPage() {
   }, [formData.userId, users])
 
   const handleHoursInputChange = (value: string) => {
+    // Allow any input including colons - don't restrict typing
     setHoursInput(value)
     setHoursError(null)
     
@@ -75,11 +76,25 @@ export default function NewTimesheetEntryPage() {
       return
     }
 
+    // Only try to parse if the input looks complete (has minutes after colon or is a complete decimal)
+    const trimmed = value.trim()
+    const hasColon = trimmed.includes(":")
+    
+    // If it has a colon but no minutes yet (e.g., "1:"), don't try to parse yet
+    if (hasColon) {
+      const parts = trimmed.split(":")
+      if (parts.length === 2 && parts[1] === "") {
+        // User is still typing, don't parse yet
+        return
+      }
+    }
+
     try {
       const parsedHours = parseHoursInput(value)
       setFormData(prev => ({ ...prev, hours: parsedHours.toString() }))
     } catch (err: any) {
-      setHoursError(err.message)
+      // Don't show error while user is typing - only on blur or submit
+      setHoursError(null)
     }
   }
 
@@ -192,6 +207,19 @@ export default function NewTimesheetEntryPage() {
                 placeholder="1.5 or 1:30"
                 value={hoursInput}
                 onChange={(e) => handleHoursInputChange(e.target.value)}
+                onBlur={() => {
+                  // Validate on blur
+                  if (hoursInput && hoursInput.trim() !== "") {
+                    try {
+                      const parsed = parseHoursInput(hoursInput)
+                      if (parsed <= 0) {
+                        setHoursError("Hours must be greater than 0")
+                      }
+                    } catch (err: any) {
+                      setHoursError(err.message)
+                    }
+                  }
+                }}
                 required
               />
               {hoursError && (
