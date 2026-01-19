@@ -1,7 +1,7 @@
 import PDFDocument from 'pdfkit'
 import { prisma } from "@/lib/prisma"
 
-type PDFDoc = ReturnType<typeof PDFDocument>
+type PDFDoc = InstanceType<typeof PDFDocument>
 
 // Page dimensions (A4)
 const PAGE_WIDTH = 595.28 // A4 width in points
