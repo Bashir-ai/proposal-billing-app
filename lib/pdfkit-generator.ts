@@ -816,15 +816,15 @@ export async function generateInvoicePdf(bill: any, logoBase64: string | null): 
           colWidths.amount = CONTENT_WIDTH * 0.3
         }
         
-        const headerCols = [
+        const headerCols: Array<{ text: string; width: number; align?: 'left' | 'right' | 'center' }> = [
           { text: "Description", width: colWidths.desc },
           { text: "Type", width: colWidths.type },
           { text: "Person", width: colWidths.person },
         ]
         
-        if (hasQuantity) headerCols.push({ text: "Quantity", width: colWidths.qty, align: 'right' as const })
-        if (hasRate) headerCols.push({ text: "Rate/Price", width: colWidths.rate, align: 'right' as const })
-        headerCols.push({ text: "Amount", width: colWidths.amount, align: 'right' as const })
+        if (hasQuantity) headerCols.push({ text: "Quantity", width: colWidths.qty, align: 'right' })
+        if (hasRate) headerCols.push({ text: "Rate/Price", width: colWidths.rate, align: 'right' })
+        headerCols.push({ text: "Amount", width: colWidths.amount, align: 'right' })
         
         // Table header
         y = drawTableRow(doc, y, headerCols, true)
@@ -833,21 +833,21 @@ export async function generateInvoicePdf(bill: any, logoBase64: string | null): 
         bill.items.forEach((item: any) => {
           checkPageBreak(doc, 30)
           
-          const rowCols = [
+          const rowCols: Array<{ text: string; width: number; align?: 'left' | 'right' | 'center' }> = [
             { text: item.description || "-", width: colWidths.desc },
             { text: item.type || "-", width: colWidths.type },
             { text: item.person ? item.person.name : "-", width: colWidths.person },
           ]
           
-          if (hasQuantity) rowCols.push({ text: item.quantity?.toString() || "-", width: colWidths.qty, align: 'right' as const })
+          if (hasQuantity) rowCols.push({ text: item.quantity?.toString() || "-", width: colWidths.qty, align: 'right' })
           if (hasRate) {
             const rateValue = item.rate || item.unitPrice || 0
-            rowCols.push({ text: rateValue ? formatCurrency(rateValue, currency) : "-", width: colWidths.rate, align: 'right' as const })
+            rowCols.push({ text: rateValue ? formatCurrency(rateValue, currency) : "-", width: colWidths.rate, align: 'right' })
           }
           rowCols.push({ 
             text: `${item.isCredit ? '-' : ''}${formatCurrency(Math.abs(item.amount), currency)}`, 
             width: colWidths.amount, 
-            align: 'right' as const 
+            align: 'right' 
           })
           
           y = drawTableRow(doc, y, rowCols)
