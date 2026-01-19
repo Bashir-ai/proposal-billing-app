@@ -15,7 +15,7 @@ const formatDate = (dateString: string) => {
     minute: "2-digit",
   })
 }
-import { Mail, MapPin, Users, FileText, ClipboardList, Phone, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
+import { Mail, MapPin, Users, FileText, ClipboardList, Phone, MoreHorizontal, Pencil, Trash2, Lock } from "lucide-react"
 import { EditInteractionForm } from "./EditInteractionForm"
 
 interface LeadInteraction {
@@ -52,6 +52,8 @@ const getInteractionIcon = (type: InteractionType) => {
       return <ClipboardList className="h-4 w-4" />
     case "PHONE_CALL":
       return <Phone className="h-4 w-4" />
+    case "INTERNAL_COMMENT":
+      return <Lock className="h-4 w-4" />
     default:
       return <MoreHorizontal className="h-4 w-4" />
   }
@@ -103,22 +105,31 @@ export function LeadInteractionTimeline({ interactions, currentUserId, leadId, o
               )
             }
 
+            const isInternalComment = interaction.interactionType === "INTERNAL_COMMENT"
+
             return (
               <div
                 key={interaction.id}
-                className="flex items-start space-x-4 pb-4 border-b last:border-b-0 last:pb-0"
+                className={`flex items-start space-x-4 pb-4 border-b last:border-b-0 last:pb-0 ${isInternalComment ? 'bg-amber-50 p-3 rounded-lg border-amber-200' : ''}`}
               >
                 <div className="flex-shrink-0 mt-1">
-                  <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isInternalComment ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-600'}`}>
                     {getInteractionIcon(interaction.interactionType)}
                   </div>
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="font-medium text-sm">
-                        {getInteractionLabel(interaction.interactionType)}
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-sm">
+                          {getInteractionLabel(interaction.interactionType)}
+                        </p>
+                        {isInternalComment && (
+                          <span className="text-xs px-2 py-0.5 bg-amber-200 text-amber-800 rounded-full font-medium" title="Internal - Only visible to assigned users">
+                            Internal
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-gray-500">
                         by {interaction.creator.name} on {formatDate(interaction.date)}
                       </p>

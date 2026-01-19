@@ -45,8 +45,28 @@ export async function GET(
       return NextResponse.json({ error: "Lead not found" }, { status: 404 })
     }
 
+    // Check if user is assigned to this lead (lead manager, creator, admin, or manager)
+    const isAssigned = 
+      lead.leadManagerId === session.user.id || 
+      lead.createdBy === session.user.id ||
+      session.user.role === "ADMIN" ||
+      session.user.role === "MANAGER"
+
+    // Build where clause: show all interactions except INTERNAL_COMMENT if not assigned
+    // But always show INTERNAL_COMMENT if the user created it
+    const whereClause: any = { leadId: id }
+    if (!isAssigned) {
+      whereClause.OR = [
+        { interactionType: { not: "INTERNAL_COMMENT" } },
+        { 
+          interactionType: "INTERNAL_COMMENT",
+          createdBy: session.user.id
+        }
+      ]
+    }
+
     const interactions = await prisma.leadInteraction.findMany({
-      where: { leadId: id },
+      where: whereClause,
       orderBy: { date: "desc" },
       include: {
         creator: {

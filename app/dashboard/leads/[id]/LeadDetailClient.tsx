@@ -158,6 +158,12 @@ export function LeadDetailClient({ lead, session }: LeadDetailClientProps) {
                     label="Questionnaire Sent"
                     onInteractionCreated={handleInteractionCreated}
                   />
+                  <QuickInteractionButton
+                    leadId={lead.id}
+                    interactionType={InteractionType.INTERNAL_COMMENT}
+                    label="Internal Comment"
+                    onInteractionCreated={handleInteractionCreated}
+                  />
                 </div>
               </CardContent>
             </Card>

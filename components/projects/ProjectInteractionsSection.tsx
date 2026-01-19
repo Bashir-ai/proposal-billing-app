@@ -97,6 +97,12 @@ export function ProjectInteractionsSection({ projectId, initialInteractions = []
               label="Email Sent"
               onInteractionCreated={handleInteractionCreated}
             />
+            <QuickProjectInteractionButton
+              projectId={projectId}
+              interactionType="INTERNAL_COMMENT"
+              label="Internal Comment"
+              onInteractionCreated={handleInteractionCreated}
+            />
           </div>
         </CardContent>
       </Card>

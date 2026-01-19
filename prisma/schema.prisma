@@ -168,6 +168,7 @@ enum InteractionType {
   QUESTIONNAIRE_SENT
   PHONE_CALL
   OTHER
+  INTERNAL_COMMENT
 }
 
 enum CompensationType {

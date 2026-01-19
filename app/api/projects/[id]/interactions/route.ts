@@ -34,14 +34,40 @@ export async function GET(
         id,
         deletedAt: null,
       },
+      include: {
+        projectManagers: {
+          select: {
+            userId: true,
+          },
+        },
+      },
     })
 
     if (!project) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 })
     }
 
+    // Check if user is assigned to this project (project manager, admin, or manager)
+    const isAssigned = 
+      project.projectManagers.some(pm => pm.userId === session.user.id) ||
+      session.user.role === "ADMIN" ||
+      session.user.role === "MANAGER"
+
+    // Build where clause: show all interactions except INTERNAL_COMMENT if not assigned
+    // But always show INTERNAL_COMMENT if the user created it
+    const whereClause: any = { projectId: id }
+    if (!isAssigned) {
+      whereClause.OR = [
+        { interactionType: { not: "INTERNAL_COMMENT" } },
+        { 
+          interactionType: "INTERNAL_COMMENT",
+          createdBy: session.user.id
+        }
+      ]
+    }
+
     const interactions = await prisma.projectInteraction.findMany({
-      where: { projectId: id },
+      where: whereClause,
       orderBy: { date: "desc" },
       include: {
         creator: {
