@@ -20,6 +20,15 @@ export function formatDate(date: Date | string): string {
   }).format(new Date(date))
 }
 
+/**
+ * Parse a date string (YYYY-MM-DD) in local timezone to prevent timezone conversion issues
+ * This ensures dates are stored as the exact date selected, not shifted by timezone
+ */
+export function parseLocalDate(dateString: string): Date {
+  const [year, month, day] = dateString.split('-').map(Number)
+  return new Date(year, month - 1, day)
+}
+
 
 
 

@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import { isDatabaseConnectionError, getDatabaseErrorMessage } from "@/lib/database-error-handler"
+import { parseLocalDate } from "@/lib/utils"
 
 const expenseUpdateSchema = z.object({
   description: z.string().min(1).optional(),
@@ -57,7 +58,7 @@ export async function PUT(
       updateData.currency = validatedData.currency
     }
     if (validatedData.expenseDate !== undefined) {
-      updateData.expenseDate = new Date(validatedData.expenseDate)
+      updateData.expenseDate = parseLocalDate(validatedData.expenseDate)
     }
     if (validatedData.category !== undefined) {
       updateData.category = validatedData.category

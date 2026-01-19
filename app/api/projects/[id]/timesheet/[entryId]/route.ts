@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
+import { parseLocalDate } from "@/lib/utils"
 
 const timesheetEntryUpdateSchema = z.object({
   userId: z.string().optional(),
@@ -85,7 +86,7 @@ export async function PUT(
       updateData.userId = validatedData.userId
     }
     if (validatedData.date !== undefined) {
-      updateData.date = new Date(validatedData.date)
+      updateData.date = parseLocalDate(validatedData.date)
     }
     if (validatedData.hours !== undefined) {
       updateData.hours = validatedData.hours

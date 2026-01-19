@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import { TodoStatus, TodoPriority } from "@prisma/client"
 import { createTodoNotification } from "@/lib/notifications"
+import { parseLocalDate } from "@/lib/utils"
 
 const todoSchema = z.object({
   title: z.string().min(1, "Title is required"),
@@ -456,9 +457,9 @@ export async function POST(request: Request) {
         createdBy: session.user.id,
         priority: validatedData.priority,
         isPersonal: validatedData.isPersonal || false,
-        startDate: validatedData.startDate ? new Date(validatedData.startDate) : null,
-        estimatedEndDate: validatedData.estimatedEndDate ? new Date(validatedData.estimatedEndDate) : null,
-        dueDate: validatedData.dueDate ? new Date(validatedData.dueDate) : null,
+        startDate: validatedData.startDate ? parseLocalDate(validatedData.startDate) : null,
+        estimatedEndDate: validatedData.estimatedEndDate ? parseLocalDate(validatedData.estimatedEndDate) : null,
+        dueDate: validatedData.dueDate ? parseLocalDate(validatedData.dueDate) : null,
       },
       include: {
         project: true,

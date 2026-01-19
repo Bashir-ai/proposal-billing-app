@@ -9,6 +9,7 @@ import { ProjectStatus } from "@prisma/client"
 import Link from "next/link"
 import { Plus } from "lucide-react"
 import { CompensationEligibilityManager } from "@/components/accounts/CompensationEligibilityManager"
+import { ProjectInteractionsSection } from "@/components/projects/ProjectInteractionsSection"
 
 // Force dynamic rendering to ensure fresh data on each request
 export const dynamic = 'force-dynamic'
@@ -95,6 +96,18 @@ export default async function ProjectDetailPage({
           },
         },
         orderBy: { expenseDate: "desc" },
+      },
+      interactions: {
+        include: {
+          creator: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
+        orderBy: { date: "desc" },
       },
     },
   })
@@ -241,6 +254,24 @@ export default async function ProjectDetailPage({
           </CardContent>
         </Card>
       )}
+
+      {/* Project Interactions Section */}
+      <ProjectInteractionsSection 
+        projectId={id} 
+        initialInteractions={project.interactions.map(interaction => ({
+          id: interaction.id,
+          interactionType: interaction.interactionType,
+          title: interaction.title,
+          notes: interaction.notes,
+          date: interaction.date.toISOString(),
+          createdAt: interaction.createdAt.toISOString(),
+          creator: {
+            id: interaction.creator.id,
+            name: interaction.creator.name,
+            email: interaction.creator.email,
+          },
+        }))}
+      />
 
       {/* Upfront Payment Section */}
       {upfrontPaymentTerm && upfrontAmount > 0 && (

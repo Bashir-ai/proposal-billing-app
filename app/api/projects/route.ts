@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import { ProjectStatus } from "@prisma/client"
+import { parseLocalDate } from "@/lib/utils"
 
 const projectSchema = z.object({
   proposalId: z.string().optional(),
@@ -213,8 +214,8 @@ export async function POST(request: Request) {
         description: validatedData.description || null,
         status: validatedData.status,
         currency: validatedData.currency || proposalCurrency,
-        startDate: validatedData.startDate ? new Date(validatedData.startDate) : null,
-        endDate: validatedData.endDate ? new Date(validatedData.endDate) : null,
+        startDate: validatedData.startDate ? parseLocalDate(validatedData.startDate) : null,
+        endDate: validatedData.endDate ? parseLocalDate(validatedData.endDate) : null,
       },
       include: {
         client: true,

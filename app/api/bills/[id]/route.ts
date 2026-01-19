@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import { BillStatus } from "@prisma/client"
 import { canEditInvoice } from "@/lib/permissions"
+import { parseLocalDate } from "@/lib/utils"
 
 const billUpdateSchema = z.object({
   amount: z.number().min(0).optional(),
@@ -254,7 +255,7 @@ export async function PUT(
       }
     }
 
-    const newDueDate = validatedData.dueDate ? new Date(validatedData.dueDate) : bill.dueDate
+    const newDueDate = validatedData.dueDate ? parseLocalDate(validatedData.dueDate) : bill.dueDate
     const newStatus = validatedData.status !== undefined ? validatedData.status : bill.status
     
     // Check if invoice becomes outstanding or is paid

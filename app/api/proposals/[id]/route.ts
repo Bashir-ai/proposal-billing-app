@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import { ProposalType, ProposalStatus } from "@prisma/client"
 import { canEditProposal } from "@/lib/permissions"
+import { parseLocalDate } from "@/lib/utils"
 
 const proposalItemSchema = z.object({
   id: z.string().optional(),
@@ -302,8 +303,8 @@ export async function PUT(
 
     // Validate expiry date is after issue date
     if (validatedData.expiryDate && validatedData.issueDate) {
-      const issueDate = new Date(validatedData.issueDate)
-      const expiryDate = new Date(validatedData.expiryDate)
+      const issueDate = parseLocalDate(validatedData.issueDate)
+      const expiryDate = parseLocalDate(validatedData.expiryDate)
       if (expiryDate < issueDate) {
         return NextResponse.json(
           { error: "Expiry date must be after issue date" },
@@ -374,8 +375,8 @@ export async function PUT(
       if (validatedData.description !== undefined) updateData.description = validatedData.description
       if (validatedData.amount !== undefined) updateData.amount = validatedData.amount
       if (validatedData.proposalNumber !== undefined) updateData.proposalNumber = validatedData.proposalNumber
-      if (validatedData.issueDate !== undefined) updateData.issueDate = validatedData.issueDate ? new Date(validatedData.issueDate) : null
-      if (validatedData.expiryDate !== undefined) updateData.expiryDate = validatedData.expiryDate ? new Date(validatedData.expiryDate) : null
+      if (validatedData.issueDate !== undefined) updateData.issueDate = validatedData.issueDate ? parseLocalDate(validatedData.issueDate) : null
+      if (validatedData.expiryDate !== undefined) updateData.expiryDate = validatedData.expiryDate ? parseLocalDate(validatedData.expiryDate) : null
       if (validatedData.currency !== undefined) updateData.currency = validatedData.currency
       if (validatedData.taxInclusive !== undefined) updateData.taxInclusive = validatedData.taxInclusive
       if (validatedData.taxRate !== undefined) updateData.taxRate = validatedData.taxRate || null
@@ -393,7 +394,7 @@ export async function PUT(
       if (validatedData.retainerAdditionalHoursRateMin !== undefined) updateData.retainerAdditionalHoursRateMin = validatedData.retainerAdditionalHoursRateMin || null
       if (validatedData.retainerAdditionalHoursRateMax !== undefined) updateData.retainerAdditionalHoursRateMax = validatedData.retainerAdditionalHoursRateMax || null
       if (validatedData.retainerAdditionalHoursBlendedRate !== undefined) updateData.retainerAdditionalHoursBlendedRate = validatedData.retainerAdditionalHoursBlendedRate || null
-      if (validatedData.retainerStartDate !== undefined) updateData.retainerStartDate = validatedData.retainerStartDate ? new Date(validatedData.retainerStartDate) : null
+      if (validatedData.retainerStartDate !== undefined) updateData.retainerStartDate = validatedData.retainerStartDate ? parseLocalDate(validatedData.retainerStartDate) : null
       if (validatedData.retainerDurationMonths !== undefined) updateData.retainerDurationMonths = validatedData.retainerDurationMonths ?? null
       if (validatedData.retainerProjectScope !== undefined) updateData.retainerProjectScope = validatedData.retainerProjectScope || null
       if (validatedData.retainerProjectIds !== undefined) updateData.retainerProjectIds = validatedData.retainerProjectIds || []
@@ -421,7 +422,7 @@ export async function PUT(
       if (validatedData.recurringEnabled !== undefined) updateData.recurringEnabled = validatedData.recurringEnabled
       if (validatedData.recurringFrequency !== undefined) updateData.recurringFrequency = validatedData.recurringFrequency || null
       if (validatedData.recurringCustomMonths !== undefined) updateData.recurringCustomMonths = validatedData.recurringCustomMonths || null
-      if (validatedData.recurringStartDate !== undefined) updateData.recurringStartDate = validatedData.recurringStartDate ? new Date(validatedData.recurringStartDate) : null
+      if (validatedData.recurringStartDate !== undefined) updateData.recurringStartDate = validatedData.recurringStartDate ? parseLocalDate(validatedData.recurringStartDate) : null
     } catch (updateDataError: any) {
       console.error("Error building updateData:", updateDataError?.message || String(updateDataError))
       throw new Error(`Failed to prepare update data: ${updateDataError?.message || String(updateDataError)}`)
@@ -475,7 +476,7 @@ export async function PUT(
                   description: milestone.description || null,
                   amount: milestone.amount || null,
                   percent: milestone.percent || null,
-                  dueDate: milestone.dueDate ? new Date(milestone.dueDate) : null,
+                  dueDate: milestone.dueDate ? parseLocalDate(milestone.dueDate) : null,
                 },
               })
             } else {
@@ -487,7 +488,7 @@ export async function PUT(
                   description: milestone.description || null,
                   amount: milestone.amount || null,
                   percent: milestone.percent || null,
-                  dueDate: milestone.dueDate ? new Date(milestone.dueDate) : null,
+                  dueDate: milestone.dueDate ? parseLocalDate(milestone.dueDate) : null,
                 },
               })
             }
@@ -546,7 +547,7 @@ export async function PUT(
                 recurringEnabled: item.recurringEnabled ?? false,
                 recurringFrequency: item.recurringFrequency || null,
                 recurringCustomMonths: item.recurringCustomMonths || null,
-                recurringStartDate: item.recurringStartDate ? new Date(item.recurringStartDate) : null,
+                recurringStartDate: item.recurringStartDate ? parseLocalDate(item.recurringStartDate) : null,
                 // Estimate and capped fields
                 isEstimate: item.isEstimate ?? false,
                 isCapped: item.isCapped ?? false,
@@ -660,7 +661,7 @@ export async function PUT(
           milestoneIds: Array.isArray(term.milestoneIds) ? term.milestoneIds : [],
           // Balance payment fields
           balancePaymentType: term.balancePaymentType || null,
-          balanceDueDate: term.balanceDueDate ? new Date(term.balanceDueDate) : null,
+          balanceDueDate: term.balanceDueDate ? parseLocalDate(term.balanceDueDate) : null,
           // Installment maturity dates
           installmentMaturityDates: Array.isArray(term.installmentMaturityDates)
             ? term.installmentMaturityDates.map(date => new Date(date))
@@ -669,7 +670,7 @@ export async function PUT(
           recurringEnabled: term.recurringEnabled ?? false,
           recurringFrequency: term.recurringFrequency || null,
           recurringCustomMonths: term.recurringCustomMonths || null,
-          recurringStartDate: term.recurringStartDate ? new Date(term.recurringStartDate) : null,
+          recurringStartDate: term.recurringStartDate ? parseLocalDate(term.recurringStartDate) : null,
         })
       })
 

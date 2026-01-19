@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import { ProjectStatus } from "@prisma/client"
 import { isDatabaseConnectionError, getDatabaseErrorMessage } from "@/lib/database-error-handler"
+import { parseLocalDate } from "@/lib/utils"
 
 const projectUpdateSchema = z.object({
   name: z.string().min(1).optional(),
@@ -146,8 +147,8 @@ export async function PUT(
         name: validatedData.name,
         description: validatedData.description,
         status: validatedData.status,
-        startDate: validatedData.startDate ? new Date(validatedData.startDate) : project.startDate,
-        endDate: validatedData.endDate ? new Date(validatedData.endDate) : project.endDate,
+        startDate: validatedData.startDate ? parseLocalDate(validatedData.startDate) : project.startDate,
+        endDate: validatedData.endDate ? parseLocalDate(validatedData.endDate) : project.endDate,
       },
       include: {
         client: true,

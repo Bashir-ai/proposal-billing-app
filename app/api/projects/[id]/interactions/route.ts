@@ -4,17 +4,13 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
-import { isDatabaseConnectionError, getDatabaseErrorMessage } from "@/lib/database-error-handler"
 import { parseLocalDate } from "@/lib/utils"
 
-const expenseSchema = z.object({
-  description: z.string().min(1),
-  amount: z.number().min(0),
-  currency: z.string().optional().default("EUR"),
-  expenseDate: z.string(),
-  category: z.string().optional(),
-  isBillable: z.boolean().optional().default(false),
-  isReimbursement: z.boolean().optional().default(false),
+const interactionSchema = z.object({
+  interactionType: z.string().min(1), // "STATUS_UPDATE", "MILESTONE_REACHED", "NOTE", "MEETING", "PHONE_CALL", "EMAIL", etc.
+  title: z.string().optional(),
+  notes: z.string().optional(),
+  date: z.string().optional(), // ISO date string (YYYY-MM-DD)
 })
 
 export async function GET(
@@ -24,21 +20,29 @@ export async function GET(
   try {
     const { id } = await params
     const session = await getServerSession(authOptions)
-    
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
+    if (session.user.role === "CLIENT") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
+
+    // Verify project exists
     const project = await prisma.project.findUnique({
-      where: { id },
+      where: {
+        id,
+        deletedAt: null,
+      },
     })
 
     if (!project) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 })
     }
 
-    const expenses = await prisma.projectExpense.findMany({
+    const interactions = await prisma.projectInteraction.findMany({
       where: { projectId: id },
+      orderBy: { date: "desc" },
       include: {
         creator: {
           select: {
@@ -48,21 +52,11 @@ export async function GET(
           },
         },
       },
-      orderBy: { expenseDate: "desc" },
     })
 
-    return NextResponse.json(expenses)
+    return NextResponse.json(interactions)
   } catch (error) {
-    if (isDatabaseConnectionError(error)) {
-      return NextResponse.json(
-        {
-          error: "Database connection error",
-          message: getDatabaseErrorMessage()
-        },
-        { status: 503 }
-      )
-    }
-    console.error("Error fetching expenses:", error)
+    console.error("Error fetching project interactions:", error)
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
@@ -77,20 +71,23 @@ export async function POST(
   try {
     const { id } = await params
     const session = await getServerSession(authOptions)
-    
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    if (session.user.role === "CLIENT" || session.user.role === "EXTERNAL") {
+    if (session.user.role === "CLIENT") {
       return NextResponse.json(
         { error: "Forbidden" },
         { status: 403 }
       )
     }
 
+    // Verify project exists
     const project = await prisma.project.findUnique({
-      where: { id },
+      where: {
+        id,
+        deletedAt: null,
+      },
     })
 
     if (!project) {
@@ -98,18 +95,23 @@ export async function POST(
     }
 
     const body = await request.json()
-    const validatedData = expenseSchema.parse(body)
+    const validatedData = interactionSchema.parse(body)
 
-    const expense = await prisma.projectExpense.create({
+    // Parse date in local timezone to preserve the date as entered
+    let interactionDate: Date
+    if (validatedData.date) {
+      interactionDate = parseLocalDate(validatedData.date)
+    } else {
+      interactionDate = new Date()
+    }
+
+    const interaction = await prisma.projectInteraction.create({
       data: {
         projectId: id,
-        description: validatedData.description,
-        amount: validatedData.amount,
-        currency: validatedData.currency,
-        expenseDate: parseLocalDate(validatedData.expenseDate),
-        category: validatedData.category || null,
-        isBillable: validatedData.isBillable,
-        isReimbursement: validatedData.isReimbursement,
+        interactionType: validatedData.interactionType,
+        title: validatedData.title || null,
+        notes: validatedData.notes || null,
+        date: interactionDate,
         createdBy: session.user.id,
       },
       include: {
@@ -123,8 +125,8 @@ export async function POST(
       },
     })
 
-    return NextResponse.json(expense, { status: 201 })
-  } catch (error: any) {
+    return NextResponse.json(interaction, { status: 201 })
+  } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: "Invalid input", details: error.errors },
@@ -132,19 +134,9 @@ export async function POST(
       )
     }
 
-    if (isDatabaseConnectionError(error)) {
-      return NextResponse.json(
-        {
-          error: "Database connection error",
-          message: getDatabaseErrorMessage()
-        },
-        { status: 503 }
-      )
-    }
-
-    console.error("Error creating expense:", error)
+    console.error("Error creating project interaction:", error)
     return NextResponse.json(
-      { error: "Internal server error", message: error.message },
+      { error: "Internal server error" },
       { status: 500 }
     )
   }

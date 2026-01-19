@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import { BillStatus } from "@prisma/client"
 import { generateInvoiceNumber } from "@/lib/invoice-number"
+import { parseLocalDate } from "@/lib/utils"
 
 const billSchema = z.object({
   proposalId: z.string().optional(),
@@ -306,7 +307,7 @@ export async function POST(request: Request) {
           taxRate: taxRate,
           discountPercent: discountPercent,
           discountAmount: discountAmount,
-          dueDate: validatedData.dueDate ? new Date(validatedData.dueDate) : null,
+          dueDate: validatedData.dueDate ? parseLocalDate(validatedData.dueDate) : null,
           status: BillStatus.DRAFT,
           items: {
             create: billItemsToCreate,

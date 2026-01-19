@@ -252,6 +252,7 @@ model User {
   managedLeads            Lead[]              @relation("LeadManager")
   leadInteractions        LeadInteraction[]  @relation("LeadInteractionCreator")
   invoiceInteractions     InvoiceInteraction[] @relation("InvoiceInteractionCreator")
+  projectInteractions     ProjectInteraction[] @relation("ProjectInteractionCreator")
   writtenOffBills         Bill[]            @relation("BillWrittenOffBy")
   notifications           Notification[]
   createdEmailTemplates   EmailTemplate[]    @relation("EmailTemplateCreator")
@@ -672,6 +673,7 @@ model Project {
   todos            Todo[]
   expenses         ProjectExpense[]
   compensationEligibility CompensationEligibility[] @relation("EligibilityProject")
+  interactions     ProjectInteraction[]
 }
 
 model PaymentTerm {
@@ -955,6 +957,25 @@ model LeadInteraction {
   // Relations
   lead    Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
   creator User @relation("LeadInteractionCreator", fields: [createdBy], references: [id])
+}
+
+model ProjectInteraction {
+  id             String          @id @default(cuid())
+  projectId      String
+  interactionType String         // "STATUS_UPDATE", "MILESTONE_REACHED", "NOTE", "MEETING", "PHONE_CALL", "EMAIL", etc.
+  title          String?         // Brief title/description
+  notes          String?         // Detailed notes
+  date           DateTime        @default(now())
+  createdBy      String
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([projectId])
+  @@index([date])
+
+  // Relations
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  creator User    @relation("ProjectInteractionCreator", fields: [createdBy], references: [id])
 }
 
 model InvoiceInteraction {

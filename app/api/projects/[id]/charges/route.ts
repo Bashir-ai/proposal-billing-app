@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import { ChargeType, RecurringFrequency } from "@prisma/client"
 import { isDatabaseConnectionError, getDatabaseErrorMessage } from "@/lib/database-error-handler"
+import { parseLocalDate } from "@/lib/utils"
 
 const chargeSchema = z.object({
   description: z.string().min(1),
@@ -101,8 +102,8 @@ export async function POST(
         unitPrice: validatedData.unitPrice ?? null,
         chargeType: validatedData.chargeType,
         recurringFrequency: validatedData.recurringFrequency ?? null,
-        startDate: validatedData.startDate ? new Date(validatedData.startDate) : null,
-        endDate: validatedData.endDate ? new Date(validatedData.endDate) : null,
+        startDate: validatedData.startDate ? parseLocalDate(validatedData.startDate) : null,
+        endDate: validatedData.endDate ? parseLocalDate(validatedData.endDate) : null,
       },
     })
 

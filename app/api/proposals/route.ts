@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import { ProposalType, ProposalStatus } from "@prisma/client"
 import { generateProposalNumber } from "@/lib/proposal-number"
+import { parseLocalDate } from "@/lib/utils"
 
 const proposalItemSchema = z.object({
   billingMethod: z.enum(["FIXED_FEE", "SUCCESS_FEE", "RECURRING", "HOURLY", "CAPPED_FEE", "RETAINER"]).optional(),
@@ -308,8 +309,8 @@ export async function POST(request: Request) {
 
     // Validate expiry date is after issue date
     if (validatedData.expiryDate && validatedData.issueDate) {
-      const issueDate = new Date(validatedData.issueDate)
-      const expiryDate = new Date(validatedData.expiryDate)
+      const issueDate = parseLocalDate(validatedData.issueDate)
+      const expiryDate = parseLocalDate(validatedData.expiryDate)
       if (expiryDate < issueDate) {
         return NextResponse.json(
           { error: "Expiry date must be after issue date" },
@@ -329,8 +330,8 @@ export async function POST(request: Request) {
         description: validatedData.description || null,
         amount: validatedData.amount || null,
         proposalNumber,
-        issueDate: validatedData.issueDate ? new Date(validatedData.issueDate) : null,
-        expiryDate: validatedData.expiryDate ? new Date(validatedData.expiryDate) : null,
+        issueDate: validatedData.issueDate ? parseLocalDate(validatedData.issueDate) : null,
+        expiryDate: validatedData.expiryDate ? parseLocalDate(validatedData.expiryDate) : null,
         currency: validatedData.currency || "EUR",
         taxInclusive: validatedData.taxInclusive ?? false,
         taxRate: validatedData.taxRate || null,
@@ -348,7 +349,7 @@ export async function POST(request: Request) {
         retainerAdditionalHoursRateMin: validatedData.retainerAdditionalHoursRateMin || null,
         retainerAdditionalHoursRateMax: validatedData.retainerAdditionalHoursRateMax || null,
         retainerAdditionalHoursBlendedRate: validatedData.retainerAdditionalHoursBlendedRate || null,
-        retainerStartDate: validatedData.retainerStartDate ? new Date(validatedData.retainerStartDate) : null,
+        retainerStartDate: validatedData.retainerStartDate ? parseLocalDate(validatedData.retainerStartDate) : null,
         retainerDurationMonths: validatedData.retainerDurationMonths ?? null,
         retainerProjectScope: validatedData.retainerProjectScope || null,
         retainerProjectIds: validatedData.retainerProjectIds || [],
@@ -376,7 +377,7 @@ export async function POST(request: Request) {
         recurringEnabled: validatedData.recurringEnabled ?? false,
         recurringFrequency: validatedData.recurringFrequency || null,
         recurringCustomMonths: validatedData.recurringCustomMonths || null,
-        recurringStartDate: validatedData.recurringStartDate ? new Date(validatedData.recurringStartDate) : null,
+        recurringStartDate: validatedData.recurringStartDate ? parseLocalDate(validatedData.recurringStartDate) : null,
         tags: validatedData.tagIds ? {
           connect: validatedData.tagIds.map(id => ({ id })),
         } : undefined,
@@ -394,7 +395,7 @@ export async function POST(request: Request) {
             description: milestone.description || null,
             amount: milestone.amount || null,
             percent: milestone.percent || null,
-            dueDate: milestone.dueDate ? new Date(milestone.dueDate) : null,
+            dueDate: milestone.dueDate ? parseLocalDate(milestone.dueDate) : null,
           },
         })
         // Map temporary ID to actual DB ID
@@ -430,7 +431,7 @@ export async function POST(request: Request) {
             recurringEnabled: item.recurringEnabled ?? false,
             recurringFrequency: item.recurringFrequency || null,
             recurringCustomMonths: item.recurringCustomMonths || null,
-            recurringStartDate: item.recurringStartDate ? new Date(item.recurringStartDate) : null,
+            recurringStartDate: item.recurringStartDate ? parseLocalDate(item.recurringStartDate) : null,
             // Estimate and capped fields
             isEstimate: item.isEstimate ?? false,
             isCapped: item.isCapped ?? false,
@@ -541,7 +542,7 @@ export async function POST(request: Request) {
         recurringEnabled: term.recurringEnabled ?? false,
         recurringFrequency: term.recurringFrequency || null,
         recurringCustomMonths: term.recurringCustomMonths || null,
-        recurringStartDate: term.recurringStartDate ? new Date(term.recurringStartDate) : null,
+        recurringStartDate: term.recurringStartDate ? parseLocalDate(term.recurringStartDate) : null,
       }
     })
 

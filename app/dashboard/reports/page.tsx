@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Select } from "@/components/ui/select"
 import { formatCurrency, formatDate } from "@/lib/utils"
 import { BarChart3, Clock, Users, FolderKanban, CheckSquare, Wallet } from "lucide-react"
+import { ClientReports } from "@/components/reports/ClientReports"
 
 interface UserStatistics {
   userId: string
@@ -27,6 +28,7 @@ interface UserStatistics {
 
 export default function ReportsPage() {
   const { data: session } = useSession()
+  const [activeTab, setActiveTab] = useState<"users" | "clients">("users")
   const [loading, setLoading] = useState(true)
   const [statistics, setStatistics] = useState<UserStatistics[]>([])
   const [selectedUserId, setSelectedUserId] = useState<string>("")
@@ -96,10 +98,41 @@ export default function ReportsPage() {
     <div>
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-bold">User Reports</h1>
-          <p className="text-gray-600 mt-2">Comprehensive user statistics and performance metrics</p>
+          <h1 className="text-3xl font-bold">Reports</h1>
+          <p className="text-gray-600 mt-2">Comprehensive statistics and performance metrics</p>
         </div>
       </div>
+
+      {/* Tab Navigation */}
+      <div className="mb-6 border-b">
+        <nav className="flex space-x-8">
+          <button
+            onClick={() => setActiveTab("users")}
+            className={`py-4 px-1 border-b-2 font-medium text-sm ${
+              activeTab === "users"
+                ? "border-blue-500 text-blue-600"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+            }`}
+          >
+            Users
+          </button>
+          <button
+            onClick={() => setActiveTab("clients")}
+            className={`py-4 px-1 border-b-2 font-medium text-sm ${
+              activeTab === "clients"
+                ? "border-blue-500 text-blue-600"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+            }`}
+          >
+            Clients
+          </button>
+        </nav>
+      </div>
+
+      {activeTab === "clients" ? (
+        <ClientReports />
+      ) : (
+        <>
 
       {/* Filters */}
       <Card className="mb-6">
@@ -303,6 +336,8 @@ export default function ReportsPage() {
             </div>
           </CardContent>
         </Card>
+      )}
+        </>
       )}
     </div>
   )

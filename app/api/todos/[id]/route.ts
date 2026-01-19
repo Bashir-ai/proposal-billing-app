@@ -7,6 +7,7 @@ import { z } from "zod"
 import { TodoStatus, TodoPriority } from "@prisma/client"
 import { createTodoNotification } from "@/lib/notifications"
 import { canReassignTodo, hasHigherRank } from "@/lib/permissions"
+import { parseLocalDate } from "@/lib/utils"
 
 const todoUpdateSchema = z.object({
   title: z.string().min(1).optional(),
@@ -287,14 +288,14 @@ export async function PUT(
       }
     }
     if (validatedData.startDate !== undefined) {
-      updateData.startDate = validatedData.startDate ? new Date(validatedData.startDate) : null
+      updateData.startDate = validatedData.startDate ? parseLocalDate(validatedData.startDate) : null
     }
     if (validatedData.estimatedEndDate !== undefined) {
-      updateData.estimatedEndDate = validatedData.estimatedEndDate ? new Date(validatedData.estimatedEndDate) : null
+      updateData.estimatedEndDate = validatedData.estimatedEndDate ? parseLocalDate(validatedData.estimatedEndDate) : null
     }
     // Handle due date change - track if assignee changes it
     if (validatedData.dueDate !== undefined) {
-      const newDueDate = validatedData.dueDate ? new Date(validatedData.dueDate) : null
+      const newDueDate = validatedData.dueDate ? parseLocalDate(validatedData.dueDate) : null
       const oldDueDate = todo.dueDate
       
       // Check if due date actually changed
