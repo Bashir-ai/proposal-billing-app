@@ -6,8 +6,10 @@ const nextConfig = {
     // Reduce compilation time
     optimizePackageImports: ['lucide-react'],
     // Externalize puppeteer and chromium for serverless
-    serverComponentsExternalPackages: ['puppeteer-core', '@sparticuz/chromium'],
+    serverComponentsExternalPackages: ['puppeteer-core', '@sparticuz/chromium', 'pdfkit'],
   },
+  // Externalize pdfkit so it can access its font files from node_modules
+  serverExternalPackages: ['pdfkit'],
   // Reduce webpack compilation time
   webpack: (config, { isServer }) => {
     if (!isServer) {
@@ -26,6 +28,7 @@ const nextConfig = {
         'puppeteer-core': 'commonjs puppeteer-core',
         'puppeteer': 'commonjs puppeteer',
         '@sparticuz/chromium': 'commonjs @sparticuz/chromium',
+        'pdfkit': 'commonjs pdfkit',
       })
     }
     return config

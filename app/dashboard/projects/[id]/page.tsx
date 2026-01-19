@@ -10,6 +10,7 @@ import Link from "next/link"
 import { Plus } from "lucide-react"
 import { CompensationEligibilityManager } from "@/components/accounts/CompensationEligibilityManager"
 import { ProjectInteractionsSection } from "@/components/projects/ProjectInteractionsSection"
+import { ProjectTimesheetSection } from "@/components/projects/ProjectTimesheetSection"
 
 // Force dynamic rendering to ensure fresh data on each request
 export const dynamic = 'force-dynamic'
@@ -438,87 +439,34 @@ export default async function ProjectDetailPage({
       )}
 
       {/* Timesheet Entries Section */}
-      <Card className="mb-8">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>Timesheet Entries</CardTitle>
-            <Link href={`/dashboard/projects/${id}/timesheets/new`}>
-              <Button size="sm">
-                <Plus className="h-4 w-4 mr-2" />
-                Add Entry
-              </Button>
-            </Link>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {project.timesheetEntries.length === 0 ? (
-            <p className="text-gray-500 text-center py-4">No timesheet entries yet</p>
-          ) : (
-            <div className="space-y-2">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b">
-                      <th className="text-left p-2">Date</th>
-                      <th className="text-left p-2">User</th>
-                      <th className="text-right p-2">Hours</th>
-                      <th className="text-right p-2">Rate</th>
-                      <th className="text-right p-2">Amount</th>
-                      <th className="text-center p-2">Billable</th>
-                      <th className="text-center p-2">Billed</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {project.timesheetEntries.map((entry) => (
-                      <tr key={entry.id} className="border-b">
-                        <td className="p-2">{formatDate(entry.date)}</td>
-                        <td className="p-2">{entry.user.name}</td>
-                        <td className="p-2 text-right">{entry.hours}</td>
-                        <td className="p-2 text-right">
-                          {entry.rate ? formatCurrency(entry.rate) : "—"}
-                        </td>
-                        <td className="p-2 text-right">
-                          {formatCurrency((entry.rate || 0) * entry.hours)}
-                        </td>
-                        <td className="p-2 text-center">
-                          {entry.billable ? (
-                            <span className="text-green-600">✓</span>
-                          ) : (
-                            <span className="text-gray-400">—</span>
-                          )}
-                        </td>
-                        <td className="p-2 text-center">
-                          {entry.billed ? (
-                            <span className="text-blue-600">✓</span>
-                          ) : (
-                            <span className="text-gray-400">—</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div className="mt-4 pt-4 border-t">
-                <div className="flex justify-between text-sm">
-                  <span className="font-semibold">Total Hours:</span>
-                  <span>{project.timesheetEntries.reduce((sum, e) => sum + e.hours, 0).toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-sm mt-1">
-                  <span className="font-semibold">Total Billable Amount:</span>
-                  <span>
-                    {formatCurrency(
-                      project.timesheetEntries
-                        .filter((e) => e.billable)
-                        .reduce((sum, e) => sum + (e.rate || 0) * e.hours, 0)
-                    )}
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <ProjectTimesheetSection
+        projectId={id}
+        initialEntries={project.timesheetEntries.map(entry => ({
+          id: entry.id,
+          userId: entry.userId,
+          date: entry.date,
+          hours: entry.hours,
+          rate: entry.rate,
+          description: entry.description,
+          billable: entry.billable,
+          billed: entry.billed,
+          user: {
+            id: entry.user.id,
+            name: entry.user.name,
+            email: entry.user.email,
+          },
+        }))}
+        proposal={project.proposal ? {
+          id: project.proposal.id,
+          useBlendedRate: project.proposal.useBlendedRate || false,
+          blendedRate: project.proposal.blendedRate,
+          items: project.proposal.items.map(item => ({
+            id: item.id,
+            personId: item.personId,
+            rate: item.rate,
+          })),
+        } : null}
+      />
 
       {/* Expenses Section */}
       <Card className="mb-8">

@@ -18,13 +18,20 @@ const fontFiles = [
 ];
 
 const sourceDir = path.resolve('node_modules/pdfkit/js/data');
+
+// Get the base directory (project root)
+const projectRoot = path.resolve(__dirname, '..');
+
+// Try multiple possible locations where PDFKit might look for fonts
 const destDirs = [
-  path.resolve('.next/server/chunks/data'),
-  path.resolve('.next/server/vendor-chunks/data'),
-  path.resolve('.next/server/app/api'),
-  // Also try the standalone output directory (for Vercel)
-  path.resolve('.next/standalone/.next/server/chunks/data'),
-  path.resolve('.next/standalone/.next/server/vendor-chunks/data'),
+  path.join(projectRoot, '.next/server/chunks/data'),
+  path.join(projectRoot, '.next/server/vendor-chunks/data'),
+  path.join(projectRoot, '.next/server/app/api'),
+  // Standalone output (for Vercel)
+  path.join(projectRoot, '.next/standalone/.next/server/chunks/data'),
+  path.join(projectRoot, '.next/standalone/.next/server/vendor-chunks/data'),
+  // Also try node_modules location (in case pdfkit is externalized)
+  path.join(projectRoot, 'node_modules/pdfkit/js/data'),
 ];
 
 // Also copy to public directory as fallback

@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Select } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
+import { parseHoursInput } from "@/lib/utils"
 
 interface User {
   id: string
@@ -33,6 +34,8 @@ export default function NewTimesheetEntryPage() {
     description: "",
     billable: true,
   })
+  const [hoursInput, setHoursInput] = useState("")
+  const [hoursError, setHoursError] = useState<string | null>(null)
 
   useEffect(() => {
     // Fetch users for dropdown
@@ -64,15 +67,44 @@ export default function NewTimesheetEntryPage() {
     }
   }, [formData.userId, users])
 
+  const handleHoursInputChange = (value: string) => {
+    setHoursInput(value)
+    setHoursError(null)
+    
+    if (!value || value.trim() === "") {
+      return
+    }
+
+    try {
+      const parsedHours = parseHoursInput(value)
+      setFormData(prev => ({ ...prev, hours: parsedHours.toString() }))
+    } catch (err: any) {
+      setHoursError(err.message)
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
+    setHoursError(null)
     setSubmitting(true)
 
-    // Validate
-    const hours = parseFloat(formData.hours)
-    if (isNaN(hours) || hours <= 0) {
-      setError("Please enter a valid number of hours greater than 0")
+    // Validate hours input
+    let hours: number
+    try {
+      if (!hoursInput || hoursInput.trim() === "") {
+        setError("Please enter hours")
+        setSubmitting(false)
+        return
+      }
+      hours = parseHoursInput(hoursInput)
+      if (hours <= 0) {
+        setHoursError("Hours must be greater than 0")
+        setSubmitting(false)
+        return
+      }
+    } catch (err: any) {
+      setHoursError(err.message || "Invalid hours format")
       setSubmitting(false)
       return
     }
@@ -156,13 +188,24 @@ export default function NewTimesheetEntryPage() {
               <Label htmlFor="hours">Hours *</Label>
               <Input
                 id="hours"
-                type="number"
-                step="0.25"
-                min="0.25"
-                value={formData.hours}
-                onChange={(e) => setFormData({ ...formData, hours: e.target.value })}
+                type="text"
+                placeholder="1.5 or 1:30"
+                value={hoursInput}
+                onChange={(e) => handleHoursInputChange(e.target.value)}
                 required
               />
+              {hoursError && (
+                <p className="text-sm text-red-600">{hoursError}</p>
+              )}
+              {!hoursError && hoursInput && formData.hours && parseFloat(formData.hours) > 0 && (
+                <p className="text-sm text-gray-500">
+                  {hoursInput.includes(":") 
+                    ? `${parseFloat(formData.hours).toFixed(2)} hours` 
+                    : parseFloat(formData.hours) !== parseFloat(hoursInput) 
+                      ? `${parseFloat(formData.hours).toFixed(2)} hours (${Math.floor(parseFloat(formData.hours))}:${Math.round((parseFloat(formData.hours) % 1) * 60).toString().padStart(2, "0")})`
+                      : ""}
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
