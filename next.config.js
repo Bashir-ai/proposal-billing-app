@@ -8,8 +8,6 @@ const nextConfig = {
     // Externalize puppeteer and chromium for serverless
     serverComponentsExternalPackages: ['puppeteer-core', '@sparticuz/chromium', 'pdfkit'],
   },
-  // Externalize pdfkit so it can access its font files from node_modules
-  serverExternalPackages: ['pdfkit'],
   // Reduce webpack compilation time
   webpack: (config, { isServer }) => {
     if (!isServer) {
