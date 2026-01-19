@@ -15,7 +15,7 @@ const formatDate = (dateString: string) => {
     minute: "2-digit",
   })
 }
-import { Mail, MapPin, Users, FileText, ClipboardList, Phone, MoreHorizontal, Pencil } from "lucide-react"
+import { Mail, MapPin, Users, FileText, ClipboardList, Phone, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
 import { EditInteractionForm } from "./EditInteractionForm"
 
 interface LeadInteraction {
@@ -124,14 +124,41 @@ export function LeadInteractionTimeline({ interactions, currentUserId, leadId, o
                       </p>
                     </div>
                     {isOwnInteraction && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setEditingInteractionId(interaction.id)}
-                        className="h-8 w-8 p-0"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setEditingInteractionId(interaction.id)}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={async () => {
+                            if (confirm("Are you sure you want to delete this interaction?")) {
+                              try {
+                                const response = await fetch(`/api/leads/${leadId}/interactions/${interaction.id}`, {
+                                  method: "DELETE",
+                                })
+                                if (response.ok) {
+                                  onInteractionUpdated()
+                                } else {
+                                  const data = await response.json()
+                                  alert(data.error || "Failed to delete interaction")
+                                }
+                              } catch (err) {
+                                console.error("Error deleting interaction:", err)
+                                alert("Failed to delete interaction")
+                              }
+                            }
+                          }}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Trash2 className="h-4 w-4 text-red-600" />
+                        </Button>
+                      </div>
                     )}
                   </div>
                   {interaction.notes && (
