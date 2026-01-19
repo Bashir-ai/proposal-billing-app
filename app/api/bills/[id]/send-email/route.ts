@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { sendInvoiceEmail } from "@/lib/email"
-import { generatePdfFromHTML, getLogoBase64 } from "@/lib/pdf-generator"
+import { generateInvoicePdf, getLogoBase64 } from "@/lib/pdfkit-generator"
 
 // Reuse the HTML generation from the PDF route
 function generateInvoiceHTML(bill: any, logoBase64: string | null): string {
@@ -364,14 +364,14 @@ export async function POST(
       )
     }
 
-    // Generate HTML invoice
+    // Generate HTML invoice (for email body fallback)
     const logoBase64 = await getLogoBase64()
     const html = generateInvoiceHTML(bill, logoBase64)
     
     // Try to generate PDF, but fallback to HTML if it fails
     let pdfBuffer: Buffer | undefined
     try {
-      pdfBuffer = await generatePdfFromHTML(html)
+      pdfBuffer = await generateInvoicePdf(bill, logoBase64)
     } catch (pdfError: any) {
       console.warn("PDF generation failed, sending invoice as HTML email:", pdfError.message)
       // Continue without PDF - we'll send HTML invoice in email body

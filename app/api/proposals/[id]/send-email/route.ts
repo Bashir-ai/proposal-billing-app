@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { sendProposalEmail } from "@/lib/email"
-import { generatePdfFromHTML, getLogoBase64 } from "@/lib/pdf-generator"
+import { generateProposalPdf, getLogoBase64 } from "@/lib/pdfkit-generator"
 
 // Reuse the HTML generation from the PDF route
 function generateProposalHTML(proposal: any, logoBase64: string | null): string {
@@ -517,8 +517,7 @@ export async function POST(
     
     try {
       const logoBase64 = await getLogoBase64()
-      const html = generateProposalHTML(proposal, logoBase64)
-      pdfBuffer = await generatePdfFromHTML(html)
+      pdfBuffer = await generateProposalPdf(proposal, logoBase64)
     } catch (pdfError: any) {
       console.error("Failed to generate PDF for attachment:", pdfError)
       pdfGenerationFailed = true
