@@ -141,22 +141,16 @@ export default function NewTimesheetEntryPage() {
 
     // Date input always gives us a string in YYYY-MM-DD format
     // Ensure we extract just the date part without any timezone conversion
-    let dateValue: string
-    if (typeof formData.date === 'string') {
-      // Extract just the date part (YYYY-MM-DD) if it's an ISO string
-      dateValue = formData.date.split('T')[0].split(' ')[0]
-      // Ensure it's in the correct format
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
-        // If somehow it's not in the right format, parse it using local components
-        const d = new Date(formData.date)
-        const year = d.getFullYear()
-        const month = String(d.getMonth() + 1).padStart(2, '0')
-        const day = String(d.getDate()).padStart(2, '0')
-        dateValue = `${year}-${month}-${day}`
-      }
-    } else {
-      // If it's a Date object, format it using local components
-      const d = formData.date instanceof Date ? formData.date : new Date(formData.date)
+    // Since formData.date is always a string from the date input, we can use it directly
+    let dateValue: string = formData.date
+    
+    // Extract just the date part (YYYY-MM-DD) if it's an ISO string
+    dateValue = dateValue.split('T')[0].split(' ')[0]
+    
+    // Ensure it's in the correct format
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
+      // If somehow it's not in the right format, parse it using local components
+      const d = new Date(formData.date)
       const year = d.getFullYear()
       const month = String(d.getMonth() + 1).padStart(2, '0')
       const day = String(d.getDate()).padStart(2, '0')
