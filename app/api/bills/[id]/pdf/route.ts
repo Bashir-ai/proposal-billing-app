@@ -92,7 +92,7 @@ export async function GET(
         ? `invoice-${bill.invoiceNumber}.pdf`
         : `invoice-${bill.id}.pdf`
 
-      return new NextResponse(pdfBuffer, {
+      return new NextResponse(pdfBuffer as any, {
         headers: {
           'Content-Type': 'application/pdf',
           'Content-Disposition': `attachment; filename="${filename}"`,

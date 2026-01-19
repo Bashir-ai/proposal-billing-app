@@ -69,7 +69,7 @@ export async function GET(
     try {
       const pdfBuffer = await generateProposalPdf(proposal, logoBase64)
 
-      return new NextResponse(pdfBuffer, {
+      return new NextResponse(pdfBuffer as any, {
         headers: {
           'Content-Type': 'application/pdf',
           'Content-Disposition': `attachment; filename="proposal-${proposal.proposalNumber || proposal.id}.pdf"`,
