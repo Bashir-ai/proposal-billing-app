@@ -1,7 +1,5 @@
 export const dynamic = 'force-dynamic'
-export const config = {
-  maxDuration: 30, // seconds
-}
+export const maxDuration = 30 // seconds
 
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
