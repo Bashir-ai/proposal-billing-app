@@ -56,7 +56,11 @@ export default async function DashboardPage() {
           ...(clientWhere || {})
         },
       }),
-      prisma.client.count(),
+      prisma.client.count({
+        where: {
+          deletedAt: null,
+        },
+      }),
       prisma.project.count({
         where: {
           deletedAt: null,

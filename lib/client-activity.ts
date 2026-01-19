@@ -64,6 +64,9 @@ export async function getClientActivityMap(
   cutoffDate.setMonth(cutoffDate.getMonth() - months)
 
   const clients = await prisma.client.findMany({
+    where: {
+      deletedAt: null, // Exclude deleted clients
+    },
     select: {
       id: true,
     },

@@ -131,6 +131,9 @@ export default async function BillsPage({
     // Fetch clients and projects for filter dropdowns (only for non-client users)
     const clients = session.user.role !== "CLIENT" 
       ? await prisma.client.findMany({
+          where: {
+            deletedAt: null, // Exclude deleted clients
+          },
           select: { id: true, name: true, company: true },
           orderBy: { name: "asc" },
         })

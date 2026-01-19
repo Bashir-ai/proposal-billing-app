@@ -90,6 +90,7 @@ export async function calculateUserStatistics(
   const clientsManaged = await prisma.client.count({
     where: {
       clientManagerId: userId,
+      deletedAt: null, // Exclude deleted clients
       ...(dateFilter && { createdAt: dateFilter }),
     },
   })
