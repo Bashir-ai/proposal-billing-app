@@ -184,7 +184,6 @@ export async function generateProposalPdf(proposal: any, logoBase64: string | nu
       
       // Header
       doc.fontSize(24)
-        .font('Helvetica-Bold')
         .fillColor('#111827')
         .text(proposal.title, MARGIN, y)
       
@@ -192,7 +191,6 @@ export async function generateProposalPdf(proposal: any, logoBase64: string | nu
       
       if (proposal.proposalNumber) {
         doc.fontSize(14)
-          .font('Helvetica')
           .fillColor('#6b7280')
           .text(`Proposal #${proposal.proposalNumber}`, MARGIN, y)
         y = doc.y + 20
@@ -209,7 +207,7 @@ export async function generateProposalPdf(proposal: any, logoBase64: string | nu
       
       // Details section
       doc.fontSize(10)
-        .font('Helvetica')
+        
         .fillColor('#374151')
       
       if (recipient) {
@@ -245,7 +243,6 @@ export async function generateProposalPdf(proposal: any, logoBase64: string | nu
       if (proposal.description) {
         checkPageBreak(doc, 50)
         doc.fontSize(12)
-          .font('Helvetica-Bold')
           .fillColor('#374151')
           .text("Description", MARGIN, doc.y)
         
@@ -253,7 +250,6 @@ export async function generateProposalPdf(proposal: any, logoBase64: string | nu
         
         const descLines = wrapText(proposal.description, CONTENT_WIDTH, doc)
         doc.fontSize(10)
-          .font('Helvetica')
           .fillColor('#111827')
         
         descLines.forEach(line => {
@@ -277,7 +273,6 @@ export async function generateProposalPdf(proposal: any, logoBase64: string | nu
           .stroke()
           .fillColor('#92400e')
           .fontSize(12)
-          .font('Helvetica-Bold')
           .text("⚠️ Proposed fees are estimated", MARGIN + 10, doc.y + 10)
         
         y = doc.y + 20
@@ -291,7 +286,6 @@ export async function generateProposalPdf(proposal: any, logoBase64: string | nu
       if (servicesItems.length > 0) {
         checkPageBreak(doc, 100)
         doc.fontSize(14)
-          .font('Helvetica-Bold')
           .fillColor('#111827')
           .text("Services", MARGIN, doc.y + 10)
         
@@ -346,7 +340,7 @@ export async function generateProposalPdf(proposal: any, logoBase64: string | nu
       if (expensesItems.length > 0) {
         checkPageBreak(doc, 100)
         doc.fontSize(14)
-          .font('Helvetica-Bold')
+          
           .fillColor('#111827')
           .text("Expenses", MARGIN, doc.y + 10)
         
@@ -424,7 +418,6 @@ export async function generateProposalPdf(proposal: any, logoBase64: string | nu
         
         if (servicesSubtotal > 0) {
           doc.fontSize(10)
-            .font('Helvetica-Bold')
             .fillColor('#111827')
             .text("Services Subtotal:", PAGE_WIDTH - MARGIN - 150, totalsY, { align: 'right', width: 150 })
             .text(formatCurrency(servicesSubtotal, proposal.currency), PAGE_WIDTH - MARGIN, totalsY, { align: 'right' })
@@ -461,13 +454,12 @@ export async function generateProposalPdf(proposal: any, logoBase64: string | nu
         y += 10
         
         doc.fontSize(14)
-          .font('Helvetica-Bold')
+          
           .text("Grand Total:", PAGE_WIDTH - MARGIN - 150, y, { align: 'right', width: 150 })
           .text(formatCurrency(grandTotal, proposal.currency), PAGE_WIDTH - MARGIN, y, { align: 'right' })
       } else if (proposal.amount) {
         checkPageBreak(doc, 30)
         doc.fontSize(14)
-          .font('Helvetica-Bold')
           .fillColor('#111827')
           .text(`Total: ${formatCurrency(proposal.amount, proposal.currency)}`, PAGE_WIDTH - MARGIN, doc.y + 10, { align: 'right' })
       }
@@ -488,14 +480,14 @@ export async function generateProposalPdf(proposal: any, logoBase64: string | nu
         y += 10
         
         doc.fontSize(12)
-          .font('Helvetica-Bold')
+          
           .fillColor('#374151')
           .text("Payment Terms", MARGIN + 10, y)
         
         y = doc.y + 15
         
         doc.fontSize(10)
-          .font('Helvetica')
+          
           .fillColor('#111827')
         
         const { upfrontType, upfrontValue, balancePaymentType, balanceDueDate, installmentType, installmentCount, installmentFrequency, recurringEnabled, recurringFrequency, recurringCustomMonths, recurringStartDate } = paymentTerm
@@ -563,7 +555,7 @@ export async function generateProposalPdf(proposal: any, logoBase64: string | nu
         .stroke()
       
       doc.fontSize(9)
-        .font('Helvetica')
+        
         .fillColor('#6b7280')
         .text(`Generated on ${formatDate(new Date())}`, MARGIN, PAGE_HEIGHT - MARGIN - 15)
       
@@ -609,7 +601,7 @@ export async function generateInvoicePdf(bill: any, logoBase64: string | null): 
       
       // Header
       doc.fontSize(24)
-        .font('Helvetica-Bold')
+        
         .fillColor('#2563eb')
         .text("INVOICE", MARGIN, y)
       
@@ -617,7 +609,7 @@ export async function generateInvoicePdf(bill: any, logoBase64: string | null): 
       
       if (bill.invoiceNumber) {
         doc.fontSize(12)
-          .font('Helvetica')
+          
           .fillColor('#111827')
           .text(`Invoice Number: ${bill.invoiceNumber}`, MARGIN, y)
         y = doc.y + 10
@@ -645,7 +637,7 @@ export async function generateInvoicePdf(bill: any, logoBase64: string | null): 
           .lineWidth(0.5)
           .stroke()
           .fontSize(9)
-          .font('Helvetica-Bold')
+          
           .fillColor(statusTextColors[bill.status] || '#374151')
           .text(bill.status, MARGIN + 5, y + 5)
         
@@ -662,13 +654,13 @@ export async function generateInvoicePdf(bill: any, logoBase64: string | null): 
           .stroke()
         
         doc.fontSize(12)
-          .font('Helvetica-Bold')
+          
           .fillColor('#111827')
           .text("Invoice Description", MARGIN + 10, y + 10)
         
         const descLines = wrapText(bill.description, CONTENT_WIDTH - 20, doc)
         doc.fontSize(10)
-          .font('Helvetica')
+          
           .fillColor('#374151')
         
         let descY = y + 25
@@ -691,14 +683,14 @@ export async function generateInvoicePdf(bill: any, logoBase64: string | null): 
       
       // Invoice Information
       doc.fontSize(12)
-        .font('Helvetica-Bold')
+        
         .fillColor('#111827')
         .text("Invoice Information", MARGIN, y)
       
       y = doc.y + 10
       
       doc.fontSize(10)
-        .font('Helvetica')
+        
         .fillColor('#374151')
         .text("Invoice Date:", MARGIN, y)
         .fillColor('#111827')
@@ -733,14 +725,14 @@ export async function generateInvoicePdf(bill: any, logoBase64: string | null): 
       
       // Bill To section
       doc.fontSize(12)
-        .font('Helvetica-Bold')
+        
         .fillColor('#111827')
         .text("Bill To", MARGIN, y)
       
       y = doc.y + 10
       
       doc.fontSize(10)
-        .font('Helvetica')
+        
         .fillColor('#374151')
         .text("Client Name:", MARGIN, y)
         .fillColor('#111827')
@@ -786,7 +778,7 @@ export async function generateInvoicePdf(bill: any, logoBase64: string | null): 
         checkPageBreak(doc, 150)
         
         doc.fontSize(12)
-          .font('Helvetica-Bold')
+          
           .fillColor('#111827')
           .text("Line Items", MARGIN, doc.y + 10)
         
@@ -864,7 +856,7 @@ export async function generateInvoicePdf(bill: any, logoBase64: string | null): 
       
       if (subtotal > 0) {
         doc.fontSize(10)
-          .font('Helvetica')
+          
           .fillColor('#111827')
           .text("Subtotal:", PAGE_WIDTH - MARGIN - 150, y, { align: 'right', width: 150 })
           .text(formatCurrency(subtotal, currency), PAGE_WIDTH - MARGIN, y, { align: 'right' })
@@ -893,7 +885,7 @@ export async function generateInvoicePdf(bill: any, logoBase64: string | null): 
       y += 10
       
       doc.fontSize(14)
-        .font('Helvetica-Bold')
+        
         .text("Total:", PAGE_WIDTH - MARGIN - 150, y, { align: 'right', width: 150 })
         .text(formatCurrency(total, currency), PAGE_WIDTH - MARGIN, y, { align: 'right' })
       
@@ -903,14 +895,14 @@ export async function generateInvoicePdf(bill: any, logoBase64: string | null): 
       if (bill.proposal) {
         checkPageBreak(doc, 50)
         doc.fontSize(12)
-          .font('Helvetica-Bold')
+          
           .fillColor('#111827')
           .text("Related Proposal", MARGIN, doc.y + 10)
         
         y = doc.y + 10
         
         doc.fontSize(10)
-          .font('Helvetica')
+          
           .fillColor('#111827')
           .text(bill.proposal.title, MARGIN, y)
         
@@ -926,14 +918,14 @@ export async function generateInvoicePdf(bill: any, logoBase64: string | null): 
       if (bill.project) {
         checkPageBreak(doc, 50)
         doc.fontSize(12)
-          .font('Helvetica-Bold')
+          
           .fillColor('#111827')
           .text("Related Project", MARGIN, doc.y + 10)
         
         y = doc.y + 10
         
         doc.fontSize(10)
-          .font('Helvetica')
+          
           .fillColor('#111827')
           .text(bill.project.name, MARGIN, y)
         
@@ -952,7 +944,7 @@ export async function generateInvoicePdf(bill: any, logoBase64: string | null): 
         y = doc.y + 20
         
         doc.fontSize(12)
-          .font('Helvetica-Bold')
+          
           .fillColor('#111827')
           .text("Payment Details", MARGIN, y)
         
@@ -967,7 +959,7 @@ export async function generateInvoicePdf(bill: any, logoBase64: string | null): 
         
         const paymentLines = wrapText(bill.paymentDetails.details, CONTENT_WIDTH - 20, doc)
         doc.fontSize(10)
-          .font('Helvetica')
+          
           .fillColor('#111827')
         
         let paymentY = y + 10
@@ -986,7 +978,7 @@ export async function generateInvoicePdf(bill: any, logoBase64: string | null): 
         .stroke()
       
       doc.fontSize(9)
-        .font('Helvetica')
+        
         .fillColor('#6b7280')
         .text(`Generated on ${formatDate(new Date())}`, MARGIN, PAGE_HEIGHT - MARGIN - 15)
       
