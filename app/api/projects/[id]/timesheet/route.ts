@@ -6,7 +6,10 @@ import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import { parseLocalDate } from "@/lib/utils"
 import { getCurrentUserTimezone } from "@/lib/timezone-utils"
+<<<<<<< HEAD
 import { getBillingRateForUser } from "@/lib/proposal-billing-rates"
+=======
+>>>>>>> 528ee1fcb69995f9967807ff05b3e7e5752b1eb0
 
 const timesheetEntrySchema = z.object({
   userId: z.string(),
@@ -108,10 +111,13 @@ export async function POST(
 
     const project = await prisma.project.findUnique({
       where: { id },
+<<<<<<< HEAD
       select: {
         id: true,
         proposalId: true,
       },
+=======
+>>>>>>> 528ee1fcb69995f9967807ff05b3e7e5752b1eb0
     })
 
     if (!project) {
@@ -142,12 +148,19 @@ export async function POST(
       )
     }
 
+<<<<<<< HEAD
     // Verify user exists and get profile and default rate
+=======
+    // Verify user exists and get default rate
+>>>>>>> 528ee1fcb69995f9967807ff05b3e7e5752b1eb0
     const user = await prisma.user.findUnique({
       where: { id: validatedData.userId },
       select: {
         id: true,
+<<<<<<< HEAD
         profile: true,
+=======
+>>>>>>> 528ee1fcb69995f9967807ff05b3e7e5752b1eb0
         defaultHourlyRate: true,
       },
     })
@@ -156,6 +169,7 @@ export async function POST(
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
+<<<<<<< HEAD
     // Determine rate based on proposal configuration if project has a proposal
     let rateToUse: number | null = null
     
@@ -187,6 +201,10 @@ export async function POST(
       // No proposal, use user's default rate
       rateToUse = user.defaultHourlyRate
     }
+=======
+    // Use provided rate or user's default rate, or null if neither available
+    const rateToUse = validatedData.rate ?? user.defaultHourlyRate ?? null
+>>>>>>> 528ee1fcb69995f9967807ff05b3e7e5752b1eb0
 
     const entry = await prisma.timesheetEntry.create({
       data: {

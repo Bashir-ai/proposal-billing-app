@@ -260,6 +260,7 @@ export async function generateProposalPdf(proposal: any, logoBase64: string | nu
         y = doc.y + 15
       }
       
+<<<<<<< HEAD
       // Hourly Rate Chart (for HOURLY proposals with HOURLY_TABLE)
       if (
         proposal.type === "HOURLY" &&
@@ -318,6 +319,13 @@ export async function generateProposalPdf(proposal: any, logoBase64: string | nu
       if (hasEstimated || hasHourlyEstimate) {
         checkPageBreak(doc, 60)
         doc.rect(MARGIN, doc.y, CONTENT_WIDTH, hasHourlyEstimate ? 70 : 50)
+=======
+      // Estimate warning
+      const hasEstimated = proposal.items?.some((item: any) => item.isEstimate === true || item.isEstimated === true)
+      if (hasEstimated) {
+        checkPageBreak(doc, 60)
+        doc.rect(MARGIN, doc.y, CONTENT_WIDTH, 50)
+>>>>>>> 528ee1fcb69995f9967807ff05b3e7e5752b1eb0
           .fillColor('#fef3c7')
           .fill()
           .strokeColor('#fbbf24')
@@ -327,6 +335,7 @@ export async function generateProposalPdf(proposal: any, logoBase64: string | nu
           .fontSize(12)
           .text("⚠️ Proposed fees are estimated", MARGIN + 10, doc.y + 10)
         
+<<<<<<< HEAD
         if (hasHourlyEstimate) {
           doc.fontSize(10)
             .fillColor('#92400e')
@@ -334,6 +343,9 @@ export async function generateProposalPdf(proposal: any, logoBase64: string | nu
         }
         
         y = doc.y + (hasHourlyEstimate ? 30 : 20)
+=======
+        y = doc.y + 20
+>>>>>>> 528ee1fcb69995f9967807ff05b3e7e5752b1eb0
       }
       
       // Items tables
