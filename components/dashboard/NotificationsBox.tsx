@@ -134,18 +134,46 @@ export function NotificationsBox({ initialCount, initialNotifications, isCollaps
     }
   }
 
-  const handleMarkAsViewed = useCallback((notificationId: string) => {
-    setViewedNotifications(prev => {
-      const newSet = new Set(prev)
-      newSet.add(notificationId)
-      return newSet
-    })
-  }, [])
+  const handleMarkAsViewed = useCallback(async (notificationId: string) => {
+    try {
+      // Mark as read in the database
+      const response = await fetch(`/api/notifications/${notificationId}/read`, {
+        method: "PUT",
+      })
+      
+      if (response.ok) {
+        // Update local state
+        setViewedNotifications(prev => {
+          const newSet = new Set(prev)
+          newSet.add(notificationId)
+          return newSet
+        })
+        // Refresh notifications to get updated count
+        refreshNotifications()
+      }
+    } catch (error) {
+      console.error("Error marking notification as read:", error)
+    }
+  }, [refreshNotifications])
 
-  const handleMarkAllAsViewed = useCallback(() => {
-    const allIds = new Set(notifications.map(n => n.id))
-    setViewedNotifications(allIds)
-  }, [notifications])
+  const handleMarkAllAsViewed = useCallback(async () => {
+    try {
+      // Mark all notifications as read
+      const promises = notifications.map(n => 
+        fetch(`/api/notifications/${n.id}/read`, { method: "PUT" })
+      )
+      await Promise.all(promises)
+      
+      // Update local state
+      const allIds = new Set(notifications.map(n => n.id))
+      setViewedNotifications(allIds)
+      
+      // Refresh notifications to get updated count
+      refreshNotifications()
+    } catch (error) {
+      console.error("Error marking all notifications as read:", error)
+    }
+  }, [notifications, refreshNotifications])
 
   // Filter out viewed notifications and calculate count
   const unviewedNotifications = notifications.filter(n => !viewedNotifications.has(n.id))
@@ -262,9 +290,9 @@ function NotificationItem({
   const [isCreatingTodo, setIsCreatingTodo] = useState(false)
   const link = getNotificationLink(notification)
 
-  const handleMarkAsViewed = (e: React.MouseEvent) => {
+  const handleMarkAsViewed = async (e: React.MouseEvent) => {
     e.stopPropagation()
-    onMarkAsViewed?.()
+    await onMarkAsViewed?.()
   }
 
   const handleCreateTodo = async (e: React.MouseEvent) => {

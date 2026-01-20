@@ -17,7 +17,7 @@ const todoSchema = z.object({
   invoiceId: z.string().optional(),
   clientId: z.string().optional(),
   leadId: z.string().optional(),
-  assignedTo: z.string().optional(),
+  assignedTo: z.union([z.string(), z.array(z.string())]).optional(), // Support both single and multiple assignments
   priority: z.nativeEnum(TodoPriority).default(TodoPriority.MEDIUM),
   isPersonal: z.boolean().default(false),
   startDate: z.string().optional(),
@@ -57,13 +57,18 @@ export async function GET(request: Request) {
       }
       // Otherwise show all (no filter)
       
-      // Apply assignedTo filter if provided
+      // Apply assignedTo filter if provided (check both assignedTo and assignments)
       if (assignedTo) {
         if (hidePersonal) {
-          where.assignedTo = assignedTo
-          where.isPersonal = false
+          where.OR = [
+            { assignedTo: assignedTo, isPersonal: false },
+            { assignments: { some: { userId: assignedTo } }, isPersonal: false },
+          ]
         } else {
-          where.assignedTo = assignedTo
+          where.OR = [
+            { assignedTo: assignedTo },
+            { assignments: { some: { userId: assignedTo } } },
+          ]
         }
       }
     } else {
@@ -79,13 +84,16 @@ export async function GET(request: Request) {
       const targetUserId = assignedTo || session.user.id
       
       if (hidePersonal) {
-        // Hide personal todos - only show assigned non-personal todos
-        where.assignedTo = targetUserId
-        where.isPersonal = false
-      } else {
-        // Show assigned todos OR own personal todos
+        // Hide personal todos - only show assigned non-personal todos (check both assignedTo and assignments)
         where.OR = [
           { assignedTo: targetUserId, isPersonal: false },
+          { assignments: { some: { userId: targetUserId } }, isPersonal: false },
+        ]
+      } else {
+        // Show assigned todos OR own personal todos (check both assignedTo and assignments)
+        where.OR = [
+          { assignedTo: targetUserId, isPersonal: false },
+          { assignments: { some: { userId: targetUserId } }, isPersonal: false },
           { assignedTo: targetUserId, createdBy: session.user.id, isPersonal: true },
         ]
       }
@@ -326,6 +334,17 @@ export async function GET(request: Request) {
             email: true,
           },
         },
+        assignments: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+        },
       },
     })
 
@@ -357,30 +376,43 @@ export async function POST(request: Request) {
     const body = await request.json()
     const validatedData = todoSchema.parse(body)
 
-    // If personal todo, automatically assign to creator
-    const finalAssignedTo = validatedData.isPersonal 
-      ? session.user.id 
-      : (validatedData.assignedTo || session.user.id)
+    // Handle multiple assignments
+    let assigneeIds: string[] = []
+    if (Array.isArray(validatedData.assignedTo)) {
+      assigneeIds = validatedData.assignedTo
+    } else if (typeof validatedData.assignedTo === 'string') {
+      assigneeIds = [validatedData.assignedTo]
+    } else {
+      assigneeIds = [session.user.id]
+    }
 
-    // Validate that assignee exists
-    const assignee = await prisma.user.findUnique({
-      where: { id: finalAssignedTo },
+    // If personal todo, automatically assign to creator only
+    if (validatedData.isPersonal) {
+      assigneeIds = [session.user.id]
+    }
+
+    // Validate that all assignees exist
+    const assignees = await prisma.user.findMany({
+      where: { id: { in: assigneeIds } },
     })
 
-    if (!assignee) {
+    if (assignees.length !== assigneeIds.length) {
       return NextResponse.json(
-        { error: "Assignee not found" },
+        { error: "One or more assignees not found" },
         { status: 404 }
       )
     }
 
-    // Personal todos must be assigned to creator
-    if (validatedData.isPersonal && finalAssignedTo !== session.user.id) {
+    // Personal todos must be assigned to creator only
+    if (validatedData.isPersonal && (assigneeIds.length !== 1 || assigneeIds[0] !== session.user.id)) {
       return NextResponse.json(
-        { error: "Personal todos must be assigned to the creator" },
+        { error: "Personal todos must be assigned to the creator only" },
         { status: 400 }
       )
     }
+
+    // Use first assignee for backward compatibility with assignedTo field
+    const primaryAssigneeId = assigneeIds[0] || session.user.id
 
     // Validate optional relations exist
     if (validatedData.projectId) {
@@ -453,7 +485,7 @@ export async function POST(request: Request) {
         invoiceId: validatedData.invoiceId || null,
         clientId: validatedData.clientId || null,
         leadId: validatedData.leadId || null,
-        assignedTo: finalAssignedTo,
+        assignedTo: primaryAssigneeId,
         createdBy: session.user.id,
         priority: validatedData.priority,
         isPersonal: validatedData.isPersonal || false,
@@ -481,12 +513,25 @@ export async function POST(request: Request) {
         },
         assignee: true,
         creator: true,
+        assignments: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+        },
       },
     })
 
-    // Create notification for assignee (only for non-personal todos)
+    // Create notifications for all assignees (only for non-personal todos)
     if (!validatedData.isPersonal) {
-      await createTodoNotification(todo.id, finalAssignedTo, session.user.id)
+      for (const assigneeId of assigneeIds) {
+        await createTodoNotification(todo.id, assigneeId, session.user.id)
+      }
     }
 
     return NextResponse.json(todo, { status: 201 })

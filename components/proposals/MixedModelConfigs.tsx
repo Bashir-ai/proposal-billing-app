@@ -123,6 +123,74 @@ export function HourlyConfig({ formData, setFormData, selectedCurrency }: MixedM
           </div>
 
           <div className="pt-4 border-t space-y-4">
+            <div>
+              <Label className="text-base font-semibold mb-3 block">Hourly Rate Configuration</Label>
+              <p className="text-sm text-gray-600 mb-4">How will hourly rates be determined?</p>
+              
+              <div className="space-y-3 mb-4">
+                <label className="flex items-center space-x-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                  <input
+                    type="radio"
+                    name="hourlyRateTableType"
+                    value="FIXED_RATE"
+                    checked={formData.hourlyRateTableType === "FIXED_RATE" || !formData.hourlyRateTableType}
+                    onChange={(e) => setFormData({ ...formData, hourlyRateTableType: e.target.value })}
+                    className="w-4 h-4"
+                  />
+                  <div className="flex-1">
+                    <div className="font-medium">Rate Range (Min/Max)</div>
+                    <div className="text-sm text-gray-600">Use the min/max rate range above</div>
+                  </div>
+                </label>
+                
+                <label className="flex items-center space-x-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                  <input
+                    type="radio"
+                    name="hourlyRateTableType"
+                    value="HOURLY_TABLE"
+                    checked={formData.hourlyRateTableType === "HOURLY_TABLE"}
+                    onChange={(e) => setFormData({ ...formData, hourlyRateTableType: e.target.value })}
+                    className="w-4 h-4"
+                  />
+                  <div className="flex-1">
+                    <div className="font-medium">Hourly Table</div>
+                    <div className="text-sm text-gray-600">Charge different rates based on user profile</div>
+                  </div>
+                </label>
+              </div>
+              
+              {formData.hourlyRateTableType === "HOURLY_TABLE" && (
+                <div className="space-y-4">
+                  <Label className="text-base font-semibold">Hourly Rates by Profile</Label>
+                  <div className="space-y-2">
+                    {[
+                      { key: "SECRETARIAT", label: "Secretariat" },
+                      { key: "TRAINEE", label: "Trainee" },
+                      { key: "JUNIOR_LAWYER", label: "Junior Lawyer" },
+                      { key: "LAWYER", label: "Lawyer" },
+                      { key: "SENIOR_LAWYER", label: "Senior Lawyer" },
+                      { key: "PARTNER", label: "Partner" },
+                    ].map((profile) => (
+                      <div key={profile.key} className="grid grid-cols-2 gap-4 items-center">
+                        <Label>{profile.label}</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={formData.hourlyRateTableRates?.[profile.key] || 0}
+                          onChange={(e) => {
+                            const newRates = { ...(formData.hourlyRateTableRates || {}), [profile.key]: parseFloat(e.target.value) || 0 }
+                            setFormData({ ...formData, hourlyRateTableRates: newRates })
+                          }}
+                          placeholder={`${currencySymbol}/hr`}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="flex items-center space-x-2">
               <input
                 type="checkbox"

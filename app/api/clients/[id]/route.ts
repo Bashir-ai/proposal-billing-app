@@ -9,7 +9,7 @@ import { isDatabaseConnectionError, getDatabaseErrorMessage } from "@/lib/databa
 const contactPersonSchema = z.object({
   id: z.string().optional(),
   name: z.string().min(1),
-  email: z.string().email().optional().or(z.literal("")),
+  email: z.union([z.string().email(), z.literal("")]).optional(),
   phone: z.string().optional(),
   position: z.string().optional(),
   isPrimary: z.boolean().default(false),
@@ -315,8 +315,13 @@ export async function PUT(
     return NextResponse.json(client)
   } catch (error) {
     if (error instanceof z.ZodError) {
+      console.error("Validation error:", JSON.stringify(error.errors, null, 2))
       return NextResponse.json(
-        { error: "Invalid input", details: error.errors },
+        { 
+          error: "Invalid input", 
+          details: error.errors,
+          message: error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ')
+        },
         { status: 400 }
       )
     }

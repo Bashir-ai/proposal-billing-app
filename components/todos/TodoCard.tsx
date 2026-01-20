@@ -214,7 +214,9 @@ export function TodoCard({
                 {todo.priority} Priority
               </span>
               <span className="text-xs text-gray-500">
-                Assigned to: {todo.assignee.name}
+                Assigned to: {todo.assignments && todo.assignments.length > 0 
+                  ? todo.assignments.map((a: any) => a.user?.name || a.userName || "Unknown").join(", ")
+                  : todo.assignee?.name || "Unknown"}
               </span>
               {todo.dueDate && (
                 <span className={`text-xs ${new Date(todo.dueDate) < new Date() && todo.status !== "COMPLETED" ? "text-red-600 font-semibold" : "text-gray-500"}`}>

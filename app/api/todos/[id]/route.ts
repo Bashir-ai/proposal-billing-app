@@ -18,7 +18,7 @@ const todoUpdateSchema = z.object({
   invoiceId: z.string().optional().nullable(),
   clientId: z.string().optional().nullable(),
   leadId: z.string().optional().nullable(),
-  assignedTo: z.string().optional(),
+  assignedTo: z.union([z.string(), z.array(z.string())]).optional(), // Support both single and multiple assignments
   status: z.nativeEnum(TodoStatus).optional(),
   priority: z.nativeEnum(TodoPriority).optional(),
   isPersonal: z.boolean().optional(),
@@ -143,6 +143,17 @@ export async function GET(
           },
           orderBy: { createdAt: "desc" },
         },
+        assignments: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+        },
       },
     })
 
@@ -150,16 +161,19 @@ export async function GET(
       return NextResponse.json({ error: "Todo not found" }, { status: 404 })
     }
 
-    // Check permissions: user can view if they're assigned, creator, or admin
+    // Check permissions: user can view if they're assigned (via assignments or assignedTo), creator, or admin
     // Personal todos are only visible to creator
     if (todo.isPersonal) {
       if (session.user.role !== "ADMIN" && todo.createdBy !== session.user.id) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 })
       }
     } else {
+      const assignedUserIds = todo.assignments?.map(a => a.userId) || []
+      const isAssigned = assignedUserIds.includes(session.user.id) || todo.assignedTo === session.user.id
+      
       if (
         session.user.role !== "ADMIN" &&
-        todo.assignedTo !== session.user.id &&
+        !isAssigned &&
         todo.createdBy !== session.user.id
       ) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 })
@@ -196,16 +210,24 @@ export async function PUT(
 
     const todo = await prisma.todo.findUnique({
       where: { id },
+      include: {
+        assignments: {
+          select: { userId: true },
+        },
+      },
     })
 
     if (!todo) {
       return NextResponse.json({ error: "Todo not found" }, { status: 404 })
     }
 
-    // Check permissions: user can edit if they're assigned, creator, or admin
+    // Check permissions: user can edit if they're assigned (via assignments or assignedTo), creator, or admin
+    const assignedUserIds = todo.assignments?.map(a => a.userId) || []
+    const isAssigned = assignedUserIds.includes(session.user.id) || todo.assignedTo === session.user.id
+    
     if (
       session.user.role !== "ADMIN" &&
-      todo.assignedTo !== session.user.id &&
+      !isAssigned &&
       todo.createdBy !== session.user.id
     ) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
@@ -332,8 +354,8 @@ export async function PUT(
       }
     }
 
-    // Handle assignee change (reassignment)
-    if (validatedData.assignedTo !== undefined && validatedData.assignedTo !== todo.assignedTo) {
+    // Handle assignee change (reassignment) - support both single and multiple assignments
+    if (validatedData.assignedTo !== undefined) {
       // Prevent reassigning personal todos
       if (todo.isPersonal || validatedData.isPersonal) {
         return NextResponse.json(
@@ -341,37 +363,80 @@ export async function PUT(
           { status: 400 }
         )
       }
-      // Check if reassignment is allowed
-      if (!canReassignTodo(creator, currentAssignee, currentUser)) {
-        return NextResponse.json(
-          { error: "You don't have permission to reassign this todo. Only the creator (who has higher rank) or the assignee (if creator has higher rank) can reassign." },
-          { status: 403 }
-        )
+
+      // Handle multiple assignments
+      let newAssigneeIds: string[] = []
+      if (Array.isArray(validatedData.assignedTo)) {
+        newAssigneeIds = validatedData.assignedTo
+      } else if (typeof validatedData.assignedTo === 'string') {
+        newAssigneeIds = [validatedData.assignedTo]
       }
 
-      // Validate new assignee exists
-      const newAssignee = await prisma.user.findUnique({
-        where: { id: validatedData.assignedTo },
+      // Get current assignments
+      const currentAssignments = await prisma.todoAssignment.findMany({
+        where: { todoId: id },
       })
-      if (!newAssignee) {
-        return NextResponse.json(
-          { error: "Assignee not found" },
-          { status: 404 }
-        )
+      const currentAssigneeIds = currentAssignments.map(a => a.userId)
+
+      // Check if assignments actually changed
+      const assignmentsChanged = 
+        newAssigneeIds.length !== currentAssigneeIds.length ||
+        !newAssigneeIds.every(id => currentAssigneeIds.includes(id))
+
+      if (assignmentsChanged) {
+        // Check if reassignment is allowed (check with primary assignee for backward compatibility)
+        if (!canReassignTodo(creator, currentAssignee, currentUser)) {
+          return NextResponse.json(
+            { error: "You don't have permission to reassign this todo. Only the creator (who has higher rank) or the assignee (if creator has higher rank) can reassign." },
+            { status: 403 }
+          )
+        }
+
+        // Validate all new assignees exist
+        const newAssignees = await prisma.user.findMany({
+          where: { id: { in: newAssigneeIds } },
+        })
+
+        if (newAssignees.length !== newAssigneeIds.length) {
+          return NextResponse.json(
+            { error: "One or more assignees not found" },
+            { status: 404 }
+          )
+        }
+
+        // Delete existing assignments
+        await prisma.todoAssignment.deleteMany({
+          where: { todoId: id },
+        })
+
+        // Create new assignments
+        await prisma.todoAssignment.createMany({
+          data: newAssigneeIds.map(userId => ({
+            todoId: id,
+            userId,
+            assignedBy: session.user.id,
+          })),
+        })
+
+        // Update primary assignedTo for backward compatibility
+        updateData.assignedTo = newAssigneeIds[0] || todo.assignedTo
+
+        // Create reassignment records for removed assignees
+        const removedAssigneeIds = currentAssigneeIds.filter(id => !newAssigneeIds.includes(id))
+        for (const removedId of removedAssigneeIds) {
+          if (newAssigneeIds.length > 0) {
+            await prisma.todoReassignment.create({
+              data: {
+                todoId: id,
+                fromUserId: removedId,
+                toUserId: newAssigneeIds[0],
+                reassignedBy: session.user.id,
+                reason: validatedData.reassignmentReason || null,
+              },
+            })
+          }
+        }
       }
-
-      // Create reassignment record
-      await prisma.todoReassignment.create({
-        data: {
-          todoId: id,
-          fromUserId: todo.assignedTo,
-          toUserId: validatedData.assignedTo,
-          reassignedBy: session.user.id,
-          reason: validatedData.reassignmentReason || null,
-        },
-      })
-
-      updateData.assignedTo = validatedData.assignedTo
     }
 
     const updatedTodo = await prisma.todo.update({
@@ -420,18 +485,56 @@ export async function PUT(
           },
           orderBy: { createdAt: "desc" },
         },
+        assignments: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+        },
         dueDateChanges: {
           include: {
             changedByUser: { select: { id: true, name: true, email: true } },
           },
           orderBy: { createdAt: "desc" },
         },
+        assignments: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+        },
       },
     })
 
-    // Create notification if assignee changed
-    if (validatedData.assignedTo && validatedData.assignedTo !== oldAssignedTo) {
-      await createTodoNotification(updatedTodo.id, validatedData.assignedTo, session.user.id)
+    // Create notifications for new assignees
+    if (validatedData.assignedTo) {
+      let newAssigneeIds: string[] = []
+      if (Array.isArray(validatedData.assignedTo)) {
+        newAssigneeIds = validatedData.assignedTo
+      } else if (typeof validatedData.assignedTo === 'string') {
+        newAssigneeIds = [validatedData.assignedTo]
+      }
+
+      // Get current assignments to find new ones
+      const currentAssignments = await prisma.todoAssignment.findMany({
+        where: { todoId: id },
+      })
+      const currentAssigneeIds = currentAssignments.map(a => a.userId)
+      const newAssignees = newAssigneeIds.filter(id => !currentAssigneeIds.includes(id))
+
+      for (const assigneeId of newAssignees) {
+        await createTodoNotification(updatedTodo.id, assigneeId, session.user.id)
+      }
     }
 
     return NextResponse.json(updatedTodo)
@@ -470,16 +573,24 @@ export async function PATCH(
 
     const todo = await prisma.todo.findUnique({
       where: { id },
+      include: {
+        assignments: {
+          select: { userId: true },
+        },
+      },
     })
 
     if (!todo) {
       return NextResponse.json({ error: "Todo not found" }, { status: 404 })
     }
 
-    // Check permissions: user can update if they're assigned, creator, or admin
+    // Check permissions: user can update if they're assigned (via assignments or assignedTo), creator, or admin
+    const assignedUserIds = todo.assignments?.map(a => a.userId) || []
+    const isAssigned = assignedUserIds.includes(session.user.id) || todo.assignedTo === session.user.id
+    
     if (
       session.user.role !== "ADMIN" &&
-      todo.assignedTo !== session.user.id &&
+      !isAssigned &&
       todo.createdBy !== session.user.id
     ) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })

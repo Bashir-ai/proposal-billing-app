@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation"
 import { TodoForm } from "@/components/todos/TodoForm"
 import { TodoReassignmentHistory } from "@/components/todos/TodoReassignmentHistory"
 import { TodoDueDateChangeHistory } from "@/components/todos/TodoDueDateChangeHistory"
+import { TodoComments } from "@/components/todos/TodoComments"
 import { useSession } from "next-auth/react"
 
 interface Project {
@@ -173,6 +174,7 @@ export default function EditTodoPage() {
           clientId: todo.clientId || undefined,
           leadId: todo.leadId || undefined,
           assignedTo: todo.assignedTo,
+          assignments: todo.assignments || undefined,
           priority: todo.priority,
           isPersonal: todo.isPersonal || false,
           startDate: todo.startDate ? new Date(todo.startDate).toISOString().split("T")[0] : undefined,
@@ -204,6 +206,10 @@ export default function EditTodoPage() {
           <TodoDueDateChangeHistory dueDateChanges={todo.dueDateChanges} />
         </div>
       )}
+
+      <div className="mt-6">
+        <TodoComments todoId={todo.id} />
+      </div>
     </div>
   )
 }

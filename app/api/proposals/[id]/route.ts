@@ -85,6 +85,8 @@ const proposalUpdateSchema = z.object({
   hourlyRateRangeMax: z.number().optional(),
   hourlyCapHours: z.number().optional(),
   cappedAmount: z.number().optional(),
+  hourlyRateTableType: z.enum(["FIXED_RATE", "RATE_RANGE", "HOURLY_TABLE"]).optional(),
+  hourlyRateTableRates: z.any().optional(), // JSON object
   retainerMonthlyAmount: z.number().optional(),
   retainerHoursPerMonth: z.number().optional(),
   retainerAdditionalHoursType: z.enum(["FIXED_RATE", "RATE_RANGE", "HOURLY_TABLE"]).optional(),
@@ -387,6 +389,8 @@ export async function PUT(
       if (validatedData.hourlyRateRangeMax !== undefined) updateData.hourlyRateRangeMax = validatedData.hourlyRateRangeMax || null
       if (validatedData.hourlyCapHours !== undefined) updateData.hourlyCapHours = validatedData.hourlyCapHours || null
       if (validatedData.cappedAmount !== undefined) updateData.cappedAmount = validatedData.cappedAmount || null
+      if (validatedData.hourlyRateTableType !== undefined) updateData.hourlyRateTableType = validatedData.hourlyRateTableType || null
+      if (validatedData.hourlyRateTableRates !== undefined) updateData.hourlyRateTableRates = validatedData.hourlyRateTableRates ? JSON.parse(JSON.stringify(validatedData.hourlyRateTableRates)) : null
       if (validatedData.retainerMonthlyAmount !== undefined) updateData.retainerMonthlyAmount = validatedData.retainerMonthlyAmount || null
       if (validatedData.retainerHoursPerMonth !== undefined) updateData.retainerHoursPerMonth = validatedData.retainerHoursPerMonth || null
       if (validatedData.retainerAdditionalHoursType !== undefined) updateData.retainerAdditionalHoursType = validatedData.retainerAdditionalHoursType || null

@@ -63,6 +63,17 @@ export function TodoForm({
   const [error, setError] = useState("")
   const [reassignmentReason, setReassignmentReason] = useState("")
   const [dueDateChangeReason, setDueDateChangeReason] = useState("")
+  // Get initial assigned users from assignments if available, otherwise from assignedTo
+  const getInitialAssignedUsers = () => {
+    if (initialData?.assignments && Array.isArray(initialData.assignments) && initialData.assignments.length > 0) {
+      return initialData.assignments.map((a: any) => a.user?.id || a.userId).filter(Boolean)
+    }
+    if (initialData?.assignedTo) {
+      return [initialData.assignedTo]
+    }
+    return []
+  }
+
   const [formData, setFormData] = useState({
     title: initialData?.title || "",
     description: initialData?.description || "",
@@ -72,7 +83,8 @@ export function TodoForm({
     invoiceId: initialData?.invoiceId || "",
     clientId: initialData?.clientId || "",
     leadId: initialData?.leadId || "",
-    assignedTo: initialData?.assignedTo || "",
+    assignedTo: initialData?.assignedTo || "", // Keep for backward compatibility
+    assignedUsers: getInitialAssignedUsers(), // New: array of user IDs
     priority: initialData?.priority || "MEDIUM",
     isPersonal: initialData?.isPersonal || false,
     startDate: initialData?.startDate ? new Date(initialData.startDate).toISOString().split("T")[0] : "",
@@ -167,7 +179,11 @@ export function TodoForm({
       // Check if due date is being changed by assignee
       const isDueDateChanging = initialData?.id && 
         formData.dueDate !== (initialData.dueDate ? new Date(initialData.dueDate).toISOString().split("T")[0] : "")
-      const isAssignee = session?.user?.id === initialData?.assignedTo
+      // Check if user is assigned (via assignments or assignedTo)
+      const assignedUserIds = initialData?.assignments 
+        ? initialData.assignments.map((a: any) => a.user?.id || a.userId).filter(Boolean)
+        : (initialData?.assignedTo ? [initialData.assignedTo] : [])
+      const isAssignee = assignedUserIds.includes(session?.user?.id || "")
 
       await onSubmit({
         ...formData,
@@ -177,7 +193,9 @@ export function TodoForm({
         invoiceId: formData.invoiceId || undefined,
         clientId: formData.clientId || undefined,
         leadId: formData.leadId || undefined,
-        assignedTo: formData.isPersonal ? session?.user?.id : (formData.assignedTo || undefined),
+        assignedTo: formData.isPersonal 
+          ? session?.user?.id 
+          : (formData.assignedUsers.length > 0 ? formData.assignedUsers : (formData.assignedTo ? [formData.assignedTo] : [session?.user?.id])),
         startDate: formData.startDate || undefined,
         estimatedEndDate: formData.estimatedEndDate || undefined,
         dueDate: formData.dueDate || undefined,
@@ -247,39 +265,71 @@ export function TodoForm({
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="assignedTo">Assign To *</Label>
-              <Select
-                id="assignedTo"
-                value={formData.assignedTo}
-                onChange={(e) => setFormData({ ...formData, assignedTo: e.target.value })}
-                required={!formData.isPersonal}
-                disabled={formData.isPersonal}
-              >
-                <option value="">Select user...</option>
-                {users.map((user) => (
-                  <option key={user.id} value={user.id}>
-                    {user.name} ({user.email})
-                  </option>
-                ))}
-              </Select>
-              {formData.isPersonal && (
-                <p className="text-xs text-gray-500 mt-1">
-                  Personal ToDos are automatically assigned to you.
-                </p>
-              )}
-              {initialData?.id && currentAssignee && !formData.isPersonal && (
-                <p className="text-xs text-gray-500 mt-1">
-                  Current assignee: {users.find(u => u.id === currentAssignee.id)?.name || "Unknown"}
-                </p>
-              )}
-              {isReassigning && !formData.isPersonal && (
-                <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded text-sm">
-                  <p className="font-semibold text-yellow-800 mb-1">⚠️ Reassignment Notice</p>
-                  <p className="text-yellow-700">
-                    This reassignment will be tracked. The ToDo is being reassigned from {users.find(u => u.id === currentAssignee?.id)?.name || "current assignee"} to the new assignee.
+              <Label htmlFor="assignedUsers">Assign To *</Label>
+              <div className="space-y-2">
+                <Select
+                  id="assignedUsers"
+                  multiple
+                  value={formData.assignedUsers}
+                  onChange={(e) => {
+                    const selectedOptions = Array.from(e.target.selectedOptions, option => option.value)
+                    setFormData({ 
+                      ...formData, 
+                      assignedUsers: selectedOptions,
+                      assignedTo: selectedOptions[0] || "", // Keep first for backward compatibility
+                    })
+                  }}
+                  required={!formData.isPersonal && formData.assignedUsers.length === 0}
+                  disabled={formData.isPersonal}
+                  className="min-h-[100px]"
+                >
+                  {users.map((user) => (
+                    <option key={user.id} value={user.id}>
+                      {user.name} ({user.email})
+                    </option>
+                  ))}
+                </Select>
+                {formData.assignedUsers.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {formData.assignedUsers.map((userId) => {
+                      const user = users.find(u => u.id === userId)
+                      return user ? (
+                        <span
+                          key={userId}
+                          className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-sm flex items-center gap-1"
+                        >
+                          {user.name}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newUsers = formData.assignedUsers.filter(id => id !== userId)
+                              setFormData({ 
+                                ...formData, 
+                                assignedUsers: newUsers,
+                                assignedTo: newUsers[0] || "",
+                              })
+                            }}
+                            className="text-blue-600 hover:text-blue-800"
+                            disabled={formData.isPersonal}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ) : null
+                    })}
+                  </div>
+                )}
+                {formData.isPersonal && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Personal ToDos are automatically assigned to you.
                   </p>
-                </div>
-              )}
+                )}
+                {!formData.isPersonal && formData.assignedUsers.length === 0 && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Hold Ctrl/Cmd to select multiple users
+                  </p>
+                )}
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -472,7 +522,12 @@ export function TodoForm({
 
           {initialData?.id && 
            formData.dueDate !== (initialData.dueDate ? new Date(initialData.dueDate).toISOString().split("T")[0] : "") &&
-           session?.user?.id === initialData.assignedTo && (
+           (() => {
+             const assignedUserIds = initialData?.assignments 
+               ? initialData.assignments.map((a: any) => a.user?.id || a.userId).filter(Boolean)
+               : (initialData?.assignedTo ? [initialData.assignedTo] : [])
+             return assignedUserIds.includes(session?.user?.id || "") || session?.user?.id === initialData.assignedTo
+           })() && (
             <div className="space-y-2">
               <Label htmlFor="dueDateChangeReason">Due Date Change Reason (Optional)</Label>
               <Textarea

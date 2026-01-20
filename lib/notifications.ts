@@ -194,11 +194,14 @@ export async function getNotifications(userId: string, userRole: string): Promis
       })
     }
 
-    // 4. Todo assignments
+    // 4. Todo assignments (only unread todos) - check both assignedTo and assignments
     const unreadTodos = await prisma.todo.findMany({
       where: {
-        assignedTo: userId,
-        readAt: null,
+        OR: [
+          { assignedTo: userId },
+          { assignments: { some: { userId: userId } } },
+        ],
+        readAt: null, // Only show unread todos
         status: { not: "COMPLETED" },
       },
       include: {
