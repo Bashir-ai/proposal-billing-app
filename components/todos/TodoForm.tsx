@@ -22,6 +22,7 @@ interface TodoFormProps {
     clientId?: string
     leadId?: string
     assignedTo?: string
+    assignments?: Array<{ user?: { id: string }; userId?: string }>
     priority?: string
     isPersonal?: boolean
     startDate?: string
