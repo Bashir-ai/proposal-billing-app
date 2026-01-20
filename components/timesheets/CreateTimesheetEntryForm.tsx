@@ -194,7 +194,7 @@ export function CreateTimesheetEntryForm({
     }
   }
 
-  const amount = parseFloat(formData.hours) * (parseFloat(formData.rate) || 0)
+  const amount = formData.hours * (parseFloat(formData.rate) || 0)
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
