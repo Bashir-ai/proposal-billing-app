@@ -6,9 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { formatDate, formatCurrency } from "@/lib/utils"
-import { Clock, DollarSign, Trash2 } from "lucide-react"
+import { Clock, DollarSign, Trash2, Pencil } from "lucide-react"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
+import { TimesheetEntryForm } from "@/components/projects/TimesheetEntryForm"
 
 interface TimesheetEntry {
   id: string
@@ -80,8 +81,23 @@ export function TimesheetList({ initialFilters, currentUserId, userRole }: Times
   const [filters, setFilters] = useState(initialFilters || {})
   const [selectedEntryIds, setSelectedEntryIds] = useState<Set<string>>(new Set())
   const [isDeleting, setIsDeleting] = useState(false)
+  const [editingEntry, setEditingEntry] = useState<TimesheetEntry | null>(null)
+  const [showEditForm, setShowEditForm] = useState(false)
+  const [users, setUsers] = useState<Array<{ id: string; name: string; email: string; defaultHourlyRate?: number | null }>>([])
+  const [proposals, setProposals] = useState<Map<string, any>>(new Map())
   
   const isAdmin = userRole === "ADMIN"
+
+  // Fetch users for the edit form
+  useEffect(() => {
+    fetch("/api/users")
+      .then((res) => res.json())
+      .then((data) => {
+        const staffUsers = data.filter((user: any) => user.role !== "CLIENT")
+        setUsers(staffUsers)
+      })
+      .catch(console.error)
+  }, [])
 
   useEffect(() => {
     fetchData()
@@ -118,6 +134,35 @@ export function TimesheetList({ initialFilters, currentUserId, userRole }: Times
         const data = await response.json()
         setTimesheetEntries(data.timesheetEntries || [])
         setCharges(data.charges || [])
+        
+        // Fetch proposal data for each unique project to support edit form
+        const projectIds = [...new Set(data.timesheetEntries?.map((e: TimesheetEntry) => e.project.id) || [])]
+        const proposalMap = new Map()
+        await Promise.all(
+          projectIds.map(async (projectId: string) => {
+            try {
+              const projectRes = await fetch(`/api/projects/${projectId}`)
+              if (projectRes.ok) {
+                const projectData = await projectRes.json()
+                if (projectData.proposal) {
+                  proposalMap.set(projectId, {
+                    id: projectData.proposal.id,
+                    useBlendedRate: projectData.proposal.useBlendedRate || false,
+                    blendedRate: projectData.proposal.blendedRate,
+                    items: projectData.proposal.items?.map((item: any) => ({
+                      id: item.id,
+                      personId: item.personId,
+                      rate: item.rate,
+                    })) || [],
+                  })
+                }
+              }
+            } catch (err) {
+              console.error(`Error fetching proposal for project ${projectId}:`, err)
+            }
+          })
+        )
+        setProposals(proposalMap)
       }
     } catch (error) {
       console.error("Failed to fetch timesheet data:", error)
@@ -175,7 +220,7 @@ export function TimesheetList({ initialFilters, currentUserId, userRole }: Times
         throw new Error(error.error || "Failed to delete timesheet entry")
       }
 
-      router.refresh()
+      fetchData() // Refresh data
       alert("Timesheet entry deleted successfully")
     } catch (error) {
       console.error("Error deleting timesheet entry:", error)
@@ -183,6 +228,18 @@ export function TimesheetList({ initialFilters, currentUserId, userRole }: Times
     } finally {
       setIsDeleting(false)
     }
+  }
+
+  const handleEdit = (entry: TimesheetEntry) => {
+    setEditingEntry(entry)
+    setShowEditForm(true)
+  }
+
+  const handleEditSuccess = () => {
+    setShowEditForm(false)
+    setEditingEntry(null)
+    fetchData() // Refresh data
+    router.refresh()
   }
 
   const handleBulkDelete = async () => {
@@ -232,6 +289,7 @@ export function TimesheetList({ initialFilters, currentUserId, userRole }: Times
   }
 
   return (
+    <>
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
@@ -362,19 +420,34 @@ export function TimesheetList({ initialFilters, currentUserId, userRole }: Times
                         </td>
                         {isAdmin && (
                           <td className="p-2 text-center">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={(e) => {
-                                e.preventDefault()
-                                e.stopPropagation()
-                                handleIndividualDelete(entry.id, entry.project.id)
-                              }}
-                              disabled={isDeleting}
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
+                            <div className="flex justify-center gap-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.preventDefault()
+                                  e.stopPropagation()
+                                  handleEdit(entry)
+                                }}
+                                disabled={isDeleting}
+                                className="h-8 w-8 p-0"
+                              >
+                                <Pencil className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.preventDefault()
+                                  e.stopPropagation()
+                                  handleIndividualDelete(entry.id, entry.project.id)
+                                }}
+                                disabled={isDeleting}
+                                className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
                           </td>
                         )}
                       </tr>
@@ -439,5 +512,28 @@ export function TimesheetList({ initialFilters, currentUserId, userRole }: Times
         )}
       </CardContent>
     </Card>
+    {showEditForm && editingEntry && users.length > 0 && (
+      <TimesheetEntryForm
+        projectId={editingEntry.project.id}
+        entry={{
+          id: editingEntry.id,
+          userId: editingEntry.user.id,
+          date: editingEntry.date,
+          hours: editingEntry.hours,
+          rate: editingEntry.rate,
+          description: editingEntry.description || "",
+          billable: editingEntry.billable,
+        }}
+        users={users}
+        proposal={proposals.get(editingEntry.project.id) || null}
+        isOpen={showEditForm}
+        onClose={() => {
+          setShowEditForm(false)
+          setEditingEntry(null)
+        }}
+        onSuccess={handleEditSuccess}
+      />
+    )}
+    </>
   )
 }

@@ -9,6 +9,7 @@ import { Select } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { toast } from "sonner"
+import { parseHoursInput } from "@/lib/utils"
 
 interface User {
   id: string
@@ -39,11 +40,23 @@ export function CreateTimesheetEntryForm({
 }: CreateTimesheetEntryFormProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [hoursInput, setHoursInput] = useState<string>("")
+  const [hoursError, setHoursError] = useState<string | null>(null)
+  
+  // Helper to get today's date in YYYY-MM-DD format using local components
+  const getTodayString = () => {
+    const today = new Date()
+    const year = today.getFullYear()
+    const month = String(today.getMonth() + 1).padStart(2, '0')
+    const day = String(today.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
   const [formData, setFormData] = useState({
     projectId: "",
     userId: "",
-    date: new Date().toISOString().split("T")[0],
-    hours: "",
+    date: getTodayString(),
+    hours: 0,
     rate: "",
     description: "",
     billable: true,
@@ -55,12 +68,14 @@ export function CreateTimesheetEntryForm({
       setFormData({
         projectId: "",
         userId: "",
-        date: new Date().toISOString().split("T")[0],
-        hours: "",
+        date: getTodayString(),
+        hours: 0,
         rate: "",
         description: "",
         billable: true,
       })
+      setHoursInput("")
+      setHoursError(null)
       setError(null)
     }
   }, [isOpen])
@@ -77,6 +92,36 @@ export function CreateTimesheetEntryForm({
       }
     }
   }, [formData.userId, users])
+
+  // Handle hours input change - support both "1:30" and "1,5" formats
+  const handleHoursInputChange = (value: string) => {
+    setHoursInput(value)
+    setHoursError(null)
+    
+    if (!value || value.trim() === "") {
+      setFormData(prev => ({ ...prev, hours: 0 }))
+      return
+    }
+
+    const trimmed = value.trim()
+    const hasColon = trimmed.includes(":")
+    
+    // If it has a colon but no minutes yet (e.g., "1:"), don't try to parse yet
+    if (hasColon) {
+      const parts = trimmed.split(":")
+      if (parts.length === 2 && parts[1] === "") {
+        return // User is still typing, don't parse yet
+      }
+    }
+
+    try {
+      const parsedHours = parseHoursInput(trimmed)
+      setFormData(prev => ({ ...prev, hours: parsedHours }))
+    } catch (err: any) {
+      // Don't show error while typing - only on blur or submit
+      setHoursError(null)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -96,12 +141,28 @@ export function CreateTimesheetEntryForm({
       return
     }
 
-    const hours = parseFloat(formData.hours)
-    if (isNaN(hours) || hours <= 0) {
-      setError("Please enter a valid number of hours greater than 0")
+    // Validate and parse hours input
+    let hours: number
+    try {
+      if (!hoursInput || hoursInput.trim() === "") {
+        setHoursError("Please enter hours")
+        setLoading(false)
+        return
+      }
+      hours = parseHoursInput(hoursInput)
+      if (hours <= 0) {
+        setHoursError("Hours must be greater than 0")
+        setLoading(false)
+        return
+      }
+    } catch (err: any) {
+      setHoursError(err.message || "Invalid hours format. Use decimal (1.5 or 1,5) or hours:minutes (1:30)")
       setLoading(false)
       return
     }
+
+    // Ensure date is in YYYY-MM-DD format (string)
+    const dateValue = formData.date.split('T')[0].split(' ')[0]
 
     try {
       const response = await fetch(`/api/projects/${formData.projectId}/timesheet`, {
@@ -109,7 +170,7 @@ export function CreateTimesheetEntryForm({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId: formData.userId,
-          date: formData.date,
+          date: dateValue,
           hours: hours,
           rate: formData.rate ? parseFloat(formData.rate) : null,
           description: formData.description || null,
@@ -202,14 +263,38 @@ export function CreateTimesheetEntryForm({
               <Label htmlFor="hours">Hours *</Label>
               <Input
                 id="hours"
-                type="number"
-                step="0.25"
-                min="0.25"
-                value={formData.hours}
-                onChange={(e) => setFormData({ ...formData, hours: e.target.value })}
+                type="text"
+                placeholder="1.5 or 1:30 or 1,5"
+                value={hoursInput}
+                onChange={(e) => handleHoursInputChange(e.target.value)}
+                onBlur={() => {
+                  // Validate on blur
+                  if (hoursInput && hoursInput.trim() !== "") {
+                    try {
+                      const parsed = parseHoursInput(hoursInput)
+                      if (parsed <= 0) {
+                        setHoursError("Hours must be greater than 0")
+                      }
+                    } catch (err: any) {
+                      setHoursError(err.message)
+                    }
+                  }
+                }}
                 required
                 disabled={loading}
               />
+              {hoursError && (
+                <p className="text-sm text-red-600">{hoursError}</p>
+              )}
+              {!hoursError && hoursInput && formData.hours > 0 && (
+                <p className="text-sm text-gray-500">
+                  {hoursInput.includes(":") 
+                    ? `${formData.hours.toFixed(2)} hours` 
+                    : formData.hours !== parseFloat(hoursInput.replace(',', '.')) 
+                      ? `${formData.hours.toFixed(2)} hours (${Math.floor(formData.hours)}:${Math.round((formData.hours % 1) * 60).toString().padStart(2, "0")})`
+                      : ""}
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -233,11 +318,11 @@ export function CreateTimesheetEntryForm({
               )}
             </div>
 
-            {amount > 0 && (
+            {formData.hours > 0 && parseFloat(formData.rate || "0") > 0 && (
               <div className="space-y-2">
                 <Label>Amount</Label>
                 <div className="text-lg font-semibold text-gray-700">
-                  {amount.toFixed(2)} EUR
+                  {(formData.hours * parseFloat(formData.rate || "0")).toFixed(2)} EUR
                 </div>
               </div>
             )}
