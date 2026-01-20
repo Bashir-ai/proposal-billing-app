@@ -52,6 +52,11 @@ interface TodoCardProps {
       reason?: string | null
       createdAt: string
     }>
+    assignments?: Array<{
+      id: string
+      user?: { id: string; name: string }
+      userName?: string
+    }>
   }
   currentUserId: string
   onMarkRead?: () => void
