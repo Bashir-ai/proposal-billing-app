@@ -1,0 +1,14 @@
+{
+  "buildCommand": "prisma generate && prisma db push --accept-data-loss && next build && node scripts/copy-pdfkit-fonts.js",
+  "crons": [
+    {
+      "path": "/api/cron/check-outstanding-invoices",
+      "schedule": "0 9 * * *"
+    }
+  ],
+  "functions": {
+    "app/api/**/*.ts": {
+      "includeFiles": "node_modules/pdfkit/js/data/**"
+    }
+  }
+}
