@@ -87,6 +87,7 @@ export function TimesheetList({ initialFilters, currentUserId, userRole }: Times
   const [proposals, setProposals] = useState<Map<string, any>>(new Map())
   
   const isAdmin = userRole === "ADMIN"
+  const isManagerOrStaff = userRole === "MANAGER" || userRole === "STAFF"
 
   // Fetch users for the edit form
   useEffect(() => {
@@ -362,13 +363,15 @@ export function TimesheetList({ initialFilters, currentUserId, userRole }: Times
                           selectedEntryIds.has(entry.id) && "bg-blue-100"
                         )}
                       >
-                        {isAdmin && (
+                        {(isAdmin || isManagerOrStaff) && (
                           <td className="p-2">
-                            <Checkbox
-                              checked={selectedEntryIds.has(entry.id)}
-                              onCheckedChange={() => handleToggle(entry.id)}
-                              disabled={isDeleting}
-                            />
+                            {isAdmin && (
+                              <Checkbox
+                                checked={selectedEntryIds.has(entry.id)}
+                                onCheckedChange={() => handleToggle(entry.id)}
+                                disabled={isDeleting}
+                              />
+                            )}
                           </td>
                         )}
                         <td className="p-2">
@@ -419,7 +422,7 @@ export function TimesheetList({ initialFilters, currentUserId, userRole }: Times
                             <span className="text-gray-400">—</span>
                           )}
                         </td>
-                        {isAdmin && (
+                        {(isAdmin || (isManagerOrStaff && entry.user.id === currentUserId)) && (
                           <td className="p-2 text-center">
                             <div className="flex justify-center gap-2">
                               <Button
@@ -435,19 +438,21 @@ export function TimesheetList({ initialFilters, currentUserId, userRole }: Times
                               >
                                 <Pencil className="h-3 w-3" />
                               </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={(e) => {
-                                  e.preventDefault()
-                                  e.stopPropagation()
-                                  handleIndividualDelete(entry.id, entry.project.id)
-                                }}
-                                disabled={isDeleting}
-                                className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </Button>
+                              {(isAdmin || entry.user.id === currentUserId) && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.preventDefault()
+                                    e.stopPropagation()
+                                    handleIndividualDelete(entry.id, entry.project.id)
+                                  }}
+                                  disabled={isDeleting}
+                                  className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              )}
                             </div>
                           </td>
                         )}
@@ -464,7 +469,7 @@ export function TimesheetList({ initialFilters, currentUserId, userRole }: Times
                           !charge.billed && "bg-orange-50"
                         )}
                       >
-                        {isAdmin && <td className="p-2"></td>}
+                        {(isAdmin || isManagerOrStaff) && <td className="p-2"></td>}
                         <td className="p-2">
                           <div className="flex items-center gap-1">
                             <DollarSign className="h-4 w-4 text-purple-600" />
@@ -502,7 +507,7 @@ export function TimesheetList({ initialFilters, currentUserId, userRole }: Times
                             <span className="text-gray-400">—</span>
                           )}
                         </td>
-                        {isAdmin && <td className="p-2"></td>}
+                        {(isAdmin || isManagerOrStaff) && <td className="p-2"></td>}
                       </tr>
                     )
                   }

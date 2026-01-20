@@ -14,6 +14,7 @@ const userUpdateSchema = z.object({
   role: z.nativeEnum(UserRole).optional(),
   profile: z.nativeEnum(UserProfile).nullable().optional(),
   defaultHourlyRate: z.number().min(0).nullable().optional(),
+  timezone: z.string().optional(),
   canApproveProposals: z.boolean().nullable().optional(),
   canApproveInvoices: z.boolean().nullable().optional(),
   canEditAllProposals: z.boolean().nullable().optional(),
@@ -112,9 +113,12 @@ export async function PUT(
       }
     }
 
-    // Both admins and users can update their own hourly rate
+    // Both admins and users can update their own hourly rate and timezone
     if (validatedData.defaultHourlyRate !== undefined) {
       updateData.defaultHourlyRate = validatedData.defaultHourlyRate
+    }
+    if (validatedData.timezone !== undefined) {
+      updateData.timezone = validatedData.timezone
     }
 
     const updatedUser = await prisma.user.update({
@@ -127,6 +131,7 @@ export async function PUT(
         role: true,
         profile: true,
         defaultHourlyRate: true,
+        timezone: true,
         canApproveProposals: true,
         canApproveInvoices: true,
         canEditAllProposals: true,
@@ -195,6 +200,7 @@ export async function GET(
         role: true,
         profile: true,
         defaultHourlyRate: true,
+        timezone: true,
         canApproveProposals: true,
         canApproveInvoices: true,
         canEditAllProposals: true,
