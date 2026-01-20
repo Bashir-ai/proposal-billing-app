@@ -136,7 +136,8 @@ export function TimesheetList({ initialFilters, currentUserId, userRole }: Times
         setCharges(data.charges || [])
         
         // Fetch proposal data for each unique project to support edit form
-        const projectIds: string[] = [...new Set(data.timesheetEntries?.map((e: TimesheetEntry) => e.project.id) || [])]
+        const entries = (data.timesheetEntries || []) as TimesheetEntry[]
+        const projectIds: string[] = [...new Set(entries.map((e) => e.project.id))]
         const proposalMap = new Map<string, any>()
         await Promise.all(
           projectIds.map(async (projectId: string) => {
