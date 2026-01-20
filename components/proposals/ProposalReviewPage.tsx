@@ -18,13 +18,10 @@ interface ProposalReviewPageProps {
     clientApprovalStatus: string
     amount: number | null
     currency: string
-<<<<<<< HEAD
     type?: string
     hourlyRateTableType?: string | null
     hourlyRateTableRates?: any
     hourlyIsEstimate?: boolean | null
-=======
->>>>>>> 528ee1fcb69995f9967807ff05b3e7e5752b1eb0
     currencySymbol: string
     issueDate: Date | null
     expiryDate: Date | null
@@ -244,7 +241,6 @@ export function ProposalReviewPage({ proposal, token }: ProposalReviewPageProps)
               </div>
             )}
 
-<<<<<<< HEAD
             {/* Hourly Rate Chart (for HOURLY proposals with HOURLY_TABLE) */}
             {proposal.type === "HOURLY" && proposal.hourlyRateTableType === "HOURLY_TABLE" && proposal.hourlyRateTableRates && (
               <div>
@@ -303,8 +299,6 @@ export function ProposalReviewPage({ proposal, token }: ProposalReviewPageProps)
               </div>
             )}
 
-=======
->>>>>>> 528ee1fcb69995f9967807ff05b3e7e5752b1eb0
             {/* Proposal Items */}
             {proposal.items.length > 0 && (
               <div>

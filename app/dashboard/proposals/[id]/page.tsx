@@ -85,12 +85,9 @@ export default async function ProposalDetailPage({
         hourlyRateRangeMax: true,
         hourlyCapHours: true,
         cappedAmount: true,
-<<<<<<< HEAD
         hourlyRateTableType: true,
         hourlyRateTableRates: true,
         hourlyIsEstimate: true,
-=======
->>>>>>> 528ee1fcb69995f9967807ff05b3e7e5752b1eb0
         retainerMonthlyAmount: true,
         retainerHoursPerMonth: true,
         retainerAdditionalHoursType: true,
@@ -854,11 +851,7 @@ export default async function ProposalDetailPage({
         )
       })()}
 
-<<<<<<< HEAD
       {proposal.type === "HOURLY" && (proposal.estimatedHours || proposal.hourlyRateRangeMin || proposal.hourlyRateRangeMax || proposal.hourlyCapHours || proposal.hourlyRateTableType) && (
-=======
-      {proposal.type === "HOURLY" && (proposal.estimatedHours || proposal.hourlyRateRangeMin || proposal.hourlyRateRangeMax || proposal.hourlyCapHours) && (
->>>>>>> 528ee1fcb69995f9967807ff05b3e7e5752b1eb0
         <Card className="mb-8">
           <CardHeader>
             <CardTitle>Hourly Rate Configuration</CardTitle>
@@ -876,11 +869,7 @@ export default async function ProposalDetailPage({
                 <span className="font-semibold">{proposal.hourlyCapHours} hours</span>
               </div>
             )}
-<<<<<<< HEAD
             {(proposal.hourlyRateRangeMin || proposal.hourlyRateRangeMax) && proposal.hourlyRateTableType !== "HOURLY_TABLE" && (
-=======
-            {(proposal.hourlyRateRangeMin || proposal.hourlyRateRangeMax) && (
->>>>>>> 528ee1fcb69995f9967807ff05b3e7e5752b1eb0
               <div>
                 <span className="text-sm text-gray-600">Rate Range: </span>
                 <span>
@@ -888,7 +877,6 @@ export default async function ProposalDetailPage({
                 </span>
               </div>
             )}
-<<<<<<< HEAD
             {proposal.hourlyRateTableType === "HOURLY_TABLE" && proposal.hourlyRateTableRates && (
               <div className="mt-4">
                 <h4 className="text-sm font-semibold text-gray-700 mb-3">Hourly Rates by Profile</h4>
@@ -929,8 +917,6 @@ export default async function ProposalDetailPage({
                 </div>
               </div>
             )}
-=======
->>>>>>> 528ee1fcb69995f9967807ff05b3e7e5752b1eb0
           </CardContent>
         </Card>
       )}
@@ -1141,11 +1127,7 @@ export default async function ProposalDetailPage({
       )}
 
       {/* Estimated Fees Statement */}
-<<<<<<< HEAD
       {(hasEstimatedItems || (proposal.type === "HOURLY" && proposal.hourlyIsEstimate)) && (
-=======
-      {hasEstimatedItems && (
->>>>>>> 528ee1fcb69995f9967807ff05b3e7e5752b1eb0
         <Card className="mb-8 border-yellow-300 bg-yellow-50">
           <CardContent className="pt-6">
             <div className="space-y-2">
@@ -1154,14 +1136,11 @@ export default async function ProposalDetailPage({
                   ⚠️ Proposed fees are estimated
                 </span>
               </div>
-<<<<<<< HEAD
               {proposal.type === "HOURLY" && (proposal.hourlyIsEstimate || hasEstimatedItems) && (
                 <div className="mt-2 text-base text-yellow-800">
                   An average fee was used for the purposes of estimating fees at hourly rates.
                 </div>
               )}
-=======
->>>>>>> 528ee1fcb69995f9967807ff05b3e7e5752b1eb0
               {hasCappedItems && cappedAmount > 0 && (
                 <div className="mt-2 text-base text-yellow-800">
                   However, the total charge will not exceed {currencySymbol}{cappedAmount.toFixed(2)}.

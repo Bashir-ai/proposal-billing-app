@@ -76,13 +76,10 @@ export default async function ProposalReviewPublicPage({
         issueDate: true,
         expiryDate: true,
         createdAt: true,
-<<<<<<< HEAD
         type: true,
         hourlyRateTableType: true,
         hourlyRateTableRates: true,
         hourlyIsEstimate: true,
-=======
->>>>>>> 528ee1fcb69995f9967807ff05b3e7e5752b1eb0
         client: {
           select: {
             id: true,
