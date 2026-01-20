@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { InteractionType } from "@prisma/client"
 import { X } from "lucide-react"
 import { Select } from "@/components/ui/select"
-import { parseLocalDate } from "@/lib/utils"
+import { formatDateForInput } from "@/lib/utils"
 
 interface LeadInteraction {
   id: string
@@ -39,9 +39,8 @@ export function EditInteractionForm({
 }: EditInteractionFormProps) {
   const [notes, setNotes] = useState(interaction.notes || "")
   const [date, setDate] = useState(() => {
-    // Convert date to YYYY-MM-DD format
-    const d = new Date(interaction.date)
-    return d.toISOString().split("T")[0]
+    // Convert date to YYYY-MM-DD format using formatDateForInput to avoid timezone issues
+    return formatDateForInput(new Date(interaction.date))
   })
   const [interactionType, setInteractionType] = useState<InteractionType>(interaction.interactionType)
   const [loading, setLoading] = useState(false)

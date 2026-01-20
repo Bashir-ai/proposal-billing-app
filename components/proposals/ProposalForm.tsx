@@ -168,6 +168,8 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
     amount: item.amount || 0,
     // date field removed - dates are only for actual billing/timesheet entries
     milestoneIds: item.milestones?.map((m: any) => m.id) || [], // Get milestone IDs from relations
+    // Expense fields - explicitly set to ensure proper categorization
+    expenseId: item.expenseId || undefined,
     // Recurring payment fields
     recurringEnabled: item.recurringEnabled || false,
     recurringFrequency: item.recurringFrequency || undefined,
@@ -178,7 +180,7 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
     isCapped: item.isCapped || false,
     cappedHours: item.cappedHours || undefined,
     cappedAmount: item.cappedAmount || undefined,
-    // Expense flag
+    // Expense flag - explicitly set to false if not an expense
     isEstimated: item.isEstimated || false,
   })) || [])
 
@@ -662,7 +664,11 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
   // Services: Items without expenseId AND not marked as estimated expenses
   const calculateServicesSubtotal = (): number => {
     return items
-      .filter(item => !item.expenseId && !item.isEstimated)
+      .filter(item => {
+        const hasExpenseId = item.expenseId !== null && item.expenseId !== undefined && item.expenseId !== ""
+        const isEstimatedExpense = item.isEstimated === true
+        return !hasExpenseId && !isEstimatedExpense
+      })
       .reduce((sum, item) => {
         const itemAmount = item.amount || 0
         const itemDiscount = item.discountAmount || (item.discountPercent && itemAmount ? (itemAmount * item.discountPercent / 100) : 0) || 0
@@ -674,7 +680,11 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
   // Expenses: Items with expenseId OR marked as estimated expenses
   const calculateExpensesSubtotal = (): number => {
     return items
-      .filter(item => item.expenseId || item.isEstimated)
+      .filter(item => {
+        const hasExpenseId = item.expenseId !== null && item.expenseId !== undefined && item.expenseId !== ""
+        const isEstimatedExpense = item.isEstimated === true
+        return hasExpenseId || isEstimatedExpense
+      })
       .reduce((sum, item) => {
         const itemAmount = item.amount || 0
         const itemDiscount = item.discountAmount || (item.discountPercent && itemAmount ? (itemAmount * item.discountPercent / 100) : 0) || 0
@@ -699,7 +709,11 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
     // Calculate subtotal excluding expenses
     // Services: Items without expenseId AND not marked as estimated expenses
     const subtotalExcludingExpenses = items
-      .filter(item => !item.expenseId && !item.isEstimated) // Exclude expenses
+      .filter(item => {
+        const hasExpenseId = item.expenseId !== null && item.expenseId !== undefined && item.expenseId !== ""
+        const isEstimatedExpense = item.isEstimated === true
+        return !hasExpenseId && !isEstimatedExpense
+      }) // Exclude expenses
       .reduce((sum, item) => {
         const itemAmount = item.amount || 0
         const itemDiscount = item.discountAmount || (item.discountPercent && itemAmount ? (itemAmount * item.discountPercent / 100) : 0) || 0
@@ -733,8 +747,17 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
   // Separate items into services and expenses
   // Services: Items without expenseId AND not marked as estimated expenses
   // Expenses: Items with expenseId OR marked as estimated expenses
-  const servicesItems = items.filter(item => !item.expenseId && !item.isEstimated)
-  const expensesItems = items.filter(item => item.expenseId || item.isEstimated)
+  // Make filters explicit to ensure mutual exclusivity
+  const servicesItems = items.filter(item => {
+    const hasExpenseId = item.expenseId !== null && item.expenseId !== undefined && item.expenseId !== ""
+    const isEstimatedExpense = item.isEstimated === true
+    return !hasExpenseId && !isEstimatedExpense
+  })
+  const expensesItems = items.filter(item => {
+    const hasExpenseId = item.expenseId !== null && item.expenseId !== undefined && item.expenseId !== ""
+    const isEstimatedExpense = item.isEstimated === true
+    return hasExpenseId || isEstimatedExpense
+  })
 
   const addItem = () => {
     const newItem: LineItem = {
@@ -775,6 +798,22 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
   const updateItem = (index: number, field: keyof LineItem, value: any) => {
     const updated = [...items]
     const currentItem = updated[index]
+    
+    // Prevent accidentally setting expense flags for manually added services
+    // Only allow expenseId and isEstimated to be set if the item is actually an expense
+    if (field === "expenseId" || field === "isEstimated") {
+      // If this is a manually added service (no expenseId), prevent it from being marked as expense
+      if (!currentItem.expenseId && field === "isEstimated" && value === true) {
+        // Don't allow manually added services to be marked as estimated expenses
+        return
+      }
+      // Allow expenseId to be cleared, but prevent manually added services from getting an expenseId
+      if (field === "expenseId" && value && !currentItem.expenseId && !currentItem.isEstimated) {
+        // Don't allow manually added services to get an expenseId
+        return
+      }
+    }
+    
     updated[index] = { ...currentItem, [field]: value }
     
     // Apply blended rate when switching to hourly or when blended rate is enabled

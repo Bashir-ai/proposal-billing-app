@@ -62,9 +62,16 @@ export async function PUT(
       updateData.notes = validatedData.notes || null
     }
     if (validatedData.date !== undefined) {
+      // Fetch user's timezone to parse date correctly
+      const user = await prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { timezone: true },
+      })
+      const userTimezone = user?.timezone || "UTC"
+      
       // Parse date in local timezone to preserve the date as entered
       if (validatedData.date) {
-        updateData.date = parseLocalDate(validatedData.date)
+        updateData.date = parseLocalDate(validatedData.date, userTimezone)
       } else {
         updateData.date = new Date()
       }

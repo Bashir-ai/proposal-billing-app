@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { InteractionType } from "@prisma/client"
 import { X } from "lucide-react"
+import { formatDateForInput } from "@/lib/utils"
 
 interface QuickInteractionButtonProps {
   leadId: string
@@ -24,7 +25,7 @@ export function QuickInteractionButton({
 }: QuickInteractionButtonProps) {
   const [showForm, setShowForm] = useState(false)
   const [notes, setNotes] = useState("")
-  const [date, setDate] = useState(new Date().toISOString().split("T")[0])
+  const [date, setDate] = useState(formatDateForInput(new Date()))
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
@@ -40,7 +41,7 @@ export function QuickInteractionButton({
         body: JSON.stringify({
           interactionType,
           notes: notes || null,
-          date: date || new Date().toISOString(),
+          date: date || formatDateForInput(new Date()),
         }),
       })
 
@@ -51,7 +52,7 @@ export function QuickInteractionButton({
 
       setShowForm(false)
       setNotes("")
-      setDate(new Date().toISOString().split("T")[0])
+      setDate(formatDateForInput(new Date()))
       onInteractionCreated()
     } catch (err: any) {
       setError(err.message || "An error occurred")

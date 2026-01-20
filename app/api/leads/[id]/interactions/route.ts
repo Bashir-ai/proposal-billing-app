@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import { InteractionType } from "@prisma/client"
+import { parseLocalDate } from "@/lib/utils"
 
 const interactionSchema = z.object({
   interactionType: z.nativeEnum(InteractionType),
@@ -122,12 +123,18 @@ export async function POST(
     const body = await request.json()
     const validatedData = interactionSchema.parse(body)
 
+    // Fetch user's timezone to parse date correctly
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { timezone: true },
+    })
+    const userTimezone = user?.timezone || "UTC"
+
     // Parse date in local timezone to preserve the date as entered
     // This prevents timezone conversion issues (e.g., date showing as day before)
     let interactionDate: Date
     if (validatedData.date) {
-      const [year, month, day] = validatedData.date.split('-').map(Number)
-      interactionDate = new Date(year, month - 1, day)
+      interactionDate = parseLocalDate(validatedData.date, userTimezone)
     } else {
       interactionDate = new Date()
     }
