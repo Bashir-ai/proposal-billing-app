@@ -659,9 +659,10 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
   }
 
   // Calculate services subtotal (excluding expenses)
+  // Services: Items without expenseId AND not marked as estimated expenses
   const calculateServicesSubtotal = (): number => {
     return items
-      .filter(item => !item.expenseId)
+      .filter(item => !item.expenseId && !item.isEstimated)
       .reduce((sum, item) => {
         const itemAmount = item.amount || 0
         const itemDiscount = item.discountAmount || (item.discountPercent && itemAmount ? (itemAmount * item.discountPercent / 100) : 0) || 0
@@ -670,9 +671,10 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
   }
 
   // Calculate expenses subtotal
+  // Expenses: Items with expenseId OR marked as estimated expenses
   const calculateExpensesSubtotal = (): number => {
     return items
-      .filter(item => item.expenseId !== null)
+      .filter(item => item.expenseId || item.isEstimated)
       .reduce((sum, item) => {
         const itemAmount = item.amount || 0
         const itemDiscount = item.discountAmount || (item.discountPercent && itemAmount ? (itemAmount * item.discountPercent / 100) : 0) || 0
@@ -695,8 +697,9 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
   const calculateTax = (): number => {
     if (!formData.taxRate || formData.taxRate === 0) return 0
     // Calculate subtotal excluding expenses
+    // Services: Items without expenseId AND not marked as estimated expenses
     const subtotalExcludingExpenses = items
-      .filter(item => !item.expenseId) // Exclude expenses
+      .filter(item => !item.expenseId && !item.isEstimated) // Exclude expenses
       .reduce((sum, item) => {
         const itemAmount = item.amount || 0
         const itemDiscount = item.discountAmount || (item.discountPercent && itemAmount ? (itemAmount * item.discountPercent / 100) : 0) || 0
@@ -728,13 +731,18 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
   }
 
   // Separate items into services and expenses
-  const servicesItems = items.filter(item => !item.expenseId)
-  const expensesItems = items.filter(item => item.expenseId !== null)
+  // Services: Items without expenseId AND not marked as estimated expenses
+  // Expenses: Items with expenseId OR marked as estimated expenses
+  const servicesItems = items.filter(item => !item.expenseId && !item.isEstimated)
+  const expensesItems = items.filter(item => item.expenseId || item.isEstimated)
 
   const addItem = () => {
     const newItem: LineItem = {
       description: "",
       amount: 0,
+      // Explicitly set expense flags to false/undefined for manually added services
+      expenseId: undefined,
+      isEstimated: false,
     }
     
     // Set default billing method for mixed model
@@ -2245,8 +2253,8 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                           // Only set expenseId if it's a real project expense (not a direct/estimated expense)
                           expenseId: expense.id && !expense.id.startsWith("direct-") ? expense.id : undefined,
                           billingMethod: "FIXED_FEE", // Expenses are typically fixed fee
-                          // Set isEstimated flag for direct expenses
-                          isEstimated: expense.isEstimated || false,
+                          // Set isEstimated flag for direct/estimated expenses (when no real expenseId)
+                          isEstimated: !expense.id || expense.id.startsWith("direct-") ? (expense.isEstimated || false) : false,
                         }
                         setItems([...items, newItem])
                       }}
