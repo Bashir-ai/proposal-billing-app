@@ -502,17 +502,6 @@ export async function PUT(
           },
           orderBy: { createdAt: "desc" },
         },
-        assignments: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-              },
-            },
-          },
-        },
       },
     })
 
