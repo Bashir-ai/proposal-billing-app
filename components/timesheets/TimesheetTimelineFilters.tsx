@@ -6,11 +6,11 @@ import { Label } from "@/components/ui/label"
 import { Select } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { X, Filter } from "lucide-react"
+import { X } from "lucide-react"
 
 interface TimesheetTimelineFiltersProps {
   users: Array<{ id: string; name: string }>
-  projects?: Array<{ id: string; name: string }>
+  projects?: Array<{ id: string; name: string; clientId?: string }>
   clients?: Array<{ id: string; name: string; company?: string | null }>
   onFilterChange: (filters: TimesheetTimelineFilters) => void
   currentUserId: string
@@ -47,16 +47,35 @@ export function TimesheetTimelineFilters({
     }
   }, [initialFilters])
 
+  // Filter projects based on selected client
+  const filteredProjects = localFilters.clientId
+    ? projects.filter((p) => p.clientId === localFilters.clientId)
+    : projects
+
+  // Clear projectId if selected project doesn't belong to selected client
+  useEffect(() => {
+    if (localFilters.clientId && localFilters.projectId && projects.length > 0) {
+      const selectedProject = projects.find((p) => p.id === localFilters.projectId)
+      if (selectedProject && selectedProject.clientId !== localFilters.clientId) {
+        const newFilters = {
+          ...localFilters,
+          projectId: undefined,
+        }
+        setLocalFilters(newFilters)
+        onFilterChange(newFilters)
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [localFilters.clientId, localFilters.projectId])
+
   const handleFilterChange = (key: keyof TimesheetTimelineFilters, value: string | undefined) => {
     const newFilters = {
       ...localFilters,
       [key]: value === "" ? undefined : value,
     }
     setLocalFilters(newFilters)
-  }
-
-  const applyFilters = () => {
-    onFilterChange(localFilters)
+    // Apply filters immediately
+    onFilterChange(newFilters)
   }
 
   const clearFilters = () => {
@@ -81,15 +100,6 @@ export function TimesheetTimelineFilters({
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-semibold">Timeline Filters</h3>
           <div className="flex items-center gap-2">
-            <Button
-              variant="default"
-              size="sm"
-              onClick={applyFilters}
-              className="text-xs h-7"
-            >
-              <Filter className="h-3 w-3 mr-1" />
-              Apply
-            </Button>
             {hasActiveFilters && (
               <Button
                 variant="outline"
@@ -140,7 +150,7 @@ export function TimesheetTimelineFilters({
             </div>
           )}
 
-          {projects.length > 0 && (
+          {filteredProjects.length > 0 && (
             <div className="space-y-1">
               <Label htmlFor="timeline-project" className="text-xs">Project</Label>
               <Select
@@ -149,7 +159,7 @@ export function TimesheetTimelineFilters({
                 onChange={(e) => handleFilterChange("projectId", e.target.value)}
               >
                 <option value="">All Projects</option>
-                {projects.map((project) => (
+                {filteredProjects.map((project) => (
                   <option key={project.id} value={project.id}>
                     {project.name}
                   </option>

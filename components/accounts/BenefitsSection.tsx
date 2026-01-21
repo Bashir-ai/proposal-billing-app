@@ -374,29 +374,30 @@ export function BenefitsSection({ userId, startDate, endDate, isAdmin }: Benefit
                   />
                 </div>
 
+                <div className="space-y-2">
+                  <Label>End Date</Label>
+                  <Input
+                    type="date"
+                    value={formData.endDate}
+                    onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                  />
+                  <p className="text-xs text-gray-500">
+                    Optional end date for the benefit. Leave empty for ongoing benefits.
+                  </p>
+                </div>
+
                 {formData.type === "RECURRING" && (
-                  <>
-                    <div className="space-y-2">
-                      <Label>End Date *</Label>
-                      <Input
-                        type="date"
-                        value={formData.endDate}
-                        onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Frequency *</Label>
-                      <Select
-                        value={formData.frequency || "MONTHLY"}
-                        onChange={(e) => setFormData({ ...formData, frequency: e.target.value as "MONTHLY" | "QUARTERLY" | "YEARLY" })}
-                      >
-                        <option value="MONTHLY">Monthly</option>
-                        <option value="QUARTERLY">Quarterly</option>
-                        <option value="YEARLY">Yearly</option>
-                      </Select>
-                    </div>
-                  </>
+                  <div className="space-y-2">
+                    <Label>Frequency *</Label>
+                    <Select
+                      value={formData.frequency || "MONTHLY"}
+                      onChange={(e) => setFormData({ ...formData, frequency: e.target.value as "MONTHLY" | "QUARTERLY" | "YEARLY" })}
+                    >
+                      <option value="MONTHLY">Monthly</option>
+                      <option value="QUARTERLY">Quarterly</option>
+                      <option value="YEARLY">Yearly</option>
+                    </Select>
+                  </div>
                 )}
 
                 <div className="space-y-2">

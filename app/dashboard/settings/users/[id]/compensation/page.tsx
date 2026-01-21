@@ -198,7 +198,7 @@ export default function UserCompensationPage() {
                     placeholder="e.g., 2.0 for up to 2x salary"
                   />
                   <p className="text-xs text-gray-500">
-                    Maximum bonus multiplier (e.g., 2.0 means bonus can be up to 2x the base salary)
+                    Maximum bonus multiplier (e.g., 2.0 means bonus can be up to 2x the base salary). Set to 0 for no bonus compensation.
                   </p>
                 </div>
               </>

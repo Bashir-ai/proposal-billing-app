@@ -9,7 +9,7 @@ import { UserRole, CompensationType, PercentageType } from "@prisma/client"
 const compensationSchema = z.object({
   compensationType: z.enum(["SALARY_BONUS", "PERCENTAGE_BASED"]),
   baseSalary: z.number().positive().nullable().optional(),
-  maxBonusMultiplier: z.number().positive().nullable().optional(),
+  maxBonusMultiplier: z.number().min(0).nullable().optional(),
   percentageType: z.enum(["PROJECT_TOTAL", "DIRECT_WORK", "BOTH"]).nullable().optional(),
   projectPercentage: z.number().min(0).max(100).nullable().optional(),
   directWorkPercentage: z.number().min(0).max(100).nullable().optional(),
@@ -92,8 +92,8 @@ export async function POST(
       if (!validatedData.baseSalary || validatedData.baseSalary <= 0) {
         return NextResponse.json({ error: "Base salary is required for salary-based compensation" }, { status: 400 })
       }
-      if (!validatedData.maxBonusMultiplier || validatedData.maxBonusMultiplier <= 0) {
-        return NextResponse.json({ error: "Max bonus multiplier is required for salary-based compensation" }, { status: 400 })
+      if (validatedData.maxBonusMultiplier === null || validatedData.maxBonusMultiplier === undefined || validatedData.maxBonusMultiplier < 0) {
+        return NextResponse.json({ error: "Max bonus multiplier is required and must be 0 or greater (0 means no bonus compensation)" }, { status: 400 })
       }
     } else if (validatedData.compensationType === "PERCENTAGE_BASED") {
       if (!validatedData.percentageType) {

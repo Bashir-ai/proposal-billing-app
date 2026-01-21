@@ -16,6 +16,7 @@ import { LoadingState } from "@/components/shared/LoadingState"
 interface Project {
   id: string
   name: string
+  clientId?: string
 }
 
 interface Client {
@@ -59,7 +60,7 @@ export default function TimesheetsPage() {
 
       if (projectsRes.ok) {
         const data = await projectsRes.json()
-        setProjects(data.map((p: any) => ({ id: p.id, name: p.name })))
+        setProjects(data.map((p: any) => ({ id: p.id, name: p.name, clientId: p.clientId })))
       }
       if (clientsRes.ok) {
         const data = await clientsRes.json()
