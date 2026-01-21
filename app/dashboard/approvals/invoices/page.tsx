@@ -33,6 +33,13 @@ export default async function ApproveInvoicesPage() {
           company: true,
         },
       },
+      lead: {
+        select: {
+          id: true,
+          name: true,
+          company: true,
+        },
+      },
       creator: {
         select: {
           name: true,
@@ -103,8 +110,8 @@ export default async function ApproveInvoicesPage() {
                         )}
                       </div>
                       <p className="text-sm text-gray-600 mb-2">
-                        Client: {invoice.client.name}
-                        {invoice.client.company && ` (${invoice.client.company})`}
+                        {invoice.client ? "Client" : "Lead"}: {invoice.client?.name || invoice.lead?.name || "Unknown"}
+                        {(invoice.client?.company || invoice.lead?.company) && ` (${invoice.client?.company || invoice.lead?.company})`}
                       </p>
                       <p className="text-sm text-gray-600 mb-2">
                         Created by: {invoice.creator.name} ({invoice.creator.email})
