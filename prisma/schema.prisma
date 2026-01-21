@@ -534,7 +534,8 @@ model Bill {
   id                        String     @id @default(cuid())
   proposalId                String?
   projectId                 String?
-  clientId                  String
+  clientId                  String? // Now optional - can be linked to client or lead
+  leadId                    String? // New: optional lead reference
   createdBy                 String
   status                    BillStatus @default(DRAFT)
   amount                    Float // Final total amount (after discount and tax)
@@ -578,6 +579,7 @@ model Bill {
   deletedAt                 DateTime?
 
   @@index([clientId])
+  @@index([leadId]) // New index
   @@index([projectId])
   @@index([proposalId])
   @@index([status])
@@ -589,7 +591,8 @@ model Bill {
   // Relations
   proposal       Proposal?       @relation(fields: [proposalId], references: [id])
   project        Project?        @relation(fields: [projectId], references: [id])
-  client         Client          @relation(fields: [clientId], references: [id])
+  client         Client?         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  lead           Lead?           @relation(fields: [leadId], references: [id], onDelete: Cascade) // New relation
   creator        User            @relation("BillCreator", fields: [createdBy], references: [id])
   resubmitter    User?           @relation("BillResubmitter", fields: [resubmittedBy], references: [id])
   writtenOffByUser User?         @relation("BillWrittenOffBy", fields: [writtenOffBy], references: [id])
@@ -749,7 +752,8 @@ model Approval {
 
 model TimesheetEntry {
   id          String   @id @default(cuid())
-  projectId   String
+  projectId   String?  // Now optional - can be linked to project or lead
+  leadId      String?  // New: optional lead reference
   userId      String // Person who worked
   date        DateTime
   hours       Float
@@ -757,18 +761,22 @@ model TimesheetEntry {
   description String?
   billable    Boolean  @default(true)
   billed      Boolean  @default(false)
+  archivedAt  DateTime? // New: for archiving hours when lead is archived
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   @@index([projectId])
+  @@index([leadId]) // New index
   @@index([userId])
   @@index([billed])
   @@index([billable, billed])
   @@index([date])
+  @@index([archivedAt]) // New index
 
   // Relations
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  user    User    @relation("TimesheetEntryUser", fields: [userId], references: [id])
+  project Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  lead    Lead?    @relation(fields: [leadId], references: [id], onDelete: Cascade) // New relation
+  user    User     @relation("TimesheetEntryUser", fields: [userId], references: [id])
 }
 
 model ProjectCharge {
@@ -1015,6 +1023,8 @@ model Lead {
   todos             Todo[]
   proposals         Proposal[]
   convertedToClient Client?             @relation("ConvertedLead", fields: [convertedToClientId], references: [id])
+  timesheetEntries  TimesheetEntry[]    // New relation
+  bills             Bill[]               // New relation
 }
 
 model LeadInteraction {

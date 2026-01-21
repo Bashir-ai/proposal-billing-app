@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -10,6 +10,8 @@ import { LeadStatusBadge } from "@/components/leads/LeadStatusBadge"
 import { LeadInteractionTimeline } from "@/components/leads/LeadInteractionTimeline"
 import { QuickInteractionButton } from "@/components/leads/QuickInteractionButton"
 import { ConvertLeadDialog } from "@/components/leads/ConvertLeadDialog"
+import { LeadTimesheetSection } from "@/components/leads/LeadTimesheetSection"
+import { GenerateInvoiceButton } from "@/components/leads/GenerateInvoiceButton"
 import { InteractionType, LeadStatus } from "@prisma/client"
 
 interface LeadDetailClientProps {
@@ -21,6 +23,18 @@ export function LeadDetailClient({ lead, session }: LeadDetailClientProps) {
   const router = useRouter()
   const [showConvertDialog, setShowConvertDialog] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
+  const [users, setUsers] = useState<Array<{ id: string; name: string; email: string; defaultHourlyRate?: number | null }>>([])
+
+  // Fetch users for timesheet section
+  useEffect(() => {
+    fetch("/api/users")
+      .then((res) => res.json())
+      .then((data) => {
+        const staffUsers = data.filter((user: any) => user.role !== "CLIENT")
+        setUsers(staffUsers)
+      })
+      .catch(console.error)
+  }, [])
 
   const handleArchive = async () => {
     if (!confirm(`Are you sure you want to ${lead.archivedAt ? "unarchive" : "archive"} this lead?`)) {
@@ -177,6 +191,22 @@ export function LeadDetailClient({ lead, session }: LeadDetailClientProps) {
             leadId={lead.id}
             onInteractionUpdated={handleInteractionCreated}
           />
+
+          {/* Timesheet Section */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>Timesheet</CardTitle>
+                <GenerateInvoiceButton leadId={lead.id} leadName={lead.name} />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <LeadTimesheetSection
+                leadId={lead.id}
+                users={users}
+              />
+            </CardContent>
+          </Card>
 
           {/* Related Todos */}
           {lead.todos.length > 0 && (

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -13,15 +13,18 @@ import { formatCurrency, formatDate } from "@/lib/utils"
 
 export default function NewBillPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [clients, setClients] = useState<Array<{ id: string; name: string; company?: string | null }>>([])
+  const [leads, setLeads] = useState<Array<{ id: string; name: string; company?: string | null }>>([])
   const [proposals, setProposals] = useState<Array<{ id: string; title: string }>>([])
   const [projects, setProjects] = useState<Array<{ id: string; name: string }>>([])
   const [formData, setFormData] = useState({
     proposalId: "",
     projectId: "",
     clientId: "",
+    leadId: "",
     subtotal: "",
     description: "",
     paymentDetailsId: "",
@@ -42,10 +45,28 @@ export default function NewBillPage() {
   const [selectedChargeIds, setSelectedChargeIds] = useState<string[]>([])
   const [loadingUnbilled, setLoadingUnbilled] = useState(false)
 
+  // Initialize from URL params
+  useEffect(() => {
+    const leadIdParam = searchParams.get("leadId")
+    const timesheetEntryIdsParam = searchParams.get("timesheetEntryIds")
+    
+    if (leadIdParam) {
+      setFormData(prev => ({ ...prev, leadId: leadIdParam }))
+      if (timesheetEntryIdsParam) {
+        setSelectedTimesheetIds(timesheetEntryIdsParam.split(",").filter(Boolean))
+      }
+    }
+  }, [searchParams])
+
   useEffect(() => {
     fetch("/api/clients")
       .then((res) => res.json())
       .then((data) => setClients(data))
+      .catch(console.error)
+    
+    fetch("/api/leads")
+      .then((res) => res.json())
+      .then((data) => setLeads(data.filter((l: any) => !l.deletedAt && !l.archivedAt)))
       .catch(console.error)
     
     fetch("/api/payment-details")
@@ -83,6 +104,49 @@ export default function NewBillPage() {
     }
   }, [formData.clientId])
 
+  // Fetch unbilled items when lead is selected
+  useEffect(() => {
+    if (formData.leadId) {
+      setLoadingUnbilled(true)
+      fetch(`/api/leads/${formData.leadId}/timesheet?archived=false`)
+        .then(res => res.json())
+        .then(data => {
+          const unbilled = data.filter((e: any) => e.billable && !e.billed)
+          const timesheetEntries = unbilled.map((e: any) => ({
+            id: e.id,
+            date: e.date,
+            hours: e.hours,
+            rate: e.rate,
+            amount: (e.rate || 0) * e.hours,
+            description: e.description,
+            user: e.user,
+          }))
+          setUnbilledItems({
+            timesheetEntries,
+            charges: [],
+            totals: {
+              timesheets: timesheetEntries.reduce((sum: number, e: any) => sum + e.amount, 0),
+              charges: 0,
+              total: timesheetEntries.reduce((sum: number, e: any) => sum + e.amount, 0),
+            },
+          })
+          // Auto-select all unbilled entries if coming from GenerateInvoiceButton
+          if (searchParams.get("timesheetEntryIds")) {
+            const ids = searchParams.get("timesheetEntryIds")?.split(",").filter(Boolean) || []
+            setSelectedTimesheetIds(ids)
+          } else {
+            setSelectedTimesheetIds(timesheetEntries.map((e: any) => e.id))
+          }
+          setSelectedChargeIds([])
+        })
+        .catch(err => {
+          console.error("Error fetching lead timesheet entries:", err)
+          setUnbilledItems(null)
+        })
+        .finally(() => setLoadingUnbilled(false))
+    }
+  }, [formData.leadId, searchParams])
+
   // Fetch unbilled items when project is selected
   useEffect(() => {
     if (formData.projectId) {
@@ -99,7 +163,7 @@ export default function NewBillPage() {
           setUnbilledItems(null)
         })
         .finally(() => setLoadingUnbilled(false))
-    } else if (formData.clientId && !formData.projectId) {
+    } else if (formData.clientId && !formData.projectId && !formData.leadId) {
       // Fetch unbilled items for all client projects
       setLoadingUnbilled(true)
       fetch(`/api/clients/${formData.clientId}/unbilled-items`)
@@ -202,6 +266,13 @@ export default function NewBillPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
+    
+    // Validate that either clientId or leadId is provided
+    if (!formData.clientId && !formData.leadId) {
+      setError("Please select either a client or a lead")
+      return
+    }
+    
     setLoading(true)
 
     try {
@@ -211,7 +282,8 @@ export default function NewBillPage() {
         body: JSON.stringify({
           proposalId: formData.proposalId || undefined,
           projectId: formData.projectId || undefined,
-          clientId: formData.clientId,
+          clientId: formData.clientId || undefined,
+          leadId: formData.leadId || undefined,
           subtotal: formData.subtotal ? parseFloat(formData.subtotal) : undefined,
           description: formData.description || undefined,
           paymentDetailsId: formData.paymentDetailsId || undefined,
@@ -249,22 +321,42 @@ export default function NewBillPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="clientId">Client *</Label>
-              <Select
-                id="clientId"
-                value={formData.clientId}
-                onChange={(e) => setFormData({ ...formData, clientId: e.target.value, proposalId: "", projectId: "" })}
-                required
-              >
-                <option value="">Select a client</option>
-                {clients.map((client) => (
-                  <option key={client.id} value={client.id}>
-                    {client.name} {client.company ? `(${client.company})` : ""}
-                  </option>
-                ))}
-              </Select>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="clientId">Client</Label>
+                <Select
+                  id="clientId"
+                  value={formData.clientId}
+                  onChange={(e) => setFormData({ ...formData, clientId: e.target.value, leadId: "", proposalId: "", projectId: "" })}
+                >
+                  <option value="">Select a client</option>
+                  {clients.map((client) => (
+                    <option key={client.id} value={client.id}>
+                      {client.name} {client.company ? `(${client.company})` : ""}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="leadId">Lead</Label>
+                <Select
+                  id="leadId"
+                  value={formData.leadId}
+                  onChange={(e) => setFormData({ ...formData, leadId: e.target.value, clientId: "", proposalId: "", projectId: "" })}
+                >
+                  <option value="">Select a lead</option>
+                  {leads.map((lead) => (
+                    <option key={lead.id} value={lead.id}>
+                      {lead.name} {lead.company ? `(${lead.company})` : ""}
+                    </option>
+                  ))}
+                </Select>
+              </div>
             </div>
+            {!formData.clientId && !formData.leadId && (
+              <p className="text-sm text-red-600">Please select either a client or a lead</p>
+            )}
 
             {formData.clientId && proposals.length > 0 && (
               <div className="space-y-2">

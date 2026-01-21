@@ -19,6 +19,8 @@ const billUpdateSchema = z.object({
   discountAmount: z.number().min(0).optional().nullable(),
   dueDate: z.string().optional(),
   status: z.nativeEnum(BillStatus).optional(),
+  clientId: z.string().optional().nullable(),
+  leadId: z.string().optional().nullable(),
 })
 
 export async function GET(
@@ -51,6 +53,19 @@ export async function GET(
             billingState: true,
             billingZipCode: true,
             billingCountry: true,
+          },
+        },
+        lead: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            company: true,
+            addressLine: true,
+            city: true,
+            state: true,
+            zipCode: true,
+            country: true,
           },
         },
         proposal: {
@@ -205,6 +220,46 @@ export async function PUT(
     const body = await request.json()
     const validatedData = billUpdateSchema.parse(body)
 
+    // Validate client/lead if being updated
+    if (validatedData.clientId !== undefined || validatedData.leadId !== undefined) {
+      // Ensure at least one is provided
+      const newClientId = validatedData.clientId !== undefined ? validatedData.clientId : bill.clientId
+      const newLeadId = validatedData.leadId !== undefined ? validatedData.leadId : bill.leadId
+      
+      if (!newClientId && !newLeadId) {
+        return NextResponse.json(
+          { error: "Either clientId or leadId must be provided" },
+          { status: 400 }
+        )
+      }
+
+      // Validate client exists if clientId provided
+      if (validatedData.clientId) {
+        const client = await prisma.client.findUnique({
+          where: { id: validatedData.clientId },
+        })
+        if (!client) {
+          return NextResponse.json(
+            { error: "Client not found" },
+            { status: 404 }
+          )
+        }
+      }
+
+      // Validate lead exists if leadId provided
+      if (validatedData.leadId) {
+        const lead = await prisma.lead.findUnique({
+          where: { id: validatedData.leadId },
+        })
+        if (!lead) {
+          return NextResponse.json(
+            { error: "Lead not found" },
+            { status: 404 }
+          )
+        }
+      }
+    }
+
     // Get current bill with items to recalculate totals
     const billWithItems = await prisma.bill.findUnique({
       where: { id },
@@ -275,6 +330,14 @@ export async function PUT(
       status: newStatus,
       submittedAt: newStatus === BillStatus.SUBMITTED ? new Date() : bill.submittedAt,
     }
+
+    // Update clientId/leadId if provided
+    if (validatedData.clientId !== undefined) {
+      updateData.clientId = validatedData.clientId || null
+    }
+    if (validatedData.leadId !== undefined) {
+      updateData.leadId = validatedData.leadId || null
+    }
     
     // Handle outstanding status
     const wasPaid = bill.status === BillStatus.PAID
@@ -337,6 +400,7 @@ export async function PUT(
       data: updateData,
       include: {
         client: true,
+        lead: true,
         proposal: true,
       },
     })

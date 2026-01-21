@@ -752,23 +752,42 @@ export async function generateInvoicePdf(bill: any, logoBase64: string | null): 
         .text("Bill To", MARGIN, y)
       
       let paraY = y + 18
-      doc.fontSize(10)
-        .fillColor('#111827')
-        .text(bill.client.name, MARGIN, paraY, { width: partiesLeftWidth })
-      
-      if (bill.client.portugueseTaxNumber || bill.client.foreignTaxNumber) {
-        paraY += 15
-        const taxNumber = bill.client.portugueseTaxNumber || bill.client.foreignTaxNumber || ""
+      const billTo = bill.client || bill.lead
+      if (billTo) {
         doc.fontSize(10)
           .fillColor('#111827')
-          .text(taxNumber, MARGIN, paraY, { width: partiesLeftWidth })
-      }
-      
-      if (bill.client.billingCountry) {
-        paraY += 15
-        doc.fontSize(10)
-          .fillColor('#111827')
-          .text(bill.client.billingCountry, MARGIN, paraY, { width: partiesLeftWidth })
+          .text(billTo.name || billTo.company || "", MARGIN, paraY, { width: partiesLeftWidth })
+        
+        if (billTo.company && billTo.name !== billTo.company) {
+          paraY += 15
+          doc.fontSize(10)
+            .fillColor('#111827')
+            .text(billTo.company, MARGIN, paraY, { width: partiesLeftWidth })
+        }
+        
+        // For clients, show tax numbers
+        if (bill.client && (bill.client.portugueseTaxNumber || bill.client.foreignTaxNumber)) {
+          paraY += 15
+          const taxNumber = bill.client.portugueseTaxNumber || bill.client.foreignTaxNumber || ""
+          doc.fontSize(10)
+            .fillColor('#111827')
+            .text(taxNumber, MARGIN, paraY, { width: partiesLeftWidth })
+        }
+        
+        // Address information
+        const addressLine = bill.client?.billingAddressLine || bill.lead?.addressLine
+        const city = bill.client?.billingCity || bill.lead?.city
+        const state = bill.client?.billingState || bill.lead?.state
+        const zipCode = bill.client?.billingZipCode || bill.lead?.zipCode
+        const country = bill.client?.billingCountry || bill.lead?.country
+        
+        if (addressLine || city || state || zipCode || country) {
+          paraY += 15
+          const addressParts = [addressLine, city, state, zipCode, country].filter(Boolean)
+          doc.fontSize(10)
+            .fillColor('#111827')
+            .text(addressParts.join(", "), MARGIN, paraY, { width: partiesLeftWidth })
+        }
       }
       
       // Right column: De (From)

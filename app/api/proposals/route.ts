@@ -177,7 +177,10 @@ export async function GET(request: Request) {
 
     const proposals = await prisma.proposal.findMany({
       where,
-      orderBy: { createdAt: "desc" },
+      orderBy: [
+        { issueDate: "desc" },
+        { createdAt: "desc" }
+      ],
       select: {
         id: true,
         title: true,

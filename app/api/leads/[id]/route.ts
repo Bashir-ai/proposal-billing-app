@@ -272,14 +272,31 @@ export async function POST(
     const action = body.action // "archive" or "unarchive"
 
     if (action === "archive") {
-      await prisma.lead.update({
-        where: { id },
-        data: {
-          archivedAt: new Date(),
-        },
+      const archiveDate = new Date()
+      // Archive the lead and all associated timesheet entries
+      await prisma.$transaction(async (tx) => {
+        // Archive the lead
+        await tx.lead.update({
+          where: { id },
+          data: {
+            archivedAt: archiveDate,
+          },
+        })
+        
+        // Archive all timesheet entries for this lead
+        await tx.timesheetEntry.updateMany({
+          where: {
+            leadId: id,
+            archivedAt: null, // Only archive entries that aren't already archived
+          },
+          data: {
+            archivedAt: archiveDate,
+          },
+        })
       })
-      return NextResponse.json({ message: "Lead archived" })
+      return NextResponse.json({ message: "Lead and associated hours archived" })
     } else if (action === "unarchive") {
+      // Unarchive the lead (but keep timesheet entries archived as per plan)
       await prisma.lead.update({
         where: { id },
         data: {

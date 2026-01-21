@@ -11,7 +11,8 @@ import { parseLocalDate } from "@/lib/utils"
 const billSchema = z.object({
   proposalId: z.string().optional(),
   projectId: z.string().optional(),
-  clientId: z.string(),
+  clientId: z.string().optional(), // Now optional - can be linked to client or lead
+  leadId: z.string().optional(), // New: optional lead reference
   amount: z.number().min(0).optional(),
   subtotal: z.number().min(0).optional(),
   description: z.string().optional(),
@@ -35,6 +36,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const status = searchParams.get("status")
     const clientId = searchParams.get("clientId")
+    const leadId = searchParams.get("leadId")
     const projectId = searchParams.get("projectId")
 
     const where: any = {
@@ -55,6 +57,7 @@ export async function GET(request: Request) {
       }
     }
     if (clientId) where.clientId = clientId
+    if (leadId) where.leadId = leadId
     if (projectId) where.projectId = projectId
     if (session.user.role === "CLIENT") {
       const client = await prisma.client.findFirst({
@@ -100,6 +103,14 @@ export async function GET(request: Request) {
             id: true,
             name: true,
             company: true,
+          },
+        },
+        lead: {
+          select: {
+            id: true,
+            name: true,
+            company: true,
+            email: true,
           },
         },
         proposal: {
@@ -148,6 +159,40 @@ export async function POST(request: Request) {
 
     const body = await request.json()
     const validatedData = billSchema.parse(body)
+
+    // Validate that either clientId or leadId is provided (or both)
+    if (!validatedData.clientId && !validatedData.leadId) {
+      return NextResponse.json(
+        { error: "Either clientId or leadId must be provided" },
+        { status: 400 }
+      )
+    }
+
+    // Validate client exists if clientId provided
+    if (validatedData.clientId) {
+      const client = await prisma.client.findUnique({
+        where: { id: validatedData.clientId },
+      })
+      if (!client) {
+        return NextResponse.json(
+          { error: "Client not found" },
+          { status: 404 }
+        )
+      }
+    }
+
+    // Validate lead exists if leadId provided
+    if (validatedData.leadId) {
+      const lead = await prisma.lead.findUnique({
+        where: { id: validatedData.leadId },
+      })
+      if (!lead) {
+        return NextResponse.json(
+          { error: "Lead not found" },
+          { status: 404 }
+        )
+      }
+    }
 
     // Fetch selected timesheet entries and charges if provided
     let itemsSubtotal = 0
@@ -296,7 +341,8 @@ export async function POST(request: Request) {
         data: {
           proposalId: validatedData.proposalId || null,
           projectId: validatedData.projectId || null,
-          clientId: validatedData.clientId,
+          clientId: validatedData.clientId || null,
+          leadId: validatedData.leadId || null,
           createdBy: session.user.id,
           amount: finalAmount,
           subtotal: subtotal,
@@ -315,6 +361,7 @@ export async function POST(request: Request) {
         },
         include: {
           client: true,
+          lead: true,
           proposal: true,
           items: true,
         },
