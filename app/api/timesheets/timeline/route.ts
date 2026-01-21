@@ -38,10 +38,16 @@ export async function GET(request: Request) {
       timesheetWhere.userId = session.user.id
     }
 
-    // Client filter (via project)
+    // Client filter (via project) - Note: lead-based entries won't match this filter
     if (clientId) {
       timesheetWhere.project = { clientId }
       chargeWhere.project = { clientId }
+    }
+    
+    // Lead filter
+    const leadId = searchParams.get("leadId")
+    if (leadId) {
+      timesheetWhere.leadId = leadId
     }
 
     // Project filter
@@ -94,6 +100,13 @@ export async function GET(request: Request) {
               },
             },
           },
+          lead: {
+            select: {
+              id: true,
+              name: true,
+              company: true,
+            },
+          },
         },
         orderBy: { date: "asc" },
       }) : Promise.resolve([]),
@@ -120,19 +133,61 @@ export async function GET(request: Request) {
 
     // Transform data for timeline
     const timelineData = {
-      timesheetEntries: timesheetEntries.map(entry => ({
-        id: entry.id,
-        type: "timesheet" as const,
-        date: entry.date.toISOString(),
-        hours: entry.hours,
-        rate: entry.rate,
-        description: entry.description,
-        billable: entry.billable,
-        billed: entry.billed,
-        user: entry.user,
-        project: entry.project,
-        client: entry.project.client,
-      })),
+      timesheetEntries: timesheetEntries.map(entry => {
+        // Handle both project-based and lead-based entries
+        if (entry.project) {
+          return {
+            id: entry.id,
+            type: "timesheet" as const,
+            date: entry.date.toISOString(),
+            hours: entry.hours,
+            rate: entry.rate,
+            description: entry.description,
+            billable: entry.billable,
+            billed: entry.billed,
+            user: entry.user,
+            project: entry.project,
+            client: entry.project.client,
+          }
+        } else if (entry.lead) {
+          // For lead-based entries, create a mock project structure for compatibility
+          return {
+            id: entry.id,
+            type: "timesheet" as const,
+            date: entry.date.toISOString(),
+            hours: entry.hours,
+            rate: entry.rate,
+            description: entry.description,
+            billable: entry.billable,
+            billed: entry.billed,
+            user: entry.user,
+            project: {
+              id: entry.lead.id,
+              name: entry.lead.name || entry.lead.company || "Lead",
+              client: {
+                id: entry.lead.id,
+                name: entry.lead.name || entry.lead.company || "Lead",
+                company: entry.lead.company,
+              },
+            },
+          }
+        } else {
+          // Fallback for entries without project or lead (shouldn't happen, but handle gracefully)
+          return {
+            id: entry.id,
+            type: "timesheet" as const,
+            date: entry.date.toISOString(),
+            hours: entry.hours,
+            rate: entry.rate,
+            description: entry.description,
+            billable: entry.billable,
+            billed: entry.billed,
+            user: entry.user,
+            project: null,
+            client: null,
+          }
+        }
+      }),
       charges: charges.map(charge => ({
         id: charge.id,
         type: "charge" as const,
