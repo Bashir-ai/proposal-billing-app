@@ -155,16 +155,23 @@ export function TodoForm({
           if (data.proposalId) {
             const projectProposal = proposals.find(p => p.id === data.proposalId)
             setFilteredProposals(projectProposal ? [projectProposal] : [])
-            // Auto-select the proposal if it exists
-            if (projectProposal && formData.proposalId !== projectProposal.id) {
-              setFormData((prev) => ({ ...prev, proposalId: projectProposal.id }))
-            }
+            // Auto-select the proposal if it exists and is different from current selection
+            // Only update if the current proposal doesn't match the project's proposal
+            setFormData((prev) => {
+              if (projectProposal && prev.proposalId !== data.proposalId) {
+                return { ...prev, proposalId: projectProposal.id }
+              }
+              return prev
+            })
           } else {
             setFilteredProposals([])
             // Clear proposal selection if project has no proposal
-            if (formData.proposalId) {
-              setFormData((prev) => ({ ...prev, proposalId: "", proposalItemId: "" }))
-            }
+            setFormData((prev) => {
+              if (prev.proposalId) {
+                return { ...prev, proposalId: "", proposalItemId: "" }
+              }
+              return prev
+            })
           }
           // Filter invoices to only project invoices
           // Note: invoices should already be filtered by project in the parent component
@@ -180,6 +187,7 @@ export function TodoForm({
       setFilteredProposals(proposals)
       setFilteredInvoices(invoices)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.projectId, proposals, invoices])
 
   useEffect(() => {
@@ -485,7 +493,7 @@ export function TodoForm({
                   ))}
                 </Select>
                 {projectSearchTerm && filteredProjects.length === 0 && (
-                  <p className="text-sm text-gray-500">No projects found matching "{projectSearchTerm}"</p>
+                  <p className="text-sm text-gray-500">No projects found matching &quot;{projectSearchTerm}&quot;</p>
                 )}
                 {formData.clientId && !projectSearchTerm && filteredProjects.length === 0 && (
                   <p className="text-sm text-gray-500">No projects found for this client</p>
