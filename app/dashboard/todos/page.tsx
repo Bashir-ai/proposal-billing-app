@@ -47,8 +47,9 @@ export default function TodosPage() {
   const [users, setUsers] = useState<User[]>([])
   const [clients, setClients] = useState<Array<{ id: string; name: string; company?: string | null }>>([])
   const [leads, setLeads] = useState<Array<{ id: string; name: string; company?: string | null }>>([])
-  // Default filter: staff see only their assigned todos, admins/managers see all
-  const defaultAssignedTo = session?.user.role === "STAFF" ? session.user.id : ""
+  // Default filter: all users see all their relevant todos (assigned + created)
+  // STAFF users can see todos assigned to them AND todos they created
+  const defaultAssignedTo = ""
 
   const [filters, setFilters] = useState<TodoFilters>({
     projectId: "",

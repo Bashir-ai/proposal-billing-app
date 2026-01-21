@@ -72,30 +72,51 @@ export async function GET(request: Request) {
         }
       }
     } else {
-      // Non-admins: can only see their assigned todos or their own personal todos
-      // By default, show all (assigned + own personal)
+      // Non-admins: can see their assigned todos, todos they created, or their own personal todos
+      // By default, show all (assigned + created + own personal)
       
       // Non-admins can only filter their own assigned todos
       if (assignedTo && assignedTo !== session.user.id) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 })
       }
       
-      // If assignedTo filter is provided and matches user, or no filter provided
-      const targetUserId = assignedTo || session.user.id
-      
-      if (hidePersonal) {
-        // Hide personal todos - only show assigned non-personal todos (check both assignedTo and assignments)
-        where.OR = [
-          { assignedTo: targetUserId, isPersonal: false },
-          { assignments: { some: { userId: targetUserId } }, isPersonal: false },
-        ]
+      // If assignedTo filter is provided, show only that user's assigned todos
+      // If no filter provided, show todos assigned to user OR todos created by user
+      if (assignedTo) {
+        // Filter by specific assignee (must be the current user)
+        const targetUserId = assignedTo
+        if (hidePersonal) {
+          // Hide personal todos - only show assigned non-personal todos (check both assignedTo and assignments)
+          where.OR = [
+            { assignedTo: targetUserId, isPersonal: false },
+            { assignments: { some: { userId: targetUserId } }, isPersonal: false },
+          ]
+        } else {
+          // Show assigned todos OR own personal todos (check both assignedTo and assignments)
+          where.OR = [
+            { assignedTo: targetUserId, isPersonal: false },
+            { assignments: { some: { userId: targetUserId } }, isPersonal: false },
+            { assignedTo: targetUserId, createdBy: session.user.id, isPersonal: true },
+          ]
+        }
       } else {
-        // Show assigned todos OR own personal todos (check both assignedTo and assignments)
-        where.OR = [
-          { assignedTo: targetUserId, isPersonal: false },
-          { assignments: { some: { userId: targetUserId } }, isPersonal: false },
-          { assignedTo: targetUserId, createdBy: session.user.id, isPersonal: true },
-        ]
+        // No assignedTo filter: show todos assigned to user OR todos created by user
+        if (hidePersonal) {
+          // Hide personal todos - show assigned non-personal todos OR created non-personal todos
+          where.OR = [
+            { assignedTo: session.user.id, isPersonal: false },
+            { assignments: { some: { userId: session.user.id } }, isPersonal: false },
+            { createdBy: session.user.id, isPersonal: false },
+          ]
+        } else {
+          // Show assigned todos OR created todos OR own personal todos
+          where.OR = [
+            { assignedTo: session.user.id, isPersonal: false },
+            { assignments: { some: { userId: session.user.id } }, isPersonal: false },
+            { createdBy: session.user.id, isPersonal: false },
+            { createdBy: session.user.id, isPersonal: true },
+          ]
+        }
       }
     }
 
