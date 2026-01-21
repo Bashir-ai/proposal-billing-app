@@ -93,8 +93,11 @@ export async function calculateAndCreateFinderFees(billId: string): Promise<void
     return
   }
 
+  // Store client in a variable so TypeScript knows it's not null
+  const client = bill.client
+
   // Get client finders
-  const clientFinders = bill.client.finders || []
+  const clientFinders = client.finders || []
 
   if (clientFinders.length === 0) {
     // No finders, nothing to calculate
@@ -121,7 +124,7 @@ export async function calculateAndCreateFinderFees(billId: string): Promise<void
       return prisma.finderFee.create({
         data: {
           billId: bill.id,
-          clientId: bill.client.id, // Use bill.client.id since we've already verified bill.client exists
+          clientId: client.id, // Use client.id since we've already verified client exists
           finderId: clientFinder.userId,
           clientFinderId: clientFinder.id,
           invoiceNetAmount: netAmount,
