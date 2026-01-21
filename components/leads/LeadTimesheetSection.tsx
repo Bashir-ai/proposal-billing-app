@@ -29,11 +29,21 @@ interface LeadTimesheetSectionProps {
   users: Array<{ id: string; name: string; email: string; defaultHourlyRate?: number | null }>
 }
 
+interface FormTimesheetEntry {
+  id?: string
+  userId: string
+  date: string | Date
+  hours: number
+  rate: number | null
+  description?: string | null
+  billable: boolean
+}
+
 export function LeadTimesheetSection({ leadId, users }: LeadTimesheetSectionProps) {
   const [entries, setEntries] = useState<TimesheetEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [showAddForm, setShowAddForm] = useState(false)
-  const [editingEntry, setEditingEntry] = useState<TimesheetEntry | null>(null)
+  const [editingEntry, setEditingEntry] = useState<FormTimesheetEntry | null>(null)
   const [includeArchived, setIncludeArchived] = useState(false)
 
   useEffect(() => {
@@ -82,7 +92,17 @@ export function LeadTimesheetSection({ leadId, users }: LeadTimesheetSectionProp
   }
 
   const handleEdit = (entry: TimesheetEntry) => {
-    setEditingEntry(entry)
+    // Transform entry to match form interface
+    const formEntry: FormTimesheetEntry = {
+      id: entry.id,
+      userId: entry.user.id,
+      date: entry.date,
+      hours: entry.hours,
+      rate: entry.rate,
+      description: entry.description || null,
+      billable: entry.billable,
+    }
+    setEditingEntry(formEntry)
     setShowAddForm(true)
   }
 
