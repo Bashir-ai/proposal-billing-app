@@ -31,6 +31,14 @@ export async function POST(
       where: { id },
       include: {
         client: true,
+        lead: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            company: true,
+          },
+        },
         project: {
           select: {
             currency: true,
@@ -48,9 +56,14 @@ export async function POST(
       return NextResponse.json({ error: "Invoice not found" }, { status: 404 })
     }
 
-    if (!bill.client.email) {
+    // Determine recipient email and name (from client or lead)
+    const recipientEmail = bill.client?.email || bill.lead?.email
+    const recipientName = bill.client?.name || bill.lead?.name || bill.client?.company || bill.lead?.company || ""
+
+    if (!recipientEmail) {
+      const entityType = bill.client ? "client" : "lead"
       return NextResponse.json(
-        { error: "Client email is not set. Please update the client information first." },
+        { error: `${entityType.charAt(0).toUpperCase() + entityType.slice(1)} email is not set. Please update the ${entityType} information first.` },
         { status: 400 }
       )
     }
@@ -65,8 +78,8 @@ export async function POST(
 
     // Send reminder email
     const result = await sendPaymentReminderEmail(
-      bill.client.email,
-      bill.client.name,
+      recipientEmail,
+      recipientName,
       {
         id: bill.id,
         invoiceNumber: bill.invoiceNumber,

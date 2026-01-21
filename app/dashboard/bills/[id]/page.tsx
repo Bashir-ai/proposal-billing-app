@@ -72,6 +72,14 @@ export default async function BillDetailPage({
     where: { id },
     include: {
       client: true,
+      lead: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          company: true,
+        },
+      },
       proposal: {
         include: {
           items: true,
@@ -296,15 +304,15 @@ export default async function BillDetailPage({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
         <Card>
           <CardHeader>
-            <CardTitle>Client Information</CardTitle>
+            <CardTitle>{bill.client ? "Client Information" : "Lead Information"}</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="font-semibold">{bill.client.name}</p>
-            {bill.client.company && (
-              <p className="text-sm text-gray-600">{bill.client.company}</p>
+            <p className="font-semibold">{bill.client?.name || bill.lead?.name || ""}</p>
+            {(bill.client?.company || bill.lead?.company) && (
+              <p className="text-sm text-gray-600">{bill.client?.company || bill.lead?.company}</p>
             )}
-            {bill.client.email && (
-              <p className="text-sm text-gray-600">{bill.client.email}</p>
+            {(bill.client?.email || bill.lead?.email) && (
+              <p className="text-sm text-gray-600">{bill.client?.email || bill.lead?.email}</p>
             )}
           </CardContent>
         </Card>

@@ -374,8 +374,8 @@ export function JunkBox() {
                           </p>
                         )}
                         <p className="text-sm text-gray-600">
-                          Client: {bill.client?.name || "Unknown Client"}
-                          {bill.client?.company && ` (${bill.client.company})`}
+                          {bill.client ? "Client" : "Lead"}: {bill.client?.name || bill.lead?.name || "Unknown"}
+                          {(bill.client?.company || bill.lead?.company) && ` (${bill.client?.company || bill.lead?.company})`}
                         </p>
                         <p className="text-sm text-gray-600">
                           Created by: {bill.creator?.name || "Unknown User"}

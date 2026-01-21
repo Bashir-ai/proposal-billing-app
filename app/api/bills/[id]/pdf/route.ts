@@ -23,6 +23,19 @@ export async function GET(
       where: { id },
       include: {
         client: true,
+        lead: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            company: true,
+            addressLine: true,
+            city: true,
+            state: true,
+            zipCode: true,
+            country: true,
+          },
+        },
         creator: {
           select: {
             name: true,

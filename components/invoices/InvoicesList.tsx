@@ -17,11 +17,16 @@ interface Bill {
   amount: number
   status: BillStatus
   dueDate?: Date | null
-  client: {
+  client?: {
     id: string
     name: string
     company?: string | null
-  }
+  } | null
+  lead?: {
+    id: string
+    name: string
+    company?: string | null
+  } | null
   proposal?: {
     title: string
   } | null
@@ -242,8 +247,8 @@ export function InvoicesList({ bills, isAdmin }: InvoicesListProps) {
                         </p>
                       )}
                       <p className="text-sm text-gray-600 mb-2">
-                        Client: {bill.client.name}
-                        {bill.client.company && ` (${bill.client.company})`}
+                        {bill.client ? "Client" : "Lead"}: {bill.client?.name || bill.lead?.name || "Unknown"}
+                        {(bill.client?.company || bill.lead?.company) && ` (${bill.client?.company || bill.lead?.company})`}
                       </p>
                       {bill.proposal && (
                         <p className="text-sm text-gray-600 mb-1">

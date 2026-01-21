@@ -34,6 +34,13 @@ export async function POST(
       where: { id },
       include: {
         client: true,
+        lead: {
+          select: {
+            id: true,
+            name: true,
+            company: true,
+          },
+        },
         creator: true,
         project: {
           select: {
@@ -111,10 +118,12 @@ export async function POST(
 
       for (const approverId of approverIds) {
         try {
+          const entityName = bill.client?.name || bill.lead?.name || bill.client?.company || bill.lead?.company || "Unknown"
+          const entityType = bill.client ? "Client" : "Lead"
           await prisma.todo.create({
             data: {
               title: `Approve Invoice: ${bill.invoiceNumber || bill.id}`,
-              description: `Invoice ${bill.invoiceNumber || bill.id} requires your approval. Client: ${bill.client.name}${bill.amount ? ` - Amount: ${bill.amount}` : ""}`,
+              description: `Invoice ${bill.invoiceNumber || bill.id} requires your approval. ${entityType}: ${entityName}${bill.amount ? ` - Amount: ${bill.amount}` : ""}`,
               assignedTo: approverId,
               createdBy: session.user.id,
               dueDate: dueDate,
@@ -123,6 +132,7 @@ export async function POST(
               invoiceId: id,
               projectId: bill.projectId,
               clientId: bill.clientId,
+              leadId: bill.leadId,
             },
           })
         } catch (todoError) {
@@ -134,13 +144,15 @@ export async function POST(
       // Send email notifications to approvers
       for (const approver of approvers) {
         try {
+          const entityName = bill.client?.name || bill.lead?.name || ""
+          const entityCompany = bill.client?.company || bill.lead?.company || null
           await sendInternalApprovalRequest(approver.email, approver.name, {
             id: bill.id,
             title: `Invoice ${bill.invoiceNumber || bill.id}`,
             proposalNumber: bill.invoiceNumber ?? null,
             client: {
-              name: bill.client.name,
-              company: bill.client.company ?? null,
+              name: entityName,
+              company: entityCompany,
             },
             creator: {
               name: bill.creator.name || bill.creator.email,
