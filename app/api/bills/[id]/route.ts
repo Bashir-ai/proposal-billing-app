@@ -142,6 +142,13 @@ export async function GET(
 
     // Check if EXTERNAL user can access this bill (must be client manager or finder)
     if (session.user.role === "EXTERNAL") {
+      // EXTERNAL users can only access bills linked to clients (not leads)
+      if (!bill.clientId) {
+        return NextResponse.json(
+          { error: "Forbidden - External users can only view invoices for clients" },
+          { status: 403 }
+        )
+      }
       const client = await prisma.client.findUnique({
         where: { id: bill.clientId },
         include: {
