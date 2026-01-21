@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { X } from "lucide-react"
-import { parseHoursInput } from "@/lib/utils"
+import { parseHoursInput, formatCurrency } from "@/lib/utils"
 
 interface User {
   id: string
