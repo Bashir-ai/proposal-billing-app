@@ -550,7 +550,7 @@ export function TodoForm({
                 id="invoiceId"
                 value={formData.invoiceId}
                 onChange={(e) => setFormData({ ...formData, invoiceId: e.target.value })}
-                disabled={formData.projectId && filteredInvoices.length === 0}
+                disabled={!!formData.projectId && filteredInvoices.length === 0}
               >
                 <option value="">No invoice</option>
                 {filteredInvoices.map((invoice) => (
