@@ -47,10 +47,14 @@ interface DeletedBill {
   invoiceNumber?: string | null
   amount: number
   deletedAt: string
-  client: {
+  client?: {
     name: string
     company?: string | null
-  }
+  } | null
+  lead?: {
+    name: string
+    company?: string | null
+  } | null
   creator: {
     name: string
   }

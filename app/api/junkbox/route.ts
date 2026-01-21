@@ -89,9 +89,17 @@ export async function GET(request: Request) {
           amount: true,
           deletedAt: true,
           clientId: true,
+          leadId: true,
           createdBy: true,
           proposalId: true,
           client: {
+            select: {
+              id: true,
+              name: true,
+              company: true,
+            },
+          },
+          lead: {
             select: {
               id: true,
               name: true,
@@ -152,7 +160,7 @@ export async function GET(request: Request) {
       }))
 
     const formatBills = deletedBills
-      .filter(b => b.client && b.creator) // Only include bills with valid relations
+      .filter(b => (b.client || b.lead) && b.creator) // Only include bills with valid relations (client or lead)
       .map(b => ({
         id: b.id,
         invoiceNumber: b.invoiceNumber,
@@ -161,7 +169,11 @@ export async function GET(request: Request) {
         client: b.client ? {
           name: b.client.name || "Unknown Client",
           company: b.client.company,
-        } : { name: "Unknown Client", company: null },
+        } : null,
+        lead: b.lead ? {
+          name: b.lead.name || "Unknown Lead",
+          company: b.lead.company,
+        } : null,
         creator: b.creator ? {
           name: b.creator.name || "Unknown User",
         } : { name: "Unknown User" },
