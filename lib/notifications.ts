@@ -427,6 +427,12 @@ export async function getOutstandingInvoiceNotifications(userId: string): Promis
       const recipients = await getOutstandingInvoiceRecipients(invoice as any)
       
       if (recipients.includes(userId)) {
+        // Handle both client and lead invoices
+        const clientOrLead = invoice.client || invoice.lead
+        if (!clientOrLead) {
+          continue // Skip invoices without client or lead
+        }
+
         notifications.push({
           type: invoice.becameOutstandingAt && 
                 invoice.lastReminderSentAt && 
@@ -438,8 +444,8 @@ export async function getOutstandingInvoiceNotifications(userId: string): Promis
           title: `Outstanding Invoice ${invoice.invoiceNumber || invoice.id}`,
           invoiceNumber: invoice.invoiceNumber || undefined,
           client: {
-            name: invoice.client.name,
-            company: invoice.client.company || undefined,
+            name: clientOrLead.name,
+            company: clientOrLead.company || undefined,
           },
           createdAt: invoice.becameOutstandingAt?.toISOString() || invoice.createdAt.toISOString(),
         })

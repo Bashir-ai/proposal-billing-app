@@ -43,6 +43,13 @@ export async function getOutstandingInvoices() {
           clientManager: { select: { id: true, name: true, email: true } },
         },
       },
+      lead: {
+        select: {
+          id: true,
+          name: true,
+          company: true,
+        },
+      },
       project: {
         include: {
           projectManagers: {
