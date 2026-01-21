@@ -510,7 +510,7 @@ export function TodoForm({
                 id="proposalId"
                 value={formData.proposalId}
                 onChange={(e) => setFormData({ ...formData, proposalId: e.target.value, proposalItemId: "" })}
-                disabled={formData.projectId && filteredProposals.length === 0}
+                disabled={!!formData.projectId && filteredProposals.length === 0}
               >
                 <option value="">No proposal</option>
                 {filteredProposals.map((proposal) => (
