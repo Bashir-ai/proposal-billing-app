@@ -37,6 +37,27 @@ function formatDate(date: Date | string | null): string {
   })
 }
 
+// Helper function to format date in Portuguese format
+function formatDatePortuguese(date: Date | string | null): string {
+  if (!date) return ""
+  const d = new Date(date)
+  const months = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", 
+                  "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"]
+  return `${d.getDate()} de ${months[d.getMonth()]} ${d.getFullYear()}`
+}
+
+// Helper function to get currency name
+function getCurrencyName(currency: string): string {
+  const names: Record<string, string> = {
+    USD: "US Dollar",
+    EUR: "Euro",
+    GBP: "British Pound",
+    CAD: "Canadian Dollar",
+    AUD: "Australian Dollar",
+  }
+  return names[currency] || currency
+}
+
 
 // Helper function to add logo
 function addLogo(doc: PDFDoc, logoBase64: string | null, y: number): number {
@@ -648,182 +669,140 @@ export async function generateInvoicePdf(bill: any, logoBase64: string | null): 
         : 0
       const total = bill.amount || (bill.taxInclusive ? afterDiscount : afterDiscount + taxAmount)
       
-      // Add logo
-      y = addLogo(doc, logoBase64, y)
-      doc.moveDown(0.5)
+      // Company information (hardcoded for now)
+      const companyName = "VENTURE PARTNERS ADVOGADOS"
+      const companyAddress1 = "Rua Projectada à Matinha, Prédio A, 1º B"
+      const companyAddress2 = "1950-327 Lisboa"
+      const companyCountry = "Portugal"
       
-      // Header
-      doc.fontSize(24)
-        .fillColor('#2563eb')
-        .text("INVOICE", MARGIN, y)
+      // Two-column header layout
+      const headerLeftWidth = CONTENT_WIDTH * 0.45
+      const headerRightWidth = CONTENT_WIDTH * 0.55
+      const headerRightX = MARGIN + headerLeftWidth + 20
       
-      y = doc.y + 10
-      
-      if (bill.invoiceNumber) {
-        doc.fontSize(12)
-          .fillColor('#111827')
-          .text(`Invoice Number: ${bill.invoiceNumber}`, MARGIN, y)
-        y = doc.y + 10
-      }
-      
-      // Status badge
-      if (bill.status) {
-        const statusColors: Record<string, string> = {
-          DRAFT: '#f3f4f6',
-          SUBMITTED: '#dbeafe',
-          APPROVED: '#d1fae5',
-          PAID: '#d1fae5',
+      // Left column: Logo + Company name
+      let headerY = y
+      if (logoBase64) {
+        try {
+          const base64Data = logoBase64.replace(/^data:image\/\w+;base64,/, "")
+          const logoBuffer = Buffer.from(base64Data, 'base64')
+          const mimeMatch = logoBase64.match(/^data:image\/(\w+);base64,/)
+          const format = mimeMatch ? mimeMatch[1] : 'png'
+          
+          if (format === 'png' || format === 'jpeg' || format === 'jpg') {
+            doc.image(logoBuffer, MARGIN, headerY, { 
+              fit: [150, 60],
+              align: 'left'
+            })
+            headerY += 65
+          }
+        } catch (error) {
+          console.error("Error adding logo to PDF:", error)
         }
-        const statusTextColors: Record<string, string> = {
-          DRAFT: '#374151',
-          SUBMITTED: '#1e40af',
-          APPROVED: '#065f46',
-          PAID: '#065f46',
-        }
-        
-        const statusBg = statusColors[bill.status] || '#f3f4f6'
-        const statusText = statusTextColors[bill.status] || '#374151'
-        doc.rect(MARGIN, y, 80, 20)
-          .fillColor(statusBg)
-          .fill()
-          .strokeColor('#e5e7eb')
-          .lineWidth(0.5)
-          .stroke()
-          .fontSize(9)
-          .fillColor(statusText)
-          .text(bill.status, MARGIN + 5, y + 5)
-        
-        y = doc.y + 10
       }
       
-      // Description
-      if (bill.description) {
-        doc.rect(MARGIN, y, CONTENT_WIDTH, 60)
-          .fillColor('#f9fafb')
-          .fill()
-          .strokeColor('#2563eb')
-          .lineWidth(2)
-          .stroke()
-        
-        doc.fontSize(12)
-          .fillColor('#111827')
-          .text("Invoice Description", MARGIN + 10, y + 10)
-        
-        const descLines = wrapText(bill.description, CONTENT_WIDTH - 20, doc)
-        doc.fontSize(10)
-          .fillColor('#374151')
-        
-        let descY = y + 25
-        descLines.forEach(line => {
-          doc.text(line, MARGIN + 10, descY)
-          descY = doc.y + 5
-        })
-        
-        y = descY + 10
-      }
-      
-      // Draw header border
-      doc.moveTo(MARGIN, y)
-        .lineTo(PAGE_WIDTH - MARGIN, y)
-        .strokeColor('#2563eb')
-        .lineWidth(2)
-        .stroke()
-      
-      y += 20
-      
-      // Invoice Information
       doc.fontSize(12)
         .fillColor('#111827')
-        .text("Invoice Information", MARGIN, y)
+        .text(companyName, MARGIN, headerY, { width: headerLeftWidth })
       
-      y = doc.y + 10
+      // Right column: Title + Metadata
+      const rightStartY = y
+      doc.fontSize(24)
+        .fillColor('#2563eb')
+        .text("INVOICE", headerRightX, rightStartY, { width: headerRightWidth })
+      
+      let rightY = rightStartY + 35
+      
+      if (bill.invoiceNumber) {
+        doc.fontSize(10)
+          .fillColor('#111827')
+          .text(`Invoice Number: ${bill.invoiceNumber}`, headerRightX, rightY, { width: headerRightWidth })
+        rightY += 15
+      }
       
       doc.fontSize(10)
-        .fillColor('#374151')
-        .text("Invoice Date:", MARGIN, y)
         .fillColor('#111827')
-        .text(formatDate(bill.createdAt), MARGIN + 100, y)
-      y = doc.y + 8
+        .text(`Issue Date: ${formatDate(bill.createdAt)}`, headerRightX, rightY, { width: headerRightWidth })
+      rightY += 15
       
-      if (bill.dueDate) {
-        doc.fillColor('#374151')
-          .text("Due Date:", MARGIN, y)
-          .fillColor('#111827')
-          .text(formatDate(bill.dueDate), MARGIN + 100, y)
-        y = doc.y + 8
-      }
+      const paymentDate = bill.paidAt || bill.dueDate || bill.createdAt
+      doc.fontSize(10)
+        .fillColor('#111827')
+        .text(`Payment Date: ${formatDate(paymentDate)}`, headerRightX, rightY, { width: headerRightWidth })
+      rightY += 15
       
-      if (bill.paidAt) {
-        doc.fillColor('#374151')
-          .text("Paid Date:", MARGIN, y)
-          .fillColor('#111827')
-          .text(formatDate(bill.paidAt), MARGIN + 100, y)
-        y = doc.y + 8
-      }
+      const currencyName = getCurrencyName(currency)
+      doc.fontSize(10)
+        .fillColor('#111827')
+        .text(`Currency: ${currency} - ${currencyName}`, headerRightX, rightY, { width: headerRightWidth })
       
-      if (bill.isUpfrontPayment) {
-        doc.fillColor('#374151')
-          .text("Type:", MARGIN, y)
-          .fillColor('#111827')
-          .text("Upfront Payment", MARGIN + 100, y)
-        y = doc.y + 20
-      } else {
-        y = doc.y + 10
-      }
+      // Set y to the bottom of the header section
+      y = Math.max(headerY + 20, rightY + 10) + 20
       
-      // Bill To section
+      // Two-column parties section
+      checkPageBreak(doc, 100)
+      
+      const partiesLeftWidth = CONTENT_WIDTH * 0.45
+      const partiesRightWidth = CONTENT_WIDTH * 0.55
+      const partiesRightX = MARGIN + partiesLeftWidth + 20
+      
+      // Left column: Para (To)
       doc.fontSize(12)
         .fillColor('#111827')
         .text("Bill To", MARGIN, y)
       
-      y = doc.y + 10
-      
+      let paraY = y + 18
       doc.fontSize(10)
-        .fillColor('#374151')
-        .text("Client Name:", MARGIN, y)
         .fillColor('#111827')
-        .text(bill.client.name, MARGIN + 100, y)
-      y = doc.y + 8
+        .text(bill.client.name, MARGIN, paraY, { width: partiesLeftWidth })
       
-      if (bill.client.company) {
-        doc.fillColor('#374151')
-          .text("Company:", MARGIN, y)
+      if (bill.client.portugueseTaxNumber || bill.client.foreignTaxNumber) {
+        paraY += 15
+        const taxNumber = bill.client.portugueseTaxNumber || bill.client.foreignTaxNumber || ""
+        doc.fontSize(10)
           .fillColor('#111827')
-          .text(bill.client.company, MARGIN + 100, y)
-        y = doc.y + 8
+          .text(taxNumber, MARGIN, paraY, { width: partiesLeftWidth })
       }
       
-      if (bill.client.email) {
-        doc.fillColor('#374151')
-          .text("Email:", MARGIN, y)
+      if (bill.client.billingCountry) {
+        paraY += 15
+        doc.fontSize(10)
           .fillColor('#111827')
-          .text(bill.client.email, MARGIN + 100, y)
-        y = doc.y + 8
+          .text(bill.client.billingCountry, MARGIN, paraY, { width: partiesLeftWidth })
       }
       
-      if (bill.client.phone) {
-        doc.fillColor('#374151')
-          .text("Phone:", MARGIN, y)
-          .fillColor('#111827')
-          .text(bill.client.phone, MARGIN + 100, y)
-        y = doc.y + 8
-      }
+      // Right column: De (From)
+      doc.fontSize(12)
+        .fillColor('#111827')
+        .text("From", partiesRightX, y, { width: partiesRightWidth })
       
-      if (bill.client.address) {
-        doc.fillColor('#374151')
-          .text("Address:", MARGIN, y)
-          .fillColor('#111827')
-          .text(bill.client.address, MARGIN + 100, y)
-        y = doc.y + 20
-      } else {
-        y = doc.y + 10
-      }
+      let deY = y + 18
+      doc.fontSize(10)
+        .fillColor('#111827')
+        .text("Venture Partners Advogados", partiesRightX, deY, { width: partiesRightWidth })
       
-      // Line Items
+      deY += 15
+      doc.fontSize(10)
+        .fillColor('#111827')
+        .text(companyAddress1, partiesRightX, deY, { width: partiesRightWidth })
+      
+      deY += 15
+      doc.fontSize(10)
+        .fillColor('#111827')
+        .text(companyAddress2, partiesRightX, deY, { width: partiesRightWidth })
+      
+      deY += 15
+      doc.fontSize(10)
+        .fillColor('#111827')
+        .text(companyCountry, partiesRightX, deY, { width: partiesRightWidth })
+      
+      y = Math.max(paraY, deY) + 20
+      
+      // Geral (General) Section with Line Items
       if (bill.items && bill.items.length > 0) {
         checkPageBreak(doc, 150)
         
-        doc.fontSize(12)
+        doc.fontSize(14)
           .fillColor('#111827')
           .text("Line Items", MARGIN, doc.y + 10)
         
@@ -833,50 +812,69 @@ export async function generateInvoicePdf(bill: any, logoBase64: string | null): 
         const hasRate = bill.items.some((item: any) => item.rate || item.unitPrice)
         
         const colWidths = {
-          desc: CONTENT_WIDTH * 0.3,
           type: CONTENT_WIDTH * 0.15,
-          person: CONTENT_WIDTH * 0.2,
-          qty: hasQuantity ? CONTENT_WIDTH * 0.1 : 0,
+          desc: CONTENT_WIDTH * 0.35,
+          qty: hasQuantity ? CONTENT_WIDTH * 0.12 : 0,
           rate: hasRate ? CONTENT_WIDTH * 0.15 : 0,
-          amount: CONTENT_WIDTH * 0.2,
+          amount: CONTENT_WIDTH * 0.23,
         }
         
         // Adjust widths if some columns are missing
         if (!hasQuantity && !hasRate) {
-          colWidths.desc = CONTENT_WIDTH * 0.5
-          colWidths.amount = CONTENT_WIDTH * 0.5
+          colWidths.desc = CONTENT_WIDTH * 0.55
+          colWidths.amount = CONTENT_WIDTH * 0.30
         } else if (!hasQuantity) {
-          colWidths.desc = CONTENT_WIDTH * 0.35
-          colWidths.amount = CONTENT_WIDTH * 0.25
+          colWidths.desc = CONTENT_WIDTH * 0.42
+          colWidths.amount = CONTENT_WIDTH * 0.28
         } else if (!hasRate) {
-          colWidths.desc = CONTENT_WIDTH * 0.4
-          colWidths.amount = CONTENT_WIDTH * 0.3
+          colWidths.desc = CONTENT_WIDTH * 0.47
+          colWidths.amount = CONTENT_WIDTH * 0.26
         }
         
         const headerCols: Array<{ text: string; width: number; align?: 'left' | 'right' | 'center' }> = [
-          { text: "Description", width: colWidths.desc },
           { text: "Type", width: colWidths.type },
-          { text: "Person", width: colWidths.person },
+          { text: "Description", width: colWidths.desc },
         ]
         
         if (hasQuantity) headerCols.push({ text: "Quantity", width: colWidths.qty, align: 'right' })
-        if (hasRate) headerCols.push({ text: "Rate/Price", width: colWidths.rate, align: 'right' })
+        if (hasRate) headerCols.push({ text: "Unit Price", width: colWidths.rate, align: 'right' })
         headerCols.push({ text: "Amount", width: colWidths.amount, align: 'right' })
         
-        // Table header
-        y = drawTableRow(doc, y, headerCols, true)
+        // Table header with orange background
+        const rowHeight = 25
+        let x = MARGIN
+        headerCols.forEach((col) => {
+          doc.rect(x, y, col.width, rowHeight)
+            .fillColor('#ff6b35')
+            .fill()
+            .strokeColor('#e5e7eb')
+            .lineWidth(0.5)
+            .stroke()
+          
+          doc.fontSize(10)
+            .fillColor('#ffffff')
+            .text(col.text, x + 5, y + (rowHeight / 2) - 5, {
+              width: col.width - 10,
+              align: col.align || 'left',
+              height: rowHeight,
+              valign: 'center'
+            })
+          
+          x += col.width
+        })
+        
+        y += rowHeight
         
         // Table rows
         bill.items.forEach((item: any) => {
           checkPageBreak(doc, 30)
           
           const rowCols: Array<{ text: string; width: number; align?: 'left' | 'right' | 'center' }> = [
+            { text: item.type || "Service", width: colWidths.type },
             { text: item.description || "-", width: colWidths.desc },
-            { text: item.type || "-", width: colWidths.type },
-            { text: item.person ? item.person.name : "-", width: colWidths.person },
           ]
           
-          if (hasQuantity) rowCols.push({ text: item.quantity?.toString() || "-", width: colWidths.qty, align: 'right' })
+          if (hasQuantity) rowCols.push({ text: item.quantity?.toString() || "1", width: colWidths.qty, align: 'right' })
           if (hasRate) {
             const rateValue = item.rate || item.unitPrice || 0
             rowCols.push({ text: rateValue ? formatCurrency(rateValue, currency) : "-", width: colWidths.rate, align: 'right' })
@@ -890,120 +888,129 @@ export async function generateInvoicePdf(bill: any, logoBase64: string | null): 
           y = drawTableRow(doc, y, rowCols)
         })
         
+        // Subtotal row within the table
+        checkPageBreak(doc, 30)
+        const subtotalRowCols: Array<{ text: string; width: number; align?: 'left' | 'right' | 'center' }> = [
+          { text: "", width: colWidths.type },
+          { text: "Subtotal", width: colWidths.desc },
+        ]
+        
+        if (hasQuantity) {
+          const totalQty = bill.items.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0)
+          subtotalRowCols.push({ text: totalQty.toString(), width: colWidths.qty, align: 'right' })
+        }
+        if (hasRate) {
+          subtotalRowCols.push({ text: "", width: colWidths.rate, align: 'right' })
+        }
+        subtotalRowCols.push({ 
+          text: formatCurrency(subtotal, currency), 
+          width: colWidths.amount, 
+          align: 'right' 
+        })
+        
+        y = drawTableRow(doc, y, subtotalRowCols)
+        
         y += 10
       }
       
-      // Totals
+      // Financial Summary
       checkPageBreak(doc, 100)
       
-      const totalsY = doc.y + 10
-      y = totalsY
+      y = doc.y + 15
       
-      if (subtotal > 0) {
+      doc.fontSize(10)
+        .fillColor('#111827')
+        .text(`Subtotal: ${formatCurrency(subtotal, currency)}`, MARGIN, y)
+      y = doc.y + 10
+      
+      if (bill.taxRate && bill.taxRate > 0 && taxAmount > 0) {
         doc.fontSize(10)
           .fillColor('#111827')
-          .text("Subtotal:", PAGE_WIDTH - MARGIN - 150, y, { align: 'right', width: 150 })
-          .text(formatCurrency(subtotal, currency), PAGE_WIDTH - MARGIN, y, { align: 'right' })
-        y = doc.y + 8
+          .text(`Tax (${bill.taxRate}%): ${formatCurrency(taxAmount, currency)}`, MARGIN, y)
+        y = doc.y + 10
       }
       
-      if (discount > 0) {
-        doc.text(`Discount${bill.discountPercent ? ` (${bill.discountPercent}%)` : ''}:`, PAGE_WIDTH - MARGIN - 150, y, { align: 'right', width: 150 })
-          .text(`-${formatCurrency(discount, currency)}`, PAGE_WIDTH - MARGIN, y, { align: 'right' })
-        y = doc.y + 8
-      }
-      
-      if (bill.taxRate && bill.taxRate > 0) {
-        doc.text(`Tax${bill.taxInclusive ? ' (inclusive)' : ''} (${bill.taxRate}%):`, PAGE_WIDTH - MARGIN - 150, y, { align: 'right', width: 150 })
-          .text(formatCurrency(taxAmount, currency), PAGE_WIDTH - MARGIN, y, { align: 'right' })
-        y = doc.y + 8
-      }
-      
-      // Total
-      doc.moveTo(PAGE_WIDTH - MARGIN - 150, y)
-        .lineTo(PAGE_WIDTH - MARGIN, y)
-        .strokeColor('#e5e7eb')
-        .lineWidth(1)
-        .stroke()
-      
-      y += 10
-      
-      doc.fontSize(14)
-        .text("Total:", PAGE_WIDTH - MARGIN - 150, y, { align: 'right', width: 150 })
-        .text(formatCurrency(total, currency), PAGE_WIDTH - MARGIN, y, { align: 'right' })
+      doc.fontSize(12)
+        .fillColor('#111827')
+        .text(`Total Amount: ${formatCurrency(total, currency)}`, MARGIN, y)
       
       y = doc.y + 20
       
-      // Related Proposal
-      if (bill.proposal) {
-        checkPageBreak(doc, 50)
-        doc.fontSize(12)
-          .fillColor('#111827')
-          .text("Related Proposal", MARGIN, doc.y + 10)
-        
-        y = doc.y + 10
-        
-        doc.fontSize(10)
-          .fillColor('#111827')
-          .text(bill.proposal.title, MARGIN, y)
-        
-        if (bill.proposal.proposalNumber) {
-          y = doc.y + 8
-          doc.text(`Proposal Number: ${bill.proposal.proposalNumber}`, MARGIN, y)
-        }
-        
-        y = doc.y + 15
-      }
+      // Valor Devido (Amount Due) Section
+      checkPageBreak(doc, 50)
       
-      // Related Project
-      if (bill.project) {
-        checkPageBreak(doc, 50)
-        doc.fontSize(12)
-          .fillColor('#111827')
-          .text("Related Project", MARGIN, doc.y + 10)
-        
-        y = doc.y + 10
-        
-        doc.fontSize(10)
-          .fillColor('#111827')
-          .text(bill.project.name, MARGIN, y)
-        
-        y = doc.y + 15
-      }
+      doc.fontSize(14)
+        .fillColor('#111827')
+        .text("Amount Due", MARGIN, y)
       
-      // Payment Details
+      y = doc.y + 10
+      
+      doc.fontSize(16)
+        .fillColor('#111827')
+        .text(formatCurrency(total, currency), MARGIN, y)
+      
+      y = doc.y + 25
+      
+      // Notas (Notes) Section with Bank Details
       if (bill.paymentDetails) {
         checkPageBreak(doc, 80)
-        doc.moveTo(MARGIN, doc.y + 10)
-          .lineTo(PAGE_WIDTH - MARGIN, doc.y + 10)
-          .strokeColor('#e5e7eb')
-          .lineWidth(2)
-          .stroke()
         
-        y = doc.y + 20
-        
-        doc.fontSize(12)
+        doc.fontSize(14)
           .fillColor('#111827')
-          .text("Payment Details", MARGIN, y)
+          .text("Notes:", MARGIN, y)
         
         y = doc.y + 15
         
-        doc.rect(MARGIN, y, CONTENT_WIDTH, 60)
-          .fillColor('#f9fafb')
-          .fill()
-          .strokeColor('#2563eb')
-          .lineWidth(2)
-          .stroke()
+        doc.fontSize(12)
+          .fillColor('#111827')
+          .text("Bank Details:", MARGIN, y)
         
-        const paymentLines = wrapText(bill.paymentDetails.details, CONTENT_WIDTH - 20, doc)
+        y = doc.y + 10
+        
+        // Parse bank details from paymentDetails.details
+        const detailsText = bill.paymentDetails.details || ""
+        
+        // Try to extract structured information
+        const nameMatch = detailsText.match(/Nome[:\s]+([^\n\r]+)/i) || 
+                          detailsText.match(/Name[:\s]+([^\n\r]+)/i) ||
+                          detailsText.match(/(VPA[^\n\r]+)/i)
+        const ibanMatch = detailsText.match(/IBAN[:\s]+([A-Z0-9\s]+)/i)
+        const bicMatch = detailsText.match(/BIC[:\s]+([A-Z0-9]+)/i) || 
+                         detailsText.match(/SWIFT[:\s]+([A-Z0-9]+)/i)
+        
+        const bankName = nameMatch ? nameMatch[1].trim() : "VPA - Sociedade de Advogados SP RL"
+        const iban = ibanMatch ? ibanMatch[1].trim() : ""
+        const bic = bicMatch ? bicMatch[1].trim() : ""
+        
         doc.fontSize(10)
           .fillColor('#111827')
+          .text(`Name: ${bankName}`, MARGIN, y)
         
-        let paymentY = y + 10
-        paymentLines.forEach(line => {
-          doc.text(line, MARGIN + 10, paymentY)
-          paymentY = doc.y + 5
-        })
+        if (iban) {
+          y = doc.y + 10
+          doc.fontSize(10)
+            .fillColor('#111827')
+            .text(`IBAN: ${iban}`, MARGIN, y)
+        }
+        
+        if (bic) {
+          y = doc.y + 10
+          doc.fontSize(10)
+            .fillColor('#111827')
+            .text(`BIC/SWIFT: ${bic}`, MARGIN, y)
+        }
+        
+        // If no structured data found, display as-is
+        if (!iban && !bic && detailsText) {
+          y = doc.y + 10
+          const paymentLines = wrapText(detailsText, CONTENT_WIDTH - 20, doc)
+          paymentLines.forEach(line => {
+            doc.fontSize(10)
+              .fillColor('#111827')
+              .text(line, MARGIN, y)
+            y = doc.y + 8
+          })
+        }
       }
       
       // Footer
