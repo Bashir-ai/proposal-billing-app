@@ -87,6 +87,12 @@ export async function calculateAndCreateFinderFees(billId: string): Promise<void
     return
   }
 
+  // Finder fees only apply to clients, not leads
+  if (!bill.client) {
+    // No client, nothing to calculate
+    return
+  }
+
   // Get client finders
   const clientFinders = bill.client.finders || []
 
@@ -115,7 +121,7 @@ export async function calculateAndCreateFinderFees(billId: string): Promise<void
       return prisma.finderFee.create({
         data: {
           billId: bill.id,
-          clientId: bill.clientId,
+          clientId: bill.client.id, // Use bill.client.id since we've already verified bill.client exists
           finderId: clientFinder.userId,
           clientFinderId: clientFinder.id,
           invoiceNetAmount: netAmount,
