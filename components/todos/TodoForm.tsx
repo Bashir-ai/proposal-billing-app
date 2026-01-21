@@ -94,6 +94,9 @@ export function TodoForm({
   })
 
   const [filteredProjects, setFilteredProjects] = useState(projects)
+  const [projectSearchTerm, setProjectSearchTerm] = useState("")
+  const [filteredProposals, setFilteredProposals] = useState(proposals)
+  const [filteredInvoices, setFilteredInvoices] = useState(invoices)
 
   // Check if reassignment is allowed
   const canReassign = creator && currentAssignee && currentUser && 
@@ -107,22 +110,28 @@ export function TodoForm({
 
   const [filteredProposalItems, setFilteredProposalItems] = useState(proposalItems)
 
-  // Filter projects when client is selected
+  // Filter projects when client is selected and apply search
   useEffect(() => {
+    let filtered = projects
+    // Filter by client first
     if (formData.clientId) {
-      const filtered = projects.filter((p) => p.clientId === formData.clientId)
-      setFilteredProjects(filtered)
+      filtered = filtered.filter((p) => p.clientId === formData.clientId)
       // Clear project selection if it doesn't belong to selected client
       if (formData.projectId) {
         const selectedProject = projects.find((p) => p.id === formData.projectId)
         if (selectedProject && selectedProject.clientId !== formData.clientId) {
-          setFormData((prev) => ({ ...prev, projectId: "" }))
+          setFormData((prev) => ({ ...prev, projectId: "", proposalId: "", proposalItemId: "", invoiceId: "" }))
         }
       }
-    } else {
-      setFilteredProjects(projects)
     }
-  }, [formData.clientId, projects, formData.projectId])
+    // Apply search filter
+    if (projectSearchTerm) {
+      filtered = filtered.filter((p) => 
+        p.name.toLowerCase().includes(projectSearchTerm.toLowerCase())
+      )
+    }
+    setFilteredProjects(filtered)
+  }, [formData.clientId, projects, formData.projectId, projectSearchTerm])
 
   // Auto-set client when project is selected
   useEffect(() => {
@@ -134,6 +143,44 @@ export function TodoForm({
       }
     }
   }, [formData.projectId, projects, formData.clientId])
+
+  // Filter proposals and invoices based on selected project
+  useEffect(() => {
+    if (formData.projectId) {
+      // Fetch project details to get proposalId
+      fetch(`/api/projects/${formData.projectId}`)
+        .then((res) => res.json())
+        .then((data) => {
+          // Filter proposals to only the project's proposal
+          if (data.proposalId) {
+            const projectProposal = proposals.find(p => p.id === data.proposalId)
+            setFilteredProposals(projectProposal ? [projectProposal] : [])
+            // Auto-select the proposal if it exists
+            if (projectProposal && formData.proposalId !== projectProposal.id) {
+              setFormData((prev) => ({ ...prev, proposalId: projectProposal.id }))
+            }
+          } else {
+            setFilteredProposals([])
+            // Clear proposal selection if project has no proposal
+            if (formData.proposalId) {
+              setFormData((prev) => ({ ...prev, proposalId: "", proposalItemId: "" }))
+            }
+          }
+          // Filter invoices to only project invoices
+          // Note: invoices should already be filtered by project in the parent component
+          // but we'll ensure they match the project
+          setFilteredInvoices(invoices.filter((inv: any) => inv.projectId === formData.projectId))
+        })
+        .catch((error) => {
+          console.error("Failed to fetch project:", error)
+          setFilteredProposals(proposals)
+          setFilteredInvoices(invoices)
+        })
+    } else {
+      setFilteredProposals(proposals)
+      setFilteredInvoices(invoices)
+    }
+  }, [formData.projectId, proposals, invoices])
 
   useEffect(() => {
     if (formData.proposalId) {
@@ -404,25 +451,49 @@ export function TodoForm({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="projectId">Project (Optional)</Label>
-              <Select
-                id="projectId"
-                value={formData.projectId}
-                onChange={(e) => setFormData({ ...formData, projectId: e.target.value })}
-                disabled={formData.clientId && filteredProjects.length === 0 || !!formData.leadId}
-              >
-                <option value="">No project</option>
-                {filteredProjects.map((project) => (
-                  <option key={project.id} value={project.id}>
-                    {project.name}
-                  </option>
-                ))}
-              </Select>
-              {formData.clientId && filteredProjects.length === 0 && (
-                <p className="text-sm text-gray-500">No projects found for this client</p>
-              )}
-              {formData.leadId && (
-                <p className="text-sm text-gray-500">Projects can only be selected when a Client is selected</p>
-              )}
+              <div className="space-y-2">
+                {filteredProjects.length > 5 && (
+                  <Input
+                    type="text"
+                    placeholder="Search projects..."
+                    value={projectSearchTerm}
+                    onChange={(e) => setProjectSearchTerm(e.target.value)}
+                    className="mb-2"
+                  />
+                )}
+                <Select
+                  id="projectId"
+                  value={formData.projectId}
+                  onChange={(e) => {
+                    const newProjectId = e.target.value
+                    setFormData({ 
+                      ...formData, 
+                      projectId: newProjectId,
+                      // Clear dependent fields when project changes
+                      proposalId: "",
+                      proposalItemId: "",
+                      invoiceId: "",
+                    })
+                  }}
+                  disabled={formData.clientId && filteredProjects.length === 0 || !!formData.leadId}
+                >
+                  <option value="">No project</option>
+                  {filteredProjects.map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {project.name}
+                    </option>
+                  ))}
+                </Select>
+                {projectSearchTerm && filteredProjects.length === 0 && (
+                  <p className="text-sm text-gray-500">No projects found matching "{projectSearchTerm}"</p>
+                )}
+                {formData.clientId && !projectSearchTerm && filteredProjects.length === 0 && (
+                  <p className="text-sm text-gray-500">No projects found for this client</p>
+                )}
+                {formData.leadId && (
+                  <p className="text-sm text-gray-500">Projects can only be selected when a Client is selected</p>
+                )}
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -431,14 +502,18 @@ export function TodoForm({
                 id="proposalId"
                 value={formData.proposalId}
                 onChange={(e) => setFormData({ ...formData, proposalId: e.target.value, proposalItemId: "" })}
+                disabled={formData.projectId && filteredProposals.length === 0}
               >
                 <option value="">No proposal</option>
-                {proposals.map((proposal) => (
+                {filteredProposals.map((proposal) => (
                   <option key={proposal.id} value={proposal.id}>
                     {proposal.title} {proposal.proposalNumber && `(#${proposal.proposalNumber})`}
                   </option>
                 ))}
               </Select>
+              {formData.projectId && filteredProposals.length === 0 && (
+                <p className="text-sm text-gray-500">No proposal linked to this project</p>
+              )}
             </div>
           </div>
 
@@ -467,14 +542,18 @@ export function TodoForm({
                 id="invoiceId"
                 value={formData.invoiceId}
                 onChange={(e) => setFormData({ ...formData, invoiceId: e.target.value })}
+                disabled={formData.projectId && filteredInvoices.length === 0}
               >
                 <option value="">No invoice</option>
-                {invoices.map((invoice) => (
+                {filteredInvoices.map((invoice) => (
                   <option key={invoice.id} value={invoice.id}>
                     {invoice.invoiceNumber || invoice.id.slice(0, 8)}
                   </option>
                 ))}
               </Select>
+              {formData.projectId && filteredInvoices.length === 0 && (
+                <p className="text-sm text-gray-500">No invoices found for this project</p>
+              )}
             </div>
 
             <div className="space-y-2">

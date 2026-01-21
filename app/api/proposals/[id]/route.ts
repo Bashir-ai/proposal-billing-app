@@ -127,6 +127,7 @@ const proposalUpdateSchema = z.object({
   recurringFrequency: z.enum(["MONTHLY_1", "MONTHLY_3", "MONTHLY_6", "YEARLY_12", "CUSTOM"]).optional(),
   recurringCustomMonths: z.number().optional(),
   recurringStartDate: z.string().optional(),
+  archivedAt: z.string().nullable().optional(),
 })
 
 export async function GET(
@@ -141,7 +142,10 @@ export async function GET(
     }
 
     const proposal = await prisma.proposal.findUnique({
-      where: { id },
+      where: { 
+        id,
+        deletedAt: null, // Exclude deleted proposals
+      },
       include: {
         client: true,
         lead: {
@@ -427,6 +431,8 @@ export async function PUT(
       if (validatedData.recurringFrequency !== undefined) updateData.recurringFrequency = validatedData.recurringFrequency || null
       if (validatedData.recurringCustomMonths !== undefined) updateData.recurringCustomMonths = validatedData.recurringCustomMonths || null
       if (validatedData.recurringStartDate !== undefined) updateData.recurringStartDate = validatedData.recurringStartDate ? parseLocalDate(validatedData.recurringStartDate) : null
+      // Archive field
+      if (validatedData.archivedAt !== undefined) updateData.archivedAt = validatedData.archivedAt ? parseLocalDate(validatedData.archivedAt) : null
     } catch (updateDataError: any) {
       console.error("Error building updateData:", updateDataError?.message || String(updateDataError))
       throw new Error(`Failed to prepare update data: ${updateDataError?.message || String(updateDataError)}`)
@@ -923,6 +929,28 @@ export async function POST(
         data: {
           status: ProposalStatus.SUBMITTED,
           submittedAt: new Date(),
+        },
+      })
+
+      return NextResponse.json(proposal)
+    }
+
+    if (action === "archive") {
+      const proposal = await prisma.proposal.update({
+        where: { id },
+        data: {
+          archivedAt: new Date(),
+        },
+      })
+
+      return NextResponse.json(proposal)
+    }
+
+    if (action === "unarchive") {
+      const proposal = await prisma.proposal.update({
+        where: { id },
+        data: {
+          archivedAt: null,
         },
       })
 

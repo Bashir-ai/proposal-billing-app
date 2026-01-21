@@ -32,6 +32,20 @@ export async function getNotifications(userId: string, userRole: string): Promis
       return { count: 0, notifications: [] }
     }
 
+    // Fetch all read notification records for this user
+    const readNotifications = await prisma.notificationRead.findMany({
+      where: { userId },
+      select: {
+        notificationType: true,
+        itemId: true,
+      },
+    })
+
+    // Create a Set for quick lookup
+    const readSet = new Set(
+      readNotifications.map(r => `${r.notificationType}:${r.itemId}`)
+    )
+
     const notifications: Notification[] = []
     let count = 0
 
@@ -90,16 +104,19 @@ export async function getNotifications(userId: string, userRole: string): Promis
     })
 
     pendingProposalApprovals.forEach(proposal => {
-      notifications.push({
-        type: "proposal_approval",
-        id: `proposal-${proposal.id}`,
-        itemId: proposal.id,
-        title: proposal.title,
-        proposalNumber: proposal.proposalNumber || undefined,
-        client: proposal.client,
-        createdAt: proposal.createdAt.toISOString(),
-      })
-      count++
+      // Check if this notification has been marked as read
+      if (!readSet.has(`proposal_approval:${proposal.id}`)) {
+        notifications.push({
+          type: "proposal_approval",
+          id: `proposal-${proposal.id}`,
+          itemId: proposal.id,
+          title: proposal.title,
+          proposalNumber: proposal.proposalNumber || undefined,
+          client: proposal.client,
+          createdAt: proposal.createdAt.toISOString(),
+        })
+        count++
+      }
     })
 
     // 2. Pending Invoice Approvals (internal)
@@ -144,16 +161,19 @@ export async function getNotifications(userId: string, userRole: string): Promis
     })
 
     pendingInvoiceApprovals.forEach(bill => {
-      notifications.push({
-        type: "invoice_approval",
-        id: `invoice-${bill.id}`,
-        itemId: bill.id,
-        title: `Invoice ${bill.invoiceNumber || bill.id}`,
-        invoiceNumber: bill.invoiceNumber || undefined,
-        client: bill.client,
-        createdAt: bill.createdAt.toISOString(),
-      })
-      count++
+      // Check if this notification has been marked as read
+      if (!readSet.has(`invoice_approval:${bill.id}`)) {
+        notifications.push({
+          type: "invoice_approval",
+          id: `invoice-${bill.id}`,
+          itemId: bill.id,
+          title: `Invoice ${bill.invoiceNumber || bill.id}`,
+          invoiceNumber: bill.invoiceNumber || undefined,
+          client: bill.client,
+          createdAt: bill.createdAt.toISOString(),
+        })
+        count++
+      }
     })
 
     // 3. Proposals pending client approval (for Admins/Managers to override)
@@ -180,17 +200,21 @@ export async function getNotifications(userId: string, userRole: string): Promis
         // Check if email was sent more than 5 days ago
         const isOverdue = proposal.clientApprovalEmailSentAt && 
                          new Date(proposal.clientApprovalEmailSentAt) < fiveDaysAgo
-
-        notifications.push({
-          type: isOverdue ? "proposal_pending_client_overdue" : "proposal_pending_client",
-          id: `proposal-client-${proposal.id}`,
-          itemId: proposal.id,
-          title: proposal.title,
-          proposalNumber: proposal.proposalNumber || undefined,
-          client: proposal.client,
-          createdAt: proposal.createdAt.toISOString(),
-        })
-        count++
+        const notificationType = isOverdue ? "proposal_pending_client_overdue" : "proposal_pending_client"
+        
+        // Check if this notification has been marked as read
+        if (!readSet.has(`${notificationType}:${proposal.id}`)) {
+          notifications.push({
+            type: notificationType,
+            id: `proposal-client-${proposal.id}`,
+            itemId: proposal.id,
+            title: proposal.title,
+            proposalNumber: proposal.proposalNumber || undefined,
+            client: proposal.client,
+            createdAt: proposal.createdAt.toISOString(),
+          })
+          count++
+        }
       })
     }
 
@@ -249,8 +273,11 @@ export async function getNotifications(userId: string, userRole: string): Promis
     // 5. Outstanding invoices
     const outstandingInvoiceNotifications = await getOutstandingInvoiceNotifications(userId)
     outstandingInvoiceNotifications.forEach(notification => {
-      notifications.push(notification)
-      count++
+      // Check if this notification has been marked as read
+      if (!readSet.has(`${notification.type}:${notification.itemId}`)) {
+        notifications.push(notification)
+        count++
+      }
     })
 
     // 6. Recurring payment notifications

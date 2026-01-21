@@ -21,6 +21,7 @@ import { canEditProposal, canApproveProposals, canDeleteItems } from "@/lib/perm
 import { DeleteButton } from "@/components/shared/DeleteButton"
 import { getLogoPath } from "@/lib/settings"
 import Image from "next/image"
+import { ArchiveButton } from "@/components/proposals/ArchiveButton"
 
 export const dynamic = 'force-dynamic'
 
@@ -118,6 +119,7 @@ export default async function ProposalDetailPage({
         requiredApproverIds: true,
         internalApprovalsComplete: true,
         deletedAt: true,
+        archivedAt: true,
         submittedAt: true,
         createdAt: true,
         recurringEnabled: true,
@@ -591,9 +593,18 @@ export default async function ProposalDetailPage({
                 ))}
               </>
             )}
+            {proposal.archivedAt && (
+              <span className="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                Archived
+              </span>
+            )}
           </div>
         </div>
-        <ProposalActions
+        <div className="flex items-center gap-2">
+          {session?.user.role !== "CLIENT" && (
+            <ArchiveButton proposalId={proposal.id} isArchived={!!proposal.archivedAt} />
+          )}
+          <ProposalActions
           proposalId={proposal.id}
           proposalTitle={proposal.title}
           canEdit={canEdit}
@@ -609,6 +620,7 @@ export default async function ProposalDetailPage({
           currentUserRole={session?.user.role}
           canStillApprove={canStillApprove}
         />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">

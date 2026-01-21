@@ -136,44 +136,51 @@ export function NotificationsBox({ initialCount, initialNotifications, isCollaps
 
   const handleMarkAsViewed = useCallback(async (notificationId: string) => {
     try {
+      // Optimistically remove from local state immediately
+      setNotifications(prev => prev.filter(n => n.id !== notificationId))
+      setViewedNotifications(prev => {
+        const newSet = new Set(prev)
+        newSet.add(notificationId)
+        return newSet
+      })
+      
       // Mark as read in the database
       const response = await fetch(`/api/notifications/${notificationId}/read`, {
         method: "PUT",
       })
       
-      if (response.ok) {
-        // Update local state
-        setViewedNotifications(prev => {
-          const newSet = new Set(prev)
-          newSet.add(notificationId)
-          return newSet
-        })
-        // Refresh notifications to get updated count
-        refreshNotifications()
+      if (!response.ok) {
+        // If marking as read failed, restore the notification
+        // We'll let the next refresh handle it
+        console.error("Failed to mark notification as read")
       }
+      // Don't refresh immediately - let the next automatic refresh handle it
+      // This prevents the notification from reappearing
     } catch (error) {
       console.error("Error marking notification as read:", error)
+      // On error, let the next refresh restore the notification if needed
     }
-  }, [refreshNotifications])
+  }, [])
 
   const handleMarkAllAsViewed = useCallback(async () => {
     try {
-      // Mark all notifications as read
+      // Optimistically clear all notifications from local state
+      const allIds = new Set(notifications.map(n => n.id))
+      setNotifications([])
+      setViewedNotifications(allIds)
+      
+      // Mark all notifications as read in the database
       const promises = notifications.map(n => 
         fetch(`/api/notifications/${n.id}/read`, { method: "PUT" })
       )
       await Promise.all(promises)
       
-      // Update local state
-      const allIds = new Set(notifications.map(n => n.id))
-      setViewedNotifications(allIds)
-      
-      // Refresh notifications to get updated count
-      refreshNotifications()
+      // Don't refresh immediately - let the next automatic refresh handle it
     } catch (error) {
       console.error("Error marking all notifications as read:", error)
+      // On error, let the next refresh restore notifications if needed
     }
-  }, [notifications, refreshNotifications])
+  }, [notifications])
 
   // Filter out viewed notifications and calculate count
   const unviewedNotifications = notifications.filter(n => !viewedNotifications.has(n.id))

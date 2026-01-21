@@ -141,9 +141,14 @@ export async function GET(request: Request) {
     const clientId = searchParams.get("clientId")
     const clientApprovalStatus = searchParams.get("clientApprovalStatus")
     const tagId = searchParams.get("tagId")
+    const archived = searchParams.get("archived") === "true" // Include archived if explicitly requested
 
     const where: any = {
       deletedAt: null, // Exclude deleted items
+    }
+    // Exclude archived proposals by default, unless explicitly requested
+    if (!archived) {
+      where.archivedAt = null
     }
     if (status) where.status = status
     if (type) where.type = type
@@ -184,6 +189,7 @@ export async function GET(request: Request) {
         proposalNumber: true,
         createdAt: true,
         deletedAt: true,
+        archivedAt: true,
         client: {
           select: {
             id: true,

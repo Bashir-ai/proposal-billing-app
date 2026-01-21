@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
-import { UserRole } from "@prisma/client"
+import { UserRole, CompensationFeeType } from "@prisma/client"
 
 const eligibilitySchema = z.object({
   compensationId: z.string(),
@@ -12,6 +12,7 @@ const eligibilitySchema = z.object({
   clientId: z.string().optional().nullable(),
   billId: z.string().optional().nullable(),
   isEligible: z.boolean().default(true),
+  feeType: z.nativeEnum(CompensationFeeType).optional().nullable(),
   projectPercentageOverride: z.number().min(0).max(100).optional().nullable(),
   directWorkPercentageOverride: z.number().min(0).max(100).optional().nullable(),
   fixedAmountOverride: z.number().positive().optional().nullable(),
@@ -185,8 +186,25 @@ export async function POST(
       where: whereClause,
     })
 
+    // Validate feeType and percentage fields
+    if (validatedData.feeType) {
+      if (validatedData.feeType === "PROJECT_FEES" && validatedData.directWorkPercentageOverride !== null && validatedData.directWorkPercentageOverride !== undefined) {
+        return NextResponse.json(
+          { error: "directWorkPercentageOverride cannot be set when feeType is PROJECT_FEES" },
+          { status: 400 }
+        )
+      }
+      if (validatedData.feeType === "DIRECT_FEES" && validatedData.projectPercentageOverride !== null && validatedData.projectPercentageOverride !== undefined) {
+        return NextResponse.json(
+          { error: "projectPercentageOverride cannot be set when feeType is DIRECT_FEES" },
+          { status: 400 }
+        )
+      }
+    }
+
     const data: any = {
       isEligible: validatedData.isEligible,
+      feeType: validatedData.feeType ?? null,
       projectPercentageOverride: validatedData.projectPercentageOverride ?? null,
       directWorkPercentageOverride: validatedData.directWorkPercentageOverride ?? null,
       fixedAmountOverride: validatedData.fixedAmountOverride ?? null,

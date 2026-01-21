@@ -182,6 +182,12 @@ enum PercentageType {
   BOTH
 }
 
+enum CompensationFeeType {
+  PROJECT_FEES
+  DIRECT_FEES
+  BOTH
+}
+
 enum AdvanceType {
   RECURRING
   ONE_OFF
@@ -260,6 +266,7 @@ model User {
   writtenOffBills         Bill[]            @relation("BillWrittenOffBy")
   projectUserRates        ProjectUserRate[]  @relation("ProjectUserRate")
   notifications           Notification[]
+  notificationReads       NotificationRead[]  @relation("NotificationReadUser")
   createdEmailTemplates   EmailTemplate[]    @relation("EmailTemplateCreator")
   sentProposalEmails      Proposal[]         @relation("ProposalEmailSender")
   // Financial tracking relations
@@ -423,6 +430,7 @@ model Proposal {
   deletionApprovedAt        DateTime?
   deletionApprovedBy        String?
   deletedAt                 DateTime?
+  archivedAt                DateTime? // Archive (different from delete - can be unarchived)
   createdAt                 DateTime             @default(now())
   updatedAt                 DateTime             @updatedAt
   submittedAt               DateTime?
@@ -454,6 +462,7 @@ model Proposal {
   @@index([status])
   @@index([clientApprovalStatus])
   @@index([deletedAt])
+  @@index([archivedAt])
   @@index([createdBy])
   @@index([status, clientApprovalStatus])
   @@index([recurringEnabled, lastRecurringInvoiceDate])
@@ -1131,6 +1140,20 @@ model Notification {
   paymentTerm  PaymentTerm?     @relation(fields: [paymentTermId], references: [id], onDelete: Cascade)
 }
 
+model NotificationRead {
+  id              String   @id @default(cuid())
+  userId          String
+  notificationType String   // "proposal_approval", "invoice_approval", "invoice_outstanding", "proposal_pending_client", etc.
+  itemId          String   // Proposal ID, Invoice ID, etc.
+  readAt          DateTime @default(now())
+  
+  user            User     @relation("NotificationReadUser", fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, notificationType, itemId])
+  @@index([userId])
+  @@index([notificationType, itemId])
+}
+
 model InstallmentInvoice {
   id            String    @id @default(cuid())
   proposalId    String
@@ -1338,6 +1361,7 @@ model CompensationEligibility {
   clientId                String?  // If set, applies to all projects for this client
   billId                  String?  // If set, applies to this invoice only
   isEligible              Boolean  @default(true) // Can be used to exclude specific items
+  feeType                 CompensationFeeType? // Type of fees: PROJECT_FEES, DIRECT_FEES, or BOTH
   // Override fields - if set, these override the compensation scheme percentages
   projectPercentageOverride Float? // Override percentage for project total (0-100)
   directWorkPercentageOverride Float? // Override percentage for direct work (0-100)

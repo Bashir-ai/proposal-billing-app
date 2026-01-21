@@ -16,6 +16,7 @@ interface EligibilityRecord {
   clientId: string | null
   billId: string | null
   isEligible: boolean
+  feeType?: string | null
   projectPercentageOverride: number | null
   directWorkPercentageOverride: number | null
   fixedAmountOverride: number | null
@@ -83,6 +84,7 @@ export function CompensationEligibilityManager({
   const [showAddModal, setShowAddModal] = useState(false)
   const [selectedCompensationId, setSelectedCompensationId] = useState<string>("")
   const [isEligible, setIsEligible] = useState<boolean>(true)
+  const [feeType, setFeeType] = useState<"PROJECT_FEES" | "DIRECT_FEES" | "BOTH" | "">("")
   const [compensationType, setCompensationType] = useState<"PERCENTAGE" | "FIXED">("PERCENTAGE")
   const [projectPercentageOverride, setProjectPercentageOverride] = useState<string>("")
   const [directWorkPercentageOverride, setDirectWorkPercentageOverride] = useState<string>("")
@@ -161,6 +163,7 @@ export function CompensationEligibilityManager({
   const handleAdd = () => {
     setSelectedCompensationId("")
     setIsEligible(true)
+    setFeeType("")
     setCompensationType("PERCENTAGE")
     setProjectPercentageOverride("")
     setDirectWorkPercentageOverride("")
@@ -171,6 +174,7 @@ export function CompensationEligibilityManager({
   const handleEdit = (record: EligibilityRecord) => {
     setSelectedCompensationId(record.compensationId)
     setIsEligible(record.isEligible)
+    setFeeType((record as any).feeType || "")
     if (record.fixedAmountOverride !== null) {
       setCompensationType("FIXED")
       setFixedAmountOverride(record.fixedAmountOverride.toString())
@@ -200,9 +204,27 @@ export function CompensationEligibilityManager({
         body.fixedAmountOverride = fixedAmountOverride ? parseFloat(fixedAmountOverride) : null
         body.projectPercentageOverride = null
         body.directWorkPercentageOverride = null
+        body.feeType = null
       } else {
-        body.projectPercentageOverride = projectPercentageOverride ? parseFloat(projectPercentageOverride) : null
-        body.directWorkPercentageOverride = directWorkPercentageOverride ? parseFloat(directWorkPercentageOverride) : null
+        // Set feeType if provided
+        if (feeType) {
+          body.feeType = feeType
+        }
+        // Set percentages based on feeType
+        if (feeType === "PROJECT_FEES") {
+          body.projectPercentageOverride = projectPercentageOverride ? parseFloat(projectPercentageOverride) : null
+          body.directWorkPercentageOverride = null
+        } else if (feeType === "DIRECT_FEES") {
+          body.projectPercentageOverride = null
+          body.directWorkPercentageOverride = directWorkPercentageOverride ? parseFloat(directWorkPercentageOverride) : null
+        } else if (feeType === "BOTH") {
+          body.projectPercentageOverride = projectPercentageOverride ? parseFloat(projectPercentageOverride) : null
+          body.directWorkPercentageOverride = directWorkPercentageOverride ? parseFloat(directWorkPercentageOverride) : null
+        } else {
+          // No feeType specified - allow both
+          body.projectPercentageOverride = projectPercentageOverride ? parseFloat(projectPercentageOverride) : null
+          body.directWorkPercentageOverride = directWorkPercentageOverride ? parseFloat(directWorkPercentageOverride) : null
+        }
         body.fixedAmountOverride = null
       }
 
@@ -441,6 +463,7 @@ export function CompensationEligibilityManager({
                         if (e.target.value === "FIXED") {
                           setProjectPercentageOverride("")
                           setDirectWorkPercentageOverride("")
+                          setFeeType("")
                         } else {
                           setFixedAmountOverride("")
                         }
@@ -457,35 +480,98 @@ export function CompensationEligibilityManager({
                   {compensationType === "PERCENTAGE" && (
                     <>
                       <div className="space-y-2">
-                        <Label>Project Percentage Override (%)</Label>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          max="100"
-                          value={projectPercentageOverride}
-                          onChange={(e) => setProjectPercentageOverride(e.target.value)}
-                          placeholder="Leave empty to use default"
-                        />
+                        <Label>Fee Type *</Label>
+                        <Select
+                          value={feeType}
+                          onChange={(e) => {
+                            const newFeeType = e.target.value as "PROJECT_FEES" | "DIRECT_FEES" | "BOTH" | ""
+                            setFeeType(newFeeType)
+                            // Clear percentages when switching fee types
+                            if (newFeeType === "PROJECT_FEES") {
+                              setDirectWorkPercentageOverride("")
+                            } else if (newFeeType === "DIRECT_FEES") {
+                              setProjectPercentageOverride("")
+                            }
+                          }}
+                          required
+                        >
+                          <option value="">Select fee type</option>
+                          <option value="PROJECT_FEES">Project Fees</option>
+                          <option value="DIRECT_FEES">Direct Fees</option>
+                          <option value="BOTH">Both</option>
+                        </Select>
                         <p className="text-xs text-gray-500">
-                          Override percentage of project total (0-100). Leave empty to use compensation scheme default.
+                          Choose which type of fees this eligibility applies to.
                         </p>
                       </div>
-                      <div className="space-y-2">
-                        <Label>Direct Work Percentage Override (%)</Label>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          max="100"
-                          value={directWorkPercentageOverride}
-                          onChange={(e) => setDirectWorkPercentageOverride(e.target.value)}
-                          placeholder="Leave empty to use default"
-                        />
-                        <p className="text-xs text-gray-500">
-                          Override percentage of direct work fees/hours (0-100). Leave empty to use compensation scheme default.
-                        </p>
-                      </div>
+                      {feeType === "PROJECT_FEES" && (
+                        <div className="space-y-2">
+                          <Label>Project Percentage Override (%)</Label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            max="100"
+                            value={projectPercentageOverride}
+                            onChange={(e) => setProjectPercentageOverride(e.target.value)}
+                            placeholder="Leave empty to use default"
+                          />
+                          <p className="text-xs text-gray-500">
+                            Override percentage of project total (0-100). Leave empty to use compensation scheme default.
+                          </p>
+                        </div>
+                      )}
+                      {feeType === "DIRECT_FEES" && (
+                        <div className="space-y-2">
+                          <Label>Direct Work Percentage Override (%)</Label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            max="100"
+                            value={directWorkPercentageOverride}
+                            onChange={(e) => setDirectWorkPercentageOverride(e.target.value)}
+                            placeholder="Leave empty to use default"
+                          />
+                          <p className="text-xs text-gray-500">
+                            Override percentage of direct work fees/hours (0-100). Leave empty to use compensation scheme default.
+                          </p>
+                        </div>
+                      )}
+                      {feeType === "BOTH" && (
+                        <>
+                          <div className="space-y-2">
+                            <Label>Project Percentage Override (%)</Label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              max="100"
+                              value={projectPercentageOverride}
+                              onChange={(e) => setProjectPercentageOverride(e.target.value)}
+                              placeholder="Leave empty to use default"
+                            />
+                            <p className="text-xs text-gray-500">
+                              Override percentage of project total (0-100). Leave empty to use compensation scheme default.
+                            </p>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Direct Work Percentage Override (%)</Label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              max="100"
+                              value={directWorkPercentageOverride}
+                              onChange={(e) => setDirectWorkPercentageOverride(e.target.value)}
+                              placeholder="Leave empty to use default"
+                            />
+                            <p className="text-xs text-gray-500">
+                              Override percentage of direct work fees/hours (0-100). Leave empty to use compensation scheme default.
+                            </p>
+                          </div>
+                        </>
+                      )}
                     </>
                   )}
 
@@ -526,7 +612,7 @@ export function CompensationEligibilityManager({
                     >
                       Cancel
                     </Button>
-                    <Button type="submit" disabled={submitting || !selectedCompensationId}>
+                    <Button type="submit" disabled={submitting || !selectedCompensationId || (compensationType === "PERCENTAGE" && !feeType)}>
                       {submitting ? "Saving..." : "Save"}
                     </Button>
                   </div>

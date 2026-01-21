@@ -16,14 +16,52 @@ export async function PUT(
     }
 
     // Parse notification ID to determine type
-    // Format: "proposal-{id}", "invoice-{id}", "todo-{id}", or direct notification ID
-    if (id.startsWith("proposal-")) {
-      // This is a proposal approval notification - handled by approval system
-      // No need to mark as read separately
+    // Format: "proposal-{id}", "invoice-{id}", "todo-{id}", "invoice-outstanding-{id}", "proposal-client-{id}", or direct notification ID
+    if (id.startsWith("proposal-") && !id.startsWith("proposal-client-")) {
+      // This is a proposal approval notification
+      const proposalId = id.replace("proposal-", "")
+      // Create or update NotificationRead record
+      await prisma.notificationRead.upsert({
+        where: {
+          userId_notificationType_itemId: {
+            userId: session.user.id,
+            notificationType: "proposal_approval",
+            itemId: proposalId,
+          },
+        },
+        update: {
+          readAt: new Date(),
+        },
+        create: {
+          userId: session.user.id,
+          notificationType: "proposal_approval",
+          itemId: proposalId,
+          readAt: new Date(),
+        },
+      })
       return NextResponse.json({ message: "Notification marked as read" })
-    } else if (id.startsWith("invoice-")) {
-      // This is an invoice approval notification - handled by approval system
-      // No need to mark as read separately
+    } else if (id.startsWith("invoice-") && !id.startsWith("invoice-outstanding-")) {
+      // This is an invoice approval notification
+      const invoiceId = id.replace("invoice-", "")
+      // Create or update NotificationRead record
+      await prisma.notificationRead.upsert({
+        where: {
+          userId_notificationType_itemId: {
+            userId: session.user.id,
+            notificationType: "invoice_approval",
+            itemId: invoiceId,
+          },
+        },
+        update: {
+          readAt: new Date(),
+        },
+        create: {
+          userId: session.user.id,
+          notificationType: "invoice_approval",
+          itemId: invoiceId,
+          readAt: new Date(),
+        },
+      })
       return NextResponse.json({ message: "Notification marked as read" })
     } else if (id.startsWith("todo-")) {
       // Mark todo as read
@@ -34,10 +72,56 @@ export async function PUT(
       })
       return NextResponse.json({ message: "Todo marked as read" })
     } else if (id.startsWith("invoice-outstanding-")) {
-      // Outstanding invoice notification - no persistent storage, just return success
+      // Outstanding invoice notification
+      const invoiceId = id.replace("invoice-outstanding-", "")
+      // Determine notification type (could be invoice_outstanding or invoice_reminder)
+      // We'll use invoice_outstanding as the default type
+      await prisma.notificationRead.upsert({
+        where: {
+          userId_notificationType_itemId: {
+            userId: session.user.id,
+            notificationType: "invoice_outstanding",
+            itemId: invoiceId,
+          },
+        },
+        update: {
+          readAt: new Date(),
+        },
+        create: {
+          userId: session.user.id,
+          notificationType: "invoice_outstanding",
+          itemId: invoiceId,
+          readAt: new Date(),
+        },
+      })
       return NextResponse.json({ message: "Notification marked as read" })
     } else if (id.startsWith("proposal-client-")) {
-      // Client approval notification - no persistent storage, just return success
+      // Client approval notification
+      const proposalId = id.replace("proposal-client-", "")
+      // Determine notification type (could be proposal_pending_client or proposal_pending_client_overdue)
+      // We'll check both types and mark the appropriate one
+      // For simplicity, we'll mark both if they exist
+      const notificationTypes = ["proposal_pending_client", "proposal_pending_client_overdue"]
+      for (const notificationType of notificationTypes) {
+        await prisma.notificationRead.upsert({
+          where: {
+            userId_notificationType_itemId: {
+              userId: session.user.id,
+              notificationType,
+              itemId: proposalId,
+            },
+          },
+          update: {
+            readAt: new Date(),
+          },
+          create: {
+            userId: session.user.id,
+            notificationType,
+            itemId: proposalId,
+            readAt: new Date(),
+          },
+        })
+      }
       return NextResponse.json({ message: "Notification marked as read" })
     } else {
       // Direct notification ID from Notification model
