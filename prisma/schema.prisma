@@ -258,6 +258,7 @@ model User {
   invoiceInteractions     InvoiceInteraction[] @relation("InvoiceInteractionCreator")
   projectInteractions     ProjectInteraction[] @relation("ProjectInteractionCreator")
   writtenOffBills         Bill[]            @relation("BillWrittenOffBy")
+  projectUserRates        ProjectUserRate[]  @relation("ProjectUserRate")
   notifications           Notification[]
   createdEmailTemplates   EmailTemplate[]    @relation("EmailTemplateCreator")
   sentProposalEmails      Proposal[]         @relation("ProposalEmailSender")
@@ -662,6 +663,14 @@ model Project {
   updatedAt   DateTime      @updatedAt
   deletedAt   DateTime?
   archivedAt  DateTime? // Archive (different from delete - can be unarchived)
+  
+  // Billing configuration fields
+  useBlendedRate       Boolean? // Whether to use blended rate for this project
+  blendedRate          Float?   // Project-specific blended rate
+  hourlyRateTableType String?   // "FIXED_RATE", "RATE_RANGE", "HOURLY_TABLE", or null
+  hourlyRateTableRates Json?    // JSON object storing hourly table rates by profile
+  hourlyRateRangeMin   Float?   // Minimum rate for rate range
+  hourlyRateRangeMax   Float?   // Maximum rate for rate range
 
   @@index([clientId])
   @@index([proposalId])
@@ -680,6 +689,7 @@ model Project {
   expenses         ProjectExpense[]
   compensationEligibility CompensationEligibility[] @relation("EligibilityProject")
   interactions     ProjectInteraction[]
+  userRates        ProjectUserRate[]
 }
 
 model PaymentTerm {
@@ -894,6 +904,22 @@ model ProjectManager {
   user    User    @relation("ProjectManager", fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, userId])
+}
+
+model ProjectUserRate {
+  id        String   @id @default(cuid())
+  projectId String
+  userId    String
+  rate      Float
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User     @relation("ProjectUserRate", fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([projectId, userId])
+  @@index([projectId])
+  @@index([userId])
 }
 
 model FinderFee {

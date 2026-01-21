@@ -7,10 +7,13 @@ import { notFound } from "next/navigation"
 import { formatDate, formatCurrency } from "@/lib/utils"
 import { ProjectStatus } from "@prisma/client"
 import Link from "next/link"
-import { Plus } from "lucide-react"
+import { Plus, Edit } from "lucide-react"
 import { CompensationEligibilityManager } from "@/components/accounts/CompensationEligibilityManager"
 import { ProjectInteractionsSection } from "@/components/projects/ProjectInteractionsSection"
 import { ProjectTimesheetSection } from "@/components/projects/ProjectTimesheetSection"
+import { ProjectManagersSection } from "@/components/projects/ProjectManagersSection"
+import { PROFILE_LABELS } from "@/lib/proposal-billing-rates"
+import { UserProfile } from "@prisma/client"
 
 // Force dynamic rendering to ensure fresh data on each request
 export const dynamic = 'force-dynamic'
@@ -110,6 +113,31 @@ export default async function ProjectDetailPage({
         },
         orderBy: { date: "desc" },
       },
+      projectManagers: {
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              role: true,
+            },
+          },
+        },
+      },
+      userRates: {
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              profile: true,
+              defaultHourlyRate: true,
+            },
+          },
+        },
+      },
     },
   })
 
@@ -200,6 +228,14 @@ export default async function ProjectDetailPage({
                 View Project Report
               </Button>
             </Link>
+            {session && session.user.role !== "CLIENT" && (
+              <Link href={`/dashboard/projects/${project.id}/edit`}>
+                <Button variant="outline" size="sm">
+                  <Edit className="h-4 w-4 mr-2" />
+                  Edit Project
+                </Button>
+              </Link>
+            )}
           </div>
         </div>
       </div>
@@ -252,6 +288,116 @@ export default async function ProjectDetailPage({
           </CardHeader>
           <CardContent>
             <p className="whitespace-pre-wrap">{project.description}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Project Managers Section */}
+      <ProjectManagersSection
+        projectId={id}
+        initialManagers={project.projectManagers}
+      />
+
+      {/* Billing Configuration Section */}
+      {(project.useBlendedRate !== null ||
+        project.blendedRate !== null ||
+        project.hourlyRateTableType !== null ||
+        project.userRates.length > 0) && (
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle>Billing Configuration</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {project.useBlendedRate && project.blendedRate && (
+              <div>
+                <p className="text-sm font-semibold text-gray-700">Blended Rate</p>
+                <p className="text-lg">
+                  {formatCurrency(project.blendedRate, project.currency)}/hr
+                </p>
+              </div>
+            )}
+
+            {project.hourlyRateTableType === "HOURLY_TABLE" &&
+              project.hourlyRateTableRates && (
+                <div>
+                  <p className="text-sm font-semibold text-gray-700 mb-2">
+                    Hourly Rates by Profile
+                  </p>
+                  <div className="space-y-1">
+                    {Object.entries(
+                      typeof project.hourlyRateTableRates === "string"
+                        ? JSON.parse(project.hourlyRateTableRates)
+                        : project.hourlyRateTableRates
+                    ).map(([profile, rate]: [string, any]) => {
+                      if (!rate || rate === 0) return null
+                      return (
+                        <div
+                          key={profile}
+                          className="flex justify-between text-sm"
+                        >
+                          <span className="text-gray-600">
+                            {PROFILE_LABELS[profile as UserProfile]}:
+                          </span>
+                          <span className="font-medium">
+                            {formatCurrency(rate, project.currency)}/hr
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+            {project.hourlyRateTableType === "RATE_RANGE" &&
+              project.hourlyRateRangeMin &&
+              project.hourlyRateRangeMax && (
+                <div>
+                  <p className="text-sm font-semibold text-gray-700 mb-2">
+                    Rate Range
+                  </p>
+                  <p className="text-sm">
+                    {formatCurrency(project.hourlyRateRangeMin, project.currency)}
+                    /hr - {formatCurrency(project.hourlyRateRangeMax, project.currency)}
+                    /hr (Average:{" "}
+                    {formatCurrency(
+                      (project.hourlyRateRangeMin + project.hourlyRateRangeMax) / 2,
+                      project.currency
+                    )}
+                    /hr)
+                  </p>
+                </div>
+              )}
+
+            {project.userRates.length > 0 && (
+              <div>
+                <p className="text-sm font-semibold text-gray-700 mb-2">
+                  Individual User Rate Overrides ({project.userRates.length})
+                </p>
+                <div className="space-y-1">
+                  {project.userRates.map((userRate) => (
+                    <div
+                      key={userRate.id}
+                      className="flex justify-between text-sm"
+                    >
+                      <span className="text-gray-600">
+                        {userRate.user.name}:
+                      </span>
+                      <span className="font-medium">
+                        {formatCurrency(userRate.rate, project.currency)}/hr
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {!project.useBlendedRate &&
+              !project.hourlyRateTableType &&
+              project.userRates.length === 0 && (
+                <p className="text-sm text-gray-500">
+                  Using proposal billing configuration
+                </p>
+              )}
           </CardContent>
         </Card>
       )}

@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import { parseLocalDate } from "@/lib/utils"
 import { getCurrentUserTimezone } from "@/lib/timezone-utils"
-import { getBillingRateForUser } from "@/lib/proposal-billing-rates"
+import { getBillingRateForUserInProject } from "@/lib/proposal-billing-rates"
 
 const timesheetEntrySchema = z.object({
   userId: z.string(),
@@ -111,6 +111,18 @@ export async function POST(
       select: {
         id: true,
         proposalId: true,
+        useBlendedRate: true,
+        blendedRate: true,
+        hourlyRateTableType: true,
+        hourlyRateTableRates: true,
+        hourlyRateRangeMin: true,
+        hourlyRateRangeMax: true,
+        userRates: {
+          select: {
+            userId: true,
+            rate: true,
+          },
+        },
       },
     })
 
@@ -156,36 +168,36 @@ export async function POST(
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
-    // Determine rate based on proposal configuration if project has a proposal
+    // Determine rate based on project and proposal configuration
     let rateToUse: number | null = null
     
     if (validatedData.rate !== null && validatedData.rate !== undefined) {
       // Use explicitly provided rate
       rateToUse = validatedData.rate
-    } else if (project.proposalId) {
-      // Fetch proposal to determine rate
-      const proposal = await prisma.proposal.findUnique({
-        where: { id: project.proposalId },
-        select: {
-          type: true,
-          useBlendedRate: true,
-          blendedRate: true,
-          hourlyRateTableType: true,
-          hourlyRateTableRates: true,
-          hourlyRateRangeMin: true,
-          hourlyRateRangeMax: true,
-        },
-      })
-
-      if (proposal) {
-        rateToUse = getBillingRateForUser(proposal, user)
-      } else {
-        // Proposal not found, use default
-        rateToUse = user.defaultHourlyRate
-      }
     } else {
-      // No proposal, use user's default rate
-      rateToUse = user.defaultHourlyRate
+      // Fetch proposal if it exists
+      let proposal = null
+      if (project.proposalId) {
+        proposal = await prisma.proposal.findUnique({
+          where: { id: project.proposalId },
+          select: {
+            type: true,
+            useBlendedRate: true,
+            blendedRate: true,
+            hourlyRateTableType: true,
+            hourlyRateTableRates: true,
+            hourlyRateRangeMin: true,
+            hourlyRateRangeMax: true,
+          },
+        })
+      }
+
+      // Use project billing rate logic (checks project first, then proposal)
+      rateToUse = getBillingRateForUserInProject(
+        project,
+        proposal,
+        user
+      )
     }
 
     const entry = await prisma.timesheetEntry.create({

@@ -14,6 +14,13 @@ const projectUpdateSchema = z.object({
   status: z.nativeEnum(ProjectStatus).optional(),
   startDate: z.string().optional(),
   endDate: z.string().optional(),
+  // Billing configuration fields
+  useBlendedRate: z.boolean().optional().nullable(),
+  blendedRate: z.number().optional().nullable(),
+  hourlyRateTableType: z.enum(["FIXED_RATE", "RATE_RANGE", "HOURLY_TABLE"]).optional().nullable(),
+  hourlyRateTableRates: z.any().optional().nullable(), // JSON object
+  hourlyRateRangeMin: z.number().optional().nullable(),
+  hourlyRateRangeMax: z.number().optional().nullable(),
 })
 
 export async function GET(
@@ -79,6 +86,17 @@ export async function GET(
                 name: true,
                 email: true,
                 role: true,
+              },
+            },
+          },
+        },
+        userRates: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
               },
             },
           },
@@ -149,10 +167,28 @@ export async function PUT(
         status: validatedData.status,
         startDate: validatedData.startDate ? parseLocalDate(validatedData.startDate) : project.startDate,
         endDate: validatedData.endDate ? parseLocalDate(validatedData.endDate) : project.endDate,
+        // Billing configuration
+        useBlendedRate: validatedData.useBlendedRate !== undefined ? validatedData.useBlendedRate : project.useBlendedRate,
+        blendedRate: validatedData.blendedRate !== undefined ? validatedData.blendedRate : project.blendedRate,
+        hourlyRateTableType: validatedData.hourlyRateTableType !== undefined ? validatedData.hourlyRateTableType : project.hourlyRateTableType,
+        hourlyRateTableRates: validatedData.hourlyRateTableRates !== undefined ? validatedData.hourlyRateTableRates : project.hourlyRateTableRates,
+        hourlyRateRangeMin: validatedData.hourlyRateRangeMin !== undefined ? validatedData.hourlyRateRangeMin : project.hourlyRateRangeMin,
+        hourlyRateRangeMax: validatedData.hourlyRateRangeMax !== undefined ? validatedData.hourlyRateRangeMax : project.hourlyRateRangeMax,
       },
       include: {
         client: true,
         proposal: true,
+        userRates: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+        },
       },
     })
 
