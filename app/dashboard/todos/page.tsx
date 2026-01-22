@@ -55,6 +55,7 @@ export default function TodosPage() {
     projectId: "",
     proposalId: "",
     invoiceId: "",
+    clientId: "",
     assignedTo: defaultAssignedTo,
     createdBy: "",
     status: "",
@@ -186,6 +187,7 @@ export default function TodosPage() {
             proposals={proposals}
             invoices={invoices}
             users={users}
+            clients={clients}
             onFilterChange={setFilters}
             defaultAssignedTo={defaultAssignedTo}
             initialFilters={filters}

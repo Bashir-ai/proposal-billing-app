@@ -69,6 +69,7 @@ export function TodoList({ currentUserId, initialFilters, onCreateNew }: TodoLis
       if (filters.projectId) params.append("projectId", filters.projectId)
       if (filters.proposalId) params.append("proposalId", filters.proposalId)
       if (filters.invoiceId) params.append("invoiceId", filters.invoiceId)
+      if (filters.clientId) params.append("clientId", filters.clientId)
       if (filters.assignedTo) params.append("assignedTo", filters.assignedTo)
       if (filters.createdBy) params.append("createdBy", filters.createdBy)
       if (filters.status) params.append("status", filters.status)

@@ -12,6 +12,7 @@ interface TodoFilterProps {
   proposals: Array<{ id: string; title: string }>
   invoices: Array<{ id: string; invoiceNumber?: string | null }>
   users: Array<{ id: string; name: string }>
+  clients?: Array<{ id: string; name: string; company?: string | null }>
   onFilterChange: (filters: TodoFilters) => void
   defaultAssignedTo?: string
   initialFilters?: TodoFilters
@@ -21,6 +22,7 @@ export interface TodoFilters {
   projectId: string
   proposalId: string
   invoiceId: string
+  clientId: string
   assignedTo: string
   createdBy: string
   status: string
@@ -35,6 +37,7 @@ export function TodoFilter({
   proposals,
   invoices,
   users,
+  clients = [],
   onFilterChange,
   defaultAssignedTo = "",
   initialFilters,
@@ -43,6 +46,7 @@ export function TodoFilter({
     projectId: "",
     proposalId: "",
     invoiceId: "",
+    clientId: "",
     assignedTo: defaultAssignedTo,
     createdBy: "",
     status: "",
@@ -75,6 +79,7 @@ export function TodoFilter({
       projectId: "",
       proposalId: "",
       invoiceId: "",
+      clientId: "",
       assignedTo: defaultAssignedTo, // Reset to default, not empty
       createdBy: "",
       status: "",
@@ -121,6 +126,24 @@ export function TodoFilter({
           </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {clients.length > 0 && (
+            <div className="space-y-2">
+              <Label htmlFor="filter-client">Client</Label>
+              <Select
+                id="filter-client"
+                value={localFilters.clientId}
+                onChange={(e) => handleFilterChange("clientId", e.target.value)}
+              >
+                <option value="">All Clients</option>
+                {clients.map((client) => (
+                  <option key={client.id} value={client.id}>
+                    {client.name} {client.company ? `(${client.company})` : ""}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label htmlFor="filter-project">Project</Label>
             <Select

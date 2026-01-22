@@ -25,8 +25,12 @@ export async function GET(request: Request) {
     const type = searchParams.get("type") // "timesheet", "charge", or null for both
 
     // Build where clause for timesheet entries
-    const timesheetWhere: any = {}
-    const chargeWhere: any = {}
+    const timesheetWhere: any = {
+      archivedAt: null, // Exclude archived entries
+    }
+    const chargeWhere: any = {
+      deletedAt: null, // Exclude deleted charges
+    }
 
     // User filter - admins can see all, others see only their own
     if (session.user.role === "ADMIN" || session.user.role === "MANAGER") {
@@ -38,22 +42,50 @@ export async function GET(request: Request) {
       timesheetWhere.userId = session.user.id
     }
 
+    // Project filter - apply before client filter to avoid conflicts
+    if (projectId) {
+      timesheetWhere.projectId = projectId
+      chargeWhere.projectId = projectId
+    }
+    
     // Client filter (via project) - Note: lead-based entries won't match this filter
-    if (clientId) {
-      timesheetWhere.project = { clientId }
-      chargeWhere.project = { clientId }
+    // Only apply if projectId is not already specified
+    if (clientId && !projectId) {
+      // Get all project IDs for this client
+      const clientProjects = await prisma.project.findMany({
+        where: {
+          clientId,
+          deletedAt: null,
+        },
+        select: { id: true },
+      })
+      const projectIds = clientProjects.map(p => p.id)
+      
+      if (projectIds.length > 0) {
+        timesheetWhere.projectId = { in: projectIds }
+        chargeWhere.projectId = { in: projectIds }
+      } else {
+        // No projects for this client, return empty results
+        timesheetWhere.projectId = { in: [] }
+        chargeWhere.projectId = { in: [] }
+      }
+    } else if (clientId && projectId) {
+      // If both clientId and projectId are specified, verify project belongs to client
+      const project = await prisma.project.findUnique({
+        where: { id: projectId },
+        select: { clientId: true },
+      })
+      if (!project || project.clientId !== clientId) {
+        // Project doesn't belong to client, return empty results
+        timesheetWhere.projectId = { in: [] }
+        chargeWhere.projectId = { in: [] }
+      }
     }
     
     // Lead filter
     const leadId = searchParams.get("leadId")
     if (leadId) {
       timesheetWhere.leadId = leadId
-    }
-
-    // Project filter
-    if (projectId) {
-      timesheetWhere.projectId = projectId
-      chargeWhere.projectId = projectId
     }
 
     // Date range filter
