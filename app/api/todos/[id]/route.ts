@@ -671,6 +671,15 @@ export async function DELETE(
 
     const todo = await prisma.todo.findUnique({
       where: { id },
+      include: {
+        assignments: {
+          include: {
+            user: {
+              select: { id: true, name: true, email: true }
+            }
+          }
+        }
+      }
     })
 
     if (!todo) {
@@ -680,6 +689,38 @@ export async function DELETE(
     // Check permissions: user can delete if they're creator or admin
     if (session.user.role !== "ADMIN" && todo.createdBy !== session.user.id) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
+
+    // Get all assignee IDs (from assignments and assignedTo field)
+    const assigneeIds = [
+      ...(todo.assignments?.map(a => a.userId) || []),
+      ...(todo.assignedTo ? [todo.assignedTo] : [])
+    ].filter((id, index, self) => self.indexOf(id) === index) // Remove duplicates
+
+    // Check if multiple assignees
+    if (assigneeIds.length > 1) {
+      let body: any = {}
+      try {
+        body = await request.json()
+      } catch {
+        // Request body might be empty, that's okay
+      }
+      const deleteForAll = body.deleteForAll === true
+      
+      if (!deleteForAll) {
+        // Get assignee names
+        const assignees = await prisma.user.findMany({
+          where: { id: { in: assigneeIds } },
+          select: { id: true, name: true, email: true }
+        })
+        
+        return NextResponse.json({
+          error: "MULTIPLE_ASSIGNEES",
+          message: "This ToDo is assigned to multiple users",
+          assignees: assignees.filter(a => a.id !== session.user.id),
+          totalAssignees: assignees.length
+        }, { status: 400 })
+      }
     }
 
     await prisma.todo.delete({

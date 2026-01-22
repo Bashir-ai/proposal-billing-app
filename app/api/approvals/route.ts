@@ -245,6 +245,42 @@ export async function POST(request: Request) {
               },
             })
           } else if (approvalsComplete) {
+            // Auto-dismiss notifications for remaining approvers if "ANY" type
+            if (approvalType === "ANY") {
+              // Get remaining approvers who haven't approved
+              const remainingApproverIds = requiredApproverIds.filter(
+                approverId => !allApprovals.some(a => 
+                  a.approverId === approverId && a.status === ApprovalStatus.APPROVED
+                )
+              )
+              
+              // Mark notifications as read for remaining approvers
+              if (remainingApproverIds.length > 0) {
+                await Promise.all(
+                  remainingApproverIds.map(approverId =>
+                    prisma.notificationRead.upsert({
+                      where: {
+                        userId_notificationType_itemId: {
+                          userId: approverId,
+                          notificationType: "proposal_approval",
+                          itemId: validatedData.proposalId!,
+                        },
+                      },
+                      update: {
+                        readAt: new Date(),
+                      },
+                      create: {
+                        userId: approverId,
+                        notificationType: "proposal_approval",
+                        itemId: validatedData.proposalId!,
+                        readAt: new Date(),
+                      },
+                    })
+                  )
+                )
+              }
+            }
+
             // All required approvals received, send to client
             const crypto = await import("crypto")
             const approvalToken = crypto.randomBytes(32).toString("hex")
@@ -365,6 +401,42 @@ export async function POST(request: Request) {
             },
           })
         } else if (approvalsComplete) {
+          // Auto-dismiss notifications for remaining approvers if "ANY" type
+          if (approvalType === "ANY") {
+            // Get remaining approvers who haven't approved
+            const remainingApproverIds = requiredApproverIds.filter(
+              approverId => !allApprovals.some(a => 
+                a.approverId === approverId && a.status === ApprovalStatus.APPROVED
+              )
+            )
+            
+            // Mark notifications as read for remaining approvers
+            if (remainingApproverIds.length > 0) {
+              await Promise.all(
+                remainingApproverIds.map(approverId =>
+                  prisma.notificationRead.upsert({
+                    where: {
+                      userId_notificationType_itemId: {
+                        userId: approverId,
+                        notificationType: "invoice_approval",
+                        itemId: validatedData.billId!,
+                      },
+                    },
+                    update: {
+                      readAt: new Date(),
+                    },
+                    create: {
+                      userId: approverId,
+                      notificationType: "invoice_approval",
+                      itemId: validatedData.billId!,
+                      readAt: new Date(),
+                    },
+                  })
+                )
+              )
+            }
+          }
+
           // All required approvals received, mark as approved
           await prisma.bill.update({
             where: { id: validatedData.billId },

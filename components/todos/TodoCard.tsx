@@ -169,16 +169,48 @@ export function TodoCard({
 
   const handleDelete = async () => {
     if (!confirm("Are you sure you want to delete this ToDo?")) return
+    
     setLoading(true)
     try {
       const response = await fetch(`/api/todos/${todo.id}`, {
         method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deleteForAll: false })
       })
-      if (response.ok && onDelete) {
+      
+      if (!response.ok) {
+        const data = await response.json()
+        if (data.error === "MULTIPLE_ASSIGNEES") {
+          const otherAssignees = data.assignees.map((a: any) => a.name).join(", ")
+          const confirmMessage = `This ToDo is also assigned to: ${otherAssignees}\n\nDo you want to delete it for all ${data.totalAssignees} users?`
+          
+          if (!confirm(confirmMessage)) {
+            setLoading(false)
+            return
+          }
+          
+          // Delete for all users
+          const deleteResponse = await fetch(`/api/todos/${todo.id}`, {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ deleteForAll: true })
+          })
+          
+          if (deleteResponse.ok && onDelete) {
+            onDelete()
+          } else {
+            const errorData = await deleteResponse.json().catch(() => ({}))
+            alert(errorData.message || "Failed to delete ToDo. Please try again.")
+          }
+        } else {
+          throw new Error(data.message || "Failed to delete ToDo")
+        }
+      } else if (onDelete) {
         onDelete()
       }
     } catch (error) {
       console.error("Error deleting todo:", error)
+      alert("Failed to delete ToDo. Please try again.")
     } finally {
       setLoading(false)
     }
