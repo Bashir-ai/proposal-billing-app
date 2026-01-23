@@ -18,7 +18,7 @@ export const dynamic = 'force-dynamic'
 export default async function BillsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; clientId?: string; projectId?: string }>
+  searchParams: Promise<{ status?: string; clientId?: string; projectId?: string; page?: string; limit?: string }>
 }) {
   try {
     const session = await getServerSession(authOptions)
@@ -26,6 +26,9 @@ export default async function BillsPage({
     const statusParam = params?.status
     const clientIdParam = params?.clientId
     const projectIdParam = params?.projectId
+    const page = parseInt(params?.page || "1")
+    const limit = parseInt(params?.limit || "50")
+    const skip = (page - 1) * limit
 
     if (!session || !session.user) {
       return <div>Please log in to view invoices.</div>
@@ -103,30 +106,35 @@ export default async function BillsPage({
       where.clientId = { in: clientIds }
     }
 
-    const bills = await prisma.bill.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      include: {
-        client: {
-          select: {
-            id: true,
-            name: true,
-            company: true,
+    const [bills, total] = await Promise.all([
+      prisma.bill.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: "desc" },
+        include: {
+          client: {
+            select: {
+              id: true,
+              name: true,
+              company: true,
+            },
+          },
+          proposal: {
+            select: {
+              title: true,
+            },
+          },
+          project: {
+            select: {
+              id: true,
+              name: true,
+            },
           },
         },
-        proposal: {
-          select: {
-            title: true,
-          },
-        },
-        project: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-      },
-    })
+      }),
+      prisma.bill.count({ where })
+    ])
 
     // Fetch clients and projects for filter dropdowns (only for non-client users)
     const clients = session.user.role !== "CLIENT" 

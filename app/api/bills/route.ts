@@ -38,6 +38,11 @@ export async function GET(request: Request) {
     const clientId = searchParams.get("clientId")
     const leadId = searchParams.get("leadId")
     const projectId = searchParams.get("projectId")
+    
+    // Pagination parameters
+    const page = parseInt(searchParams.get("page") || "1")
+    const limit = parseInt(searchParams.get("limit") || "50")
+    const skip = (page - 1) * limit
 
     const where: any = {
       deletedAt: null, // Exclude deleted items
@@ -94,47 +99,60 @@ export async function GET(request: Request) {
       where.clientId = { in: clientIds }
     }
 
-    const bills = await prisma.bill.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      include: {
-        client: {
-          select: {
-            id: true,
-            name: true,
-            company: true,
+    const [bills, total] = await Promise.all([
+      prisma.bill.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: "desc" },
+        include: {
+          client: {
+            select: {
+              id: true,
+              name: true,
+              company: true,
+            },
+          },
+          lead: {
+            select: {
+              id: true,
+              name: true,
+              company: true,
+              email: true,
+            },
+          },
+          proposal: {
+            select: {
+              id: true,
+              title: true,
+            },
+          },
+          project: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          creator: {
+            select: {
+              name: true,
+              email: true,
+            },
           },
         },
-        lead: {
-          select: {
-            id: true,
-            name: true,
-            company: true,
-            email: true,
-          },
-        },
-        proposal: {
-          select: {
-            id: true,
-            title: true,
-          },
-        },
-        project: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-        creator: {
-          select: {
-            name: true,
-            email: true,
-          },
-        },
-      },
-    })
+      }),
+      prisma.bill.count({ where })
+    ])
 
-    return NextResponse.json(bills)
+    return NextResponse.json({
+      data: bills,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
+      }
+    })
   } catch (error) {
     return NextResponse.json(
       { error: "Internal server error" },

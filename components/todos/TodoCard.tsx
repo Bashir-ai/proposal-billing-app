@@ -7,7 +7,7 @@ import { formatDate } from "@/lib/utils"
 import { CheckCircle2, Circle, Clock, XCircle, Eye, EyeOff, Edit, Trash2, ExternalLink, Lock } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useState } from "react"
+import { useState, memo, useCallback, useMemo } from "react"
 
 interface TodoCardProps {
   todo: {
@@ -65,7 +65,7 @@ interface TodoCardProps {
   onDelete?: () => void
 }
 
-export function TodoCard({
+function TodoCardComponent({
   todo,
   currentUserId,
   onMarkRead,
@@ -75,10 +75,10 @@ export function TodoCard({
 }: TodoCardProps) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
-  const isAssigned = todo.assignedTo === currentUserId
+  const isAssigned = useMemo(() => todo.assignedTo === currentUserId, [todo.assignedTo, currentUserId])
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
+  const statusIcon = useMemo(() => {
+    switch (todo.status) {
       case "COMPLETED":
         return <CheckCircle2 className="h-4 w-4 text-green-600" />
       case "IN_PROGRESS":
@@ -88,10 +88,10 @@ export function TodoCard({
       default:
         return <Circle className="h-4 w-4 text-gray-400" />
     }
-  }
+  }, [todo.status])
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
+  const statusColor = useMemo(() => {
+    switch (todo.status) {
       case "COMPLETED":
         return "bg-green-100 text-green-800"
       case "IN_PROGRESS":
@@ -101,10 +101,10 @@ export function TodoCard({
       default:
         return "bg-gray-100 text-gray-800"
     }
-  }
+  }, [todo.status])
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
+  const priorityColor = useMemo(() => {
+    switch (todo.priority) {
       case "HIGH":
         return "bg-red-100 text-red-800"
       case "MEDIUM":
@@ -112,9 +112,9 @@ export function TodoCard({
       default:
         return "bg-gray-100 text-gray-800"
     }
-  }
+  }, [todo.priority])
 
-  const handleMarkRead = async () => {
+  const handleMarkRead = useCallback(async () => {
     if (!isAssigned) return
     setLoading(true)
     try {
@@ -129,9 +129,9 @@ export function TodoCard({
     } finally {
       setLoading(false)
     }
-  }
+  }, [isAssigned, todo.id, onMarkRead])
 
-  const handleMarkUnread = async () => {
+  const handleMarkUnread = useCallback(async () => {
     if (!isAssigned) return
     setLoading(true)
     try {
@@ -146,9 +146,9 @@ export function TodoCard({
     } finally {
       setLoading(false)
     }
-  }
+  }, [isAssigned, todo.id, onMarkUnread])
 
-  const handleStatusChange = async (newStatus: string) => {
+  const handleStatusChange = useCallback(async (newStatus: string) => {
     setLoading(true)
     try {
       const response = await fetch(`/api/todos/${todo.id}`, {
@@ -165,9 +165,9 @@ export function TodoCard({
     } finally {
       setLoading(false)
     }
-  }
+  }, [todo.id, onStatusChange, router])
 
-  const handleDelete = async () => {
+  const handleDelete = useCallback(async () => {
     if (!confirm("Are you sure you want to delete this ToDo?")) return
     
     setLoading(true)
@@ -214,11 +214,11 @@ export function TodoCard({
     } finally {
       setLoading(false)
     }
-  }
+  }, [todo.id, onDelete])
 
-  const handleCardClick = () => {
+  const handleCardClick = useCallback(() => {
     router.push(`/dashboard/todos/${todo.id}/edit`)
-  }
+  }, [router, todo.id])
 
   return (
     <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={handleCardClick}>
@@ -226,7 +226,7 @@ export function TodoCard({
         <div className="flex items-start justify-between">
           <div className="flex-1">
             <div className="flex items-center space-x-2 mb-2">
-              {getStatusIcon(todo.status)}
+              {statusIcon}
               <h3 className="font-semibold text-lg">{todo.title}</h3>
               {todo.isPersonal && (
                 <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 flex items-center gap-1">
@@ -244,10 +244,10 @@ export function TodoCard({
               <p className="text-sm text-gray-600 mb-2">{todo.description}</p>
             )}
             <div className="flex flex-wrap items-center gap-2 mb-2">
-              <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(todo.status)}`}>
+              <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColor}`}>
                 {todo.status.replace("_", " ")}
               </span>
-              <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPriorityColor(todo.priority)}`}>
+              <span className={`px-2 py-1 rounded-full text-xs font-medium ${priorityColor}`}>
                 {todo.priority} Priority
               </span>
               <span className="text-xs text-gray-500">
@@ -361,3 +361,4 @@ export function TodoCard({
   )
 }
 
+export const TodoCard = memo(TodoCardComponent)

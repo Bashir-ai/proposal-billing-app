@@ -14,7 +14,7 @@ export const dynamic = 'force-dynamic'
 export default async function ClientsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ active?: string; search?: string; sort?: string }>
+  searchParams: Promise<{ active?: string; search?: string; sort?: string; page?: string; limit?: string }>
 }) {
   try {
     const session = await getServerSession(authOptions)
@@ -22,6 +22,9 @@ export default async function ClientsPage({
     const activeParam = params?.active
     const searchQuery = params?.search || ""
     const sortParam = params?.sort || "name" // Default to "name"
+    const page = parseInt(params?.page || "1")
+    const limit = parseInt(params?.limit || "100")
+    const skip = (page - 1) * limit
     
     if (!session || !session.user) {
       return <div>Please log in to view clients.</div>
@@ -45,39 +48,44 @@ export default async function ClientsPage({
       ]
     }
 
-    const allClients = await prisma.client.findMany({
-      where,
-      include: {
-        _count: {
-          select: {
-            proposals: {
-              where: {
-                deletedAt: null, // Exclude soft-deleted proposals
+    const [allClients, total] = await Promise.all([
+      prisma.client.findMany({
+        where,
+        skip,
+        take: limit,
+        include: {
+          _count: {
+            select: {
+              proposals: {
+                where: {
+                  deletedAt: null, // Exclude soft-deleted proposals
+                },
+              },
+              bills: {
+                where: {
+                  deletedAt: null, // Exclude soft-deleted bills
+                },
+              },
+              projects: {
+                where: {
+                  deletedAt: null, // Exclude soft-deleted projects
+                },
               },
             },
-            bills: {
-              where: {
-                deletedAt: null, // Exclude soft-deleted bills
-              },
+          },
+          projects: {
+            where: {
+              deletedAt: null,
+              status: "ACTIVE",
             },
-            projects: {
-              where: {
-                deletedAt: null, // Exclude soft-deleted projects
-              },
+            select: {
+              id: true,
             },
           },
         },
-        projects: {
-          where: {
-            deletedAt: null,
-            status: "ACTIVE",
-          },
-          select: {
-            id: true,
-          },
-        },
-      },
-    })
+      }),
+      prisma.client.count({ where })
+    ])
 
     // Get ongoing todos count per client (todos linked to client's projects or proposals)
     const clientIds = allClients.map(c => c.id)

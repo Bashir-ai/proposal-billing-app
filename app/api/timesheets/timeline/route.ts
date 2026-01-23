@@ -23,6 +23,9 @@ export async function GET(request: Request) {
     const endDate = searchParams.get("endDate")
     const billed = searchParams.get("billed") // "true", "false", or null for all
     const type = searchParams.get("type") // "timesheet", "charge", or null for both
+    
+    // Limit parameter (default: 1000 entries)
+    const limit = parseInt(searchParams.get("limit") || "1000")
 
     // Build where clause for timesheet entries
     const timesheetWhere: any = {
@@ -111,6 +114,7 @@ export async function GET(request: Request) {
     const [timesheetEntries, charges] = await Promise.all([
       type !== "charge" ? prisma.timesheetEntry.findMany({
         where: timesheetWhere,
+        take: limit,
         include: {
           user: {
             select: {
@@ -144,6 +148,7 @@ export async function GET(request: Request) {
       }) : Promise.resolve([]),
       type !== "timesheet" ? prisma.projectCharge.findMany({
         where: chargeWhere,
+        take: limit,
         include: {
           project: {
             select: {

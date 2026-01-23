@@ -320,6 +320,8 @@ model Client {
   @@index([deletedAt])
   @@index([clientManagerId])
   @@index([createdBy])
+  @@index([deletedAt, archivedAt])
+  @@index([createdAt])
 
   // Relations
   creator       User            @relation("ClientCreator", fields: [createdBy], references: [id])
@@ -466,6 +468,10 @@ model Proposal {
   @@index([createdBy])
   @@index([status, clientApprovalStatus])
   @@index([recurringEnabled, lastRecurringInvoiceDate])
+  @@index([deletedAt, archivedAt, status])
+  @@index([clientId, deletedAt, archivedAt])
+  @@index([status, internalApprovalRequired, internalApprovalsComplete])
+  @@index([createdAt])
 
   // Relations
   client            Client?        @relation(fields: [clientId], references: [id])
@@ -587,6 +593,10 @@ model Bill {
   @@index([status, dueDate])
   @@index([isUpfrontPayment])
   @@index([createdBy])
+  @@index([deletedAt, status])
+  @@index([clientId, deletedAt])
+  @@index([status, internalApprovalRequired, internalApprovalsComplete])
+  @@index([createdAt])
 
   // Relations
   proposal       Proposal?       @relation(fields: [proposalId], references: [id])
@@ -689,6 +699,8 @@ model Project {
   @@index([status])
   @@index([deletedAt])
   @@index([archivedAt])
+  @@index([clientId, deletedAt, archivedAt])
+  @@index([createdAt])
 
   // Relations
   proposal         Proposal?        @relation(fields: [proposalId], references: [id])
@@ -772,6 +784,8 @@ model TimesheetEntry {
   @@index([billable, billed])
   @@index([date])
   @@index([archivedAt]) // New index
+  @@index([userId, date])
+  @@index([projectId, archivedAt])
 
   // Relations
   project Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -833,6 +847,9 @@ model Todo {
   @@index([proposalId])
   @@index([dueDate])
   @@index([status, dueDate])
+  @@index([assignedTo, status])
+  @@index([createdBy])
+  @@index([readAt])
 
   // Relations
   project        Project?            @relation(fields: [projectId], references: [id], onDelete: Cascade)

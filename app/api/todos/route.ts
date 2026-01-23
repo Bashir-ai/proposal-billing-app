@@ -45,6 +45,11 @@ export async function GET(request: Request) {
     const read = searchParams.get("read") // "true" or "false"
     const hidePersonal = searchParams.get("hidePersonal") === "true"
     const deadlineFilter = searchParams.get("deadlineFilter") // "late", "approaching", "in_time"
+    
+    // Pagination parameters
+    const page = parseInt(searchParams.get("page") || "1")
+    const limit = parseInt(searchParams.get("limit") || "100")
+    const skip = (page - 1) * limit
 
     const where: any = {}
 
@@ -287,90 +292,103 @@ export async function GET(request: Request) {
     // Debug logging
     // Debug logging removed for production
     
-    const todos = await prisma.todo.findMany({
-      where,
-      orderBy: [
-        { priority: "desc" },
-        { dueDate: "asc" },
-        { createdAt: "desc" },
-      ],
-      include: {
-        project: {
-          select: {
-            id: true,
-            name: true,
+    const [todos, total] = await Promise.all([
+      prisma.todo.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: [
+          { priority: "desc" },
+          { dueDate: "asc" },
+          { createdAt: "desc" },
+        ],
+        include: {
+          project: {
+            select: {
+              id: true,
+              name: true,
+            },
           },
-        },
-        proposal: {
-          select: {
-            id: true,
-            title: true,
-            proposalNumber: true,
+          proposal: {
+            select: {
+              id: true,
+              title: true,
+              proposalNumber: true,
+            },
           },
-        },
-        client: {
-          select: {
-            id: true,
-            name: true,
-            company: true,
+          client: {
+            select: {
+              id: true,
+              name: true,
+              company: true,
+            },
           },
-        },
-        lead: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
+          lead: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
           },
-        },
-        proposalItem: {
-          select: {
-            id: true,
-            description: true,
+          proposalItem: {
+            select: {
+              id: true,
+              description: true,
+            },
           },
-        },
-        invoice: {
-          select: {
-            id: true,
-            invoiceNumber: true,
+          invoice: {
+            select: {
+              id: true,
+              invoiceNumber: true,
+            },
           },
-        },
-        assignee: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
+          assignee: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
           },
-        },
-        creator: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
+          creator: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
           },
-        },
-        completer: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
+          completer: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
           },
-        },
-        assignments: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
+          assignments: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                },
               },
             },
           },
         },
-      },
-    })
+      }),
+      prisma.todo.count({ where })
+    ])
 
     // Debug logging removed for production
-    return NextResponse.json(todos)
+    return NextResponse.json({
+      data: todos,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
+      }
+    })
   } catch (error) {
     console.error("Error fetching todos:", error)
     return NextResponse.json(

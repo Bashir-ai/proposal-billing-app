@@ -81,7 +81,12 @@ export function TodoList({ currentUserId, initialFilters, onCreateNew }: TodoLis
       const response = await fetch(`/api/todos?${params.toString()}`)
       if (response.ok) {
         const data = await response.json()
-        setTodos(data)
+        // Handle paginated response (new format) or direct array (backward compatibility)
+        if (data.data && data.pagination) {
+          setTodos(data.data)
+        } else {
+          setTodos(data)
+        }
       }
     } catch (error) {
       console.error("Failed to fetch todos:", error)

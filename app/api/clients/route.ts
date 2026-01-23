@@ -49,29 +49,50 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const clients = await prisma.client.findMany({
-      where: {
-        deletedAt: null, // Exclude deleted clients
-        archivedAt: null, // Exclude archived clients
-      },
-      orderBy: { createdAt: "desc" },
-      include: {
-        creator: {
-          select: {
-            name: true,
-            email: true,
-          },
-        },
-        finders: {
-          include: {
-            user: { select: { id: true, name: true, email: true } },
-          },
-        },
-        clientManager: { select: { id: true, name: true, email: true } },
-      },
-    })
+    const { searchParams } = new URL(request.url)
+    // Pagination parameters
+    const page = parseInt(searchParams.get("page") || "1")
+    const limit = parseInt(searchParams.get("limit") || "100")
+    const skip = (page - 1) * limit
 
-    return NextResponse.json(clients)
+    const where = {
+      deletedAt: null, // Exclude deleted clients
+      archivedAt: null, // Exclude archived clients
+    }
+
+    const [clients, total] = await Promise.all([
+      prisma.client.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: "desc" },
+        include: {
+          creator: {
+            select: {
+              name: true,
+              email: true,
+            },
+          },
+          finders: {
+            include: {
+              user: { select: { id: true, name: true, email: true } },
+            },
+          },
+          clientManager: { select: { id: true, name: true, email: true } },
+        },
+      }),
+      prisma.client.count({ where })
+    ])
+
+    return NextResponse.json({
+      data: clients,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
+      }
+    })
   } catch (error) {
     if (isDatabaseConnectionError(error)) {
       return NextResponse.json(

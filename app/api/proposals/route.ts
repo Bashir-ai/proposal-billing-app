@@ -142,6 +142,11 @@ export async function GET(request: Request) {
     const clientApprovalStatus = searchParams.get("clientApprovalStatus")
     const tagId = searchParams.get("tagId")
     const archived = searchParams.get("archived") === "true" // Include archived if explicitly requested
+    
+    // Pagination parameters
+    const page = parseInt(searchParams.get("page") || "1")
+    const limit = parseInt(searchParams.get("limit") || "50")
+    const skip = (page - 1) * limit
 
     const where: any = {
       deletedAt: null, // Exclude deleted items
@@ -175,71 +180,84 @@ export async function GET(request: Request) {
       }
     }
 
-    const proposals = await prisma.proposal.findMany({
-      where,
-      orderBy: [
-        { issueDate: "desc" },
-        { createdAt: "desc" }
-      ],
-      select: {
-        id: true,
-        title: true,
-        description: true,
-        status: true,
-        type: true,
-        clientApprovalStatus: true,
-        amount: true,
-        proposalNumber: true,
-        createdAt: true,
-        deletedAt: true,
-        archivedAt: true,
-        client: {
-          select: {
-            id: true,
-            name: true,
-            company: true,
+    const [proposals, total] = await Promise.all([
+      prisma.proposal.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: [
+          { issueDate: { sort: 'desc', nulls: 'last' } },
+          { createdAt: "desc" }
+        ],
+        select: {
+          id: true,
+          title: true,
+          description: true,
+          status: true,
+          type: true,
+          clientApprovalStatus: true,
+          amount: true,
+          proposalNumber: true,
+          createdAt: true,
+          deletedAt: true,
+          archivedAt: true,
+          client: {
+            select: {
+              id: true,
+              name: true,
+              company: true,
+            },
+          },
+          lead: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              company: true,
+              status: true,
+            },
+          },
+          creator: {
+            select: {
+              name: true,
+              email: true,
+            },
+          },
+          tags: {
+            select: {
+              id: true,
+              name: true,
+              color: true,
+            },
+          },
+          items: {
+            select: {
+              id: true,
+              description: true,
+              amount: true,
+              billingMethod: true,
+              recurringEnabled: true,
+            },
+          },
+          _count: {
+            select: {
+              approvals: true,
+            },
           },
         },
-        lead: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            company: true,
-            status: true,
-          },
-        },
-        creator: {
-          select: {
-            name: true,
-            email: true,
-          },
-        },
-        tags: {
-          select: {
-            id: true,
-            name: true,
-            color: true,
-          },
-        },
-        items: {
-          select: {
-            id: true,
-            description: true,
-            amount: true,
-            billingMethod: true,
-            recurringEnabled: true,
-          },
-        },
-        _count: {
-          select: {
-            approvals: true,
-          },
-        },
-      },
-    })
+      }),
+      prisma.proposal.count({ where })
+    ])
 
-    return NextResponse.json(proposals)
+    return NextResponse.json({
+      data: proposals,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
+      }
+    })
   } catch (error: any) {
     console.error("Error fetching proposals:", error)
     console.error("Error details:", {

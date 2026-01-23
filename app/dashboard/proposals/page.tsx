@@ -85,7 +85,9 @@ export default function ProposalsPage() {
       const response = await fetch(`/api/proposals?${params.toString()}`)
       if (response.ok) {
         const data = await response.json()
-        setProposals(data.filter((p: Proposal) => !p.deletedAt))
+        // Handle paginated response (new format) or direct array (backward compatibility)
+        const proposalsData = data.data && data.pagination ? data.data : data
+        setProposals(proposalsData.filter((p: Proposal) => !p.deletedAt))
       } else {
         const errorData = await response.json().catch(() => ({ error: "Unknown error" }))
         console.error("Failed to fetch proposals:", response.status, errorData)

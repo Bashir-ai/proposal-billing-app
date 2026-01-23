@@ -50,14 +50,29 @@ export async function getNotifications(userId: string, userRole: string): Promis
     let count = 0
 
     // 1. Pending Proposal Approvals (internal)
-    // First, get all submitted proposals that need approval
+    // Optimize: Filter at database level where possible, add limit
+    const hasGeneralPermission = canApproveProposals(user)
+    const proposalWhere: any = {
+      status: "SUBMITTED",
+      internalApprovalRequired: true,
+      internalApprovalsComplete: false,
+      deletedAt: null,
+      // Exclude proposals where user has already approved/rejected (PENDING is OK)
+      NOT: {
+        approvals: {
+          some: {
+            approverId: userId,
+            status: { in: ["APPROVED", "REJECTED"] }
+          }
+        }
+      }
+    }
+
+    // For non-admin/manager users, we still need to filter by requiredApproverIds in memory
+    // but we can limit the dataset first
     const allPendingProposals = await prisma.proposal.findMany({
-      where: {
-        status: "SUBMITTED",
-        internalApprovalRequired: true,
-        internalApprovalsComplete: false,
-        deletedAt: null, // Exclude deleted proposals
-      },
+      where: proposalWhere,
+      take: 100, // Limit to prevent excessive queries
       select: {
         id: true,
         title: true,
@@ -65,42 +80,19 @@ export async function getNotifications(userId: string, userRole: string): Promis
         createdAt: true,
         requiredApproverIds: true,
         client: { select: { name: true, company: true } },
-        approvals: {
-          where: {
-            approverId: userId,
-          },
-          select: {
-            id: true,
-            status: true,
-          },
-        },
       },
+      orderBy: { createdAt: "desc" },
     })
 
-    // Filter to only show proposals where user should see them
+    // Filter to only show proposals where user should see them (optimized filter)
     const pendingProposalApprovals = allPendingProposals.filter(proposal => {
-      // Check if user is specifically required to approve
       const isRequiredApprover = proposal.requiredApproverIds && proposal.requiredApproverIds.includes(userId)
-      
-      // Check if no specific approvers are required
       const noSpecificApprovers = !proposal.requiredApproverIds || proposal.requiredApproverIds.length === 0
       
-      // Check if user has general approval permission
-      const hasGeneralPermission = canApproveProposals(user)
-      
-      // For ADMIN/MANAGER: show all pending proposals if they have general permission
-      // For others: only show if they're a required approver or no specific approvers are set
-      const shouldSee = 
-        (userRole === "ADMIN" || userRole === "MANAGER") && hasGeneralPermission
-          ? true // Admins/Managers see all if they can approve
-          : isRequiredApprover || (noSpecificApprovers && hasGeneralPermission)
-      
-      // Check if user hasn't already approved/rejected (PENDING approvals are OK, they can update)
-      // approvals are already filtered by userId in the query
-      const existingApproval = proposal.approvals[0]
-      const hasNotApproved = !existingApproval || existingApproval.status === "PENDING"
-      
-      return shouldSee && hasNotApproved
+      if ((userRole === "ADMIN" || userRole === "MANAGER") && hasGeneralPermission) {
+        return true // Admins/Managers see all if they can approve
+      }
+      return isRequiredApprover || (noSpecificApprovers && hasGeneralPermission)
     })
 
     pendingProposalApprovals.forEach(proposal => {
@@ -120,44 +112,48 @@ export async function getNotifications(userId: string, userRole: string): Promis
     })
 
     // 2. Pending Invoice Approvals (internal)
-    // First, get all submitted invoices that need approval
+    // Optimize: Filter at database level where possible, add limit
+    const hasInvoicePermission = canApproveInvoices(user)
+    const invoiceWhere: any = {
+      status: "SUBMITTED",
+      internalApprovalRequired: true,
+      internalApprovalsComplete: false,
+      deletedAt: null,
+      // Exclude invoices where user has already approved/rejected (PENDING is OK)
+      NOT: {
+        approvals: {
+          some: {
+            approverId: userId,
+            status: { in: ["APPROVED", "REJECTED"] }
+          }
+        }
+      }
+    }
+
+    // For non-admin/manager users, we still need to filter by requiredApproverIds in memory
+    // but we can limit the dataset first
     const allPendingInvoices = await prisma.bill.findMany({
-      where: {
-        status: "SUBMITTED",
-        internalApprovalRequired: true,
-        internalApprovalsComplete: false,
-      },
+      where: invoiceWhere,
+      take: 100, // Limit to prevent excessive queries
       select: {
         id: true,
         invoiceNumber: true,
         createdAt: true,
         requiredApproverIds: true,
         client: { select: { name: true, company: true } },
-        approvals: {
-          where: {
-            approverId: userId,
-          },
-          select: {
-            id: true,
-            status: true,
-          },
-        },
       },
+      orderBy: { createdAt: "desc" },
     })
 
-    // Filter to only show invoices where user should see them
+    // Filter to only show invoices where user should see them (optimized filter)
     const pendingInvoiceApprovals = allPendingInvoices.filter(bill => {
       const isRequiredApprover = bill.requiredApproverIds && bill.requiredApproverIds.includes(userId)
       const noSpecificApprovers = !bill.requiredApproverIds || bill.requiredApproverIds.length === 0
-      const hasGeneralPermission = canApproveInvoices(user)
-      const shouldSee = 
-        (userRole === "ADMIN" || userRole === "MANAGER") && hasGeneralPermission
-          ? true // Admins/Managers see all if they can approve
-          : isRequiredApprover || (noSpecificApprovers && hasGeneralPermission)
-      // approvals are already filtered by userId in the query
-      const existingApproval = bill.approvals[0]
-      const hasNotApproved = !existingApproval || existingApproval.status === "PENDING"
-      return shouldSee && hasNotApproved
+      
+      if ((userRole === "ADMIN" || userRole === "MANAGER") && hasInvoicePermission) {
+        return true // Admins/Managers see all if they can approve
+      }
+      return isRequiredApprover || (noSpecificApprovers && hasInvoicePermission)
     })
 
     pendingInvoiceApprovals.forEach(bill => {
