@@ -28,7 +28,11 @@ export default async function DashboardPage() {
     // Fetch notifications server-side
     let notificationsData: { count: number; notifications: Notification[] } = { count: 0, notifications: [] }
     if (session) {
-      notificationsData = await getNotifications(session.user.id, session.user.role)
+      const notificationsResult = await getNotifications(session.user.id, session.user.role)
+      notificationsData = {
+        count: notificationsResult.count || 0,
+        notifications: Array.isArray(notificationsResult.notifications) ? notificationsResult.notifications : []
+      }
     }
 
     // Build base where clauses for role-based filtering
@@ -175,7 +179,7 @@ export default async function DashboardPage() {
           {session && (
             <NotificationsBox
               initialCount={notificationsData.count}
-              initialNotifications={notificationsData.notifications}
+              initialNotifications={Array.isArray(notificationsData.notifications) ? notificationsData.notifications : []}
             />
           )}
         </div>

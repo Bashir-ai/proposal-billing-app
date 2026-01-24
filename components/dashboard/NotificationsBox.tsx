@@ -31,7 +31,7 @@ interface NotificationsBoxProps {
 }
 
 export function NotificationsBox({ initialCount, initialNotifications, isCollapsed = false, isFloating = false }: NotificationsBoxProps) {
-  const [notifications, setNotifications] = useState<Notification[]>(initialNotifications)
+  const [notifications, setNotifications] = useState<Notification[]>(Array.isArray(initialNotifications) ? initialNotifications : [])
   const [count, setCount] = useState(initialCount)
   const [isOpen, setIsOpen] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
@@ -165,12 +165,13 @@ export function NotificationsBox({ initialCount, initialNotifications, isCollaps
   const handleMarkAllAsViewed = useCallback(async () => {
     try {
       // Optimistically clear all notifications from local state
-      const allIds = new Set(notifications.map(n => n.id))
+      const notificationsArray = Array.isArray(notifications) ? notifications : []
+      const allIds = new Set(notificationsArray.map(n => n.id))
       setNotifications([])
       setViewedNotifications(allIds)
       
       // Mark all notifications as read in the database
-      const promises = notifications.map(n => 
+      const promises = notificationsArray.map(n => 
         fetch(`/api/notifications/${n.id}/read`, { method: "PUT" })
       )
       await Promise.all(promises)
@@ -183,7 +184,8 @@ export function NotificationsBox({ initialCount, initialNotifications, isCollaps
   }, [notifications])
 
   // Filter out viewed notifications and calculate count
-  const unviewedNotifications = notifications.filter(n => !viewedNotifications.has(n.id))
+  const notificationsArray = Array.isArray(notifications) ? notifications : []
+  const unviewedNotifications = notificationsArray.filter(n => !viewedNotifications.has(n.id))
   const displayCount = unviewedNotifications.length
 
   return (
@@ -252,7 +254,7 @@ export function NotificationsBox({ initialCount, initialNotifications, isCollaps
               </div>
             ) : (
               <div className="divide-y">
-                {unviewedNotifications.map((notification) => (
+                {Array.isArray(unviewedNotifications) && unviewedNotifications.map((notification) => (
                   <NotificationItem
                     key={notification.id}
                     notification={notification}
