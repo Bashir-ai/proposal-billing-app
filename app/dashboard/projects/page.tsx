@@ -75,10 +75,13 @@ export default function ProjectsPage() {
       const response = await fetch("/api/clients")
       if (response.ok) {
         const data = await response.json()
-        setClients(data)
+        // Handle paginated response format
+        const clientsData = data.data || data
+        setClients(Array.isArray(clientsData) ? clientsData : [])
       }
     } catch (error) {
       console.error("Failed to fetch clients:", error)
+      setClients([])
     }
   }
 
@@ -92,12 +95,18 @@ export default function ProjectsPage() {
       if (showArchived) params.set("includeArchived", "true")
 
       const response = await fetch(`/api/projects?${params.toString()}`)
-      if (response.ok) {
-        const data = await response.json()
-        setProjects(data)
+      if (!response.ok) {
+        console.error("Failed to fetch projects:", response.status)
+        setProjects([])
+        return
       }
+      
+      const data = await response.json()
+      const projectsArray = Array.isArray(data) ? data : []
+      setProjects(projectsArray)
     } catch (error) {
       console.error("Failed to fetch projects:", error)
+      setProjects([])
     } finally {
       setLoading(false)
     }
@@ -129,7 +138,8 @@ export default function ProjectsPage() {
   }
 
   const calculateTotalBilled = (bills: Project["bills"]) => {
-    return bills.reduce((sum, bill) => sum + bill.amount, 0)
+    const billsArray = Array.isArray(bills) ? bills : []
+    return billsArray.reduce((sum, bill) => sum + (bill.amount || 0), 0)
   }
 
   if (loading) {
@@ -187,7 +197,7 @@ export default function ProjectsPage() {
                 onChange={(e) => setFilters({ ...filters, clientId: e.target.value })}
               >
                 <option value="">All Clients</option>
-                {clients.map((client) => (
+                {Array.isArray(clients) && clients.map((client) => (
                   <option key={client.id} value={client.id}>
                     {client.name} {client.company ? `(${client.company})` : ""}
                   </option>

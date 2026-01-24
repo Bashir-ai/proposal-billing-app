@@ -43,6 +43,7 @@ interface ProjectsListProps {
 
 export function ProjectsList({ projects, isAdmin, isManager = false }: ProjectsListProps) {
   const router = useRouter()
+  const projectsArray = Array.isArray(projects) ? projects : []
   const [selectedProjects, setSelectedProjects] = useState<Set<string>>(new Set())
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false)
@@ -70,10 +71,10 @@ export function ProjectsList({ projects, isAdmin, isManager = false }: ProjectsL
   }
 
   const handleSelectAll = () => {
-    if (selectedProjects.size === projects.length) {
+    if (selectedProjects.size === projectsArray.length) {
       setSelectedProjects(new Set())
     } else {
-      setSelectedProjects(new Set(projects.map((p) => p.id)))
+      setSelectedProjects(new Set(projectsArray.map((p) => p.id)))
     }
   }
 
@@ -117,8 +118,11 @@ export function ProjectsList({ projects, isAdmin, isManager = false }: ProjectsL
     setIsDeleting(true)
     try {
       // If force delete, include all non-deletable items too
+      const nonDeletableArray = validationData?.nonDeletable && Array.isArray(validationData.nonDeletable) 
+        ? validationData.nonDeletable 
+        : []
       const allIds = force && validationData 
-        ? [...selectedIds, ...validationData.nonDeletable.map(p => p.id)]
+        ? [...selectedIds, ...nonDeletableArray.map(p => p.id)]
         : selectedIds
 
       const response = await fetch("/api/projects/bulk-delete", {
@@ -272,7 +276,8 @@ export function ProjectsList({ projects, isAdmin, isManager = false }: ProjectsL
   }
 
   const calculateTotalBilled = (bills: Project["bills"]) => {
-    return bills.reduce((sum, bill) => sum + bill.amount, 0)
+    const billsArray = Array.isArray(bills) ? bills : []
+    return billsArray.reduce((sum, bill) => sum + (bill.amount || 0), 0)
   }
 
   return (
@@ -281,12 +286,12 @@ export function ProjectsList({ projects, isAdmin, isManager = false }: ProjectsL
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Checkbox
-              checked={selectedProjects.size === projects.length && projects.length > 0}
+              checked={selectedProjects.size === projectsArray.length && projectsArray.length > 0}
               onCheckedChange={handleSelectAll}
-              disabled={projects.length === 0}
+              disabled={projectsArray.length === 0}
             />
             <span className="text-sm text-gray-600">
-              Select all ({projects.length} projects)
+              Select all ({projectsArray.length} projects)
             </span>
           </div>
           {hasSelection && (
@@ -322,7 +327,7 @@ export function ProjectsList({ projects, isAdmin, isManager = false }: ProjectsL
       )}
 
       <div className="space-y-6">
-        {projects.map((project) => {
+        {projectsArray.map((project) => {
           const totalBilled = calculateTotalBilled(project.bills)
           const proposedAmount = project.proposal?.amount || 0
           const variance = proposedAmount - totalBilled
