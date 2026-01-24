@@ -29,7 +29,7 @@ export function ProjectManagersSection({
   initialManagers = [],
 }: ProjectManagersSectionProps) {
   const { data: session } = useSession()
-  const [managers, setManagers] = useState<ProjectManager[]>(initialManagers)
+  const [managers, setManagers] = useState<ProjectManager[]>(Array.isArray(initialManagers) ? initialManagers : [])
   const [users, setUsers] = useState<Array<{ id: string; name: string; email: string }>>([])
   const [showAddForm, setShowAddForm] = useState(false)
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([])
@@ -57,7 +57,7 @@ export function ProjectManagersSection({
       const response = await fetch(`/api/projects/${projectId}/managers`)
       if (response.ok) {
         const data = await response.json()
-        setManagers(data)
+        setManagers(Array.isArray(data) ? data : [])
       }
     } catch (error) {
       console.error("Failed to fetch managers:", error)
@@ -131,9 +131,9 @@ export function ProjectManagersSection({
   }
 
   // Filter out users who are already managers
-  const availableUsers = users.filter(
-    (user) => !managers.some((manager) => manager.userId === user.id)
-  )
+  const availableUsers = Array.isArray(users) ? users.filter(
+    (user) => !(Array.isArray(managers) ? managers : []).some((manager) => manager.userId === user.id)
+  ) : []
 
   return (
     <Card>
@@ -215,7 +215,7 @@ export function ProjectManagersSection({
           </div>
         )}
 
-        {managers.length === 0 ? (
+        {!Array.isArray(managers) || managers.length === 0 ? (
           <p className="text-sm text-gray-500">No project managers assigned</p>
         ) : (
           <div className="space-y-2">

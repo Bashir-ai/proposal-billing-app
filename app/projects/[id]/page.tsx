@@ -263,7 +263,7 @@ export default async function ProjectDetailPage({
                 </div>
               </div>
 
-              {project.proposal.items && project.proposal.items.length > 0 && (
+              {project.proposal.items && Array.isArray(project.proposal.items) && project.proposal.items.length > 0 && (
                 <div className="mt-6">
                   <h4 className="font-semibold mb-2">Proposed Line Items</h4>
                   <div className="overflow-x-auto">
@@ -275,7 +275,7 @@ export default async function ProjectDetailPage({
                         </tr>
                       </thead>
                       <tbody>
-                        {project.proposal.items.map((item) => (
+                        {(Array.isArray(project.proposal.items) ? project.proposal.items : []).map((item) => (
                           <tr key={item.id} className="border-b">
                             <td className="p-2">{item.description}</td>
                             <td className="p-2 text-right">{formatCurrency(item.amount)}</td>
@@ -294,20 +294,20 @@ export default async function ProjectDetailPage({
       {/* Timesheet Entries Section */}
       <ProjectTimesheetSection 
         projectId={project.id} 
-        initialEntries={project.timesheetEntries || []}
+        initialEntries={Array.isArray(project.timesheetEntries) ? project.timesheetEntries : []}
         proposal={project.proposal ? {
           id: project.proposal.id,
           useBlendedRate: project.proposal.useBlendedRate || false,
           blendedRate: project.proposal.blendedRate || null,
-          items: project.proposal.items || [],
+          items: Array.isArray(project.proposal.items) ? project.proposal.items : [],
         } : null}
       />
 
       {/* Project Charges Section */}
       <ProjectChargesSection 
         projectId={project.id} 
-        initialCharges={project.charges || []}
-        proposalItems={project.proposal?.items || []}
+        initialCharges={Array.isArray(project.charges) ? project.charges : []}
+        proposalItems={Array.isArray(project.proposal?.items) ? project.proposal.items : []}
         currency={project.currency || "EUR"}
       />
 
@@ -322,7 +322,7 @@ export default async function ProjectDetailPage({
       {/* Project Managers Section */}
       <ProjectManagersSection
         projectId={project.id}
-        initialManagers={project.projectManagers || []}
+        initialManagers={Array.isArray(project.projectManagers) ? project.projectManagers : []}
       />
 
       {/* Todos Section */}

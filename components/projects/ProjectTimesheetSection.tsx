@@ -44,7 +44,7 @@ interface ProjectTimesheetSectionProps {
 }
 
 export function ProjectTimesheetSection({ projectId, initialEntries, proposal }: ProjectTimesheetSectionProps) {
-  const [entries, setEntries] = useState<TimesheetEntry[]>(initialEntries)
+  const [entries, setEntries] = useState<TimesheetEntry[]>(Array.isArray(initialEntries) ? initialEntries : [])
   const [users, setUsers] = useState<User[]>([])
   const [showForm, setShowForm] = useState(false)
   const [editingEntry, setEditingEntry] = useState<TimesheetEntry | null>(null)
@@ -69,7 +69,7 @@ export function ProjectTimesheetSection({ projectId, initialEntries, proposal }:
     fetch(`/api/projects/${projectId}/timesheet`)
       .then((res) => res.json())
       .then((data) => {
-        setEntries(data)
+        setEntries(Array.isArray(data) ? data : [])
         setLoading(false)
       })
       .catch((err) => {
@@ -91,17 +91,19 @@ export function ProjectTimesheetSection({ projectId, initialEntries, proposal }:
   }
 
   const handleSelectAll = () => {
-    if (selectedEntries.size === entries.length) {
+    const entriesArray = Array.isArray(entries) ? entries : []
+    if (selectedEntries.size === entriesArray.length) {
       setSelectedEntries(new Set())
     } else {
-      setSelectedEntries(new Set(entries.map(e => e.id)))
+      setSelectedEntries(new Set(entriesArray.map(e => e.id)))
     }
   }
 
   const handleEditSelected = () => {
+    const entriesArray = Array.isArray(entries) ? entries : []
     if (selectedEntries.size === 1) {
       const entryId = Array.from(selectedEntries)[0]
-      const entry = entries.find(e => e.id === entryId)
+      const entry = entriesArray.find(e => e.id === entryId)
       if (entry) {
         setEditingEntry(entry)
         setShowForm(true)
@@ -136,10 +138,11 @@ export function ProjectTimesheetSection({ projectId, initialEntries, proposal }:
     }
   }
 
-  const totalHours = entries.reduce((sum, entry) => sum + entry.hours, 0)
-  const totalAmount = entries.reduce((sum, entry) => sum + (entry.hours * (entry.rate ?? 0)), 0)
-  const billableHours = entries.filter(e => e.billable).reduce((sum, entry) => sum + entry.hours, 0)
-  const billableAmount = entries.filter(e => e.billable).reduce((sum, entry) => sum + (entry.hours * (entry.rate ?? 0)), 0)
+  const entriesArray = Array.isArray(entries) ? entries : []
+  const totalHours = entriesArray.reduce((sum, entry) => sum + entry.hours, 0)
+  const totalAmount = entriesArray.reduce((sum, entry) => sum + (entry.hours * (entry.rate ?? 0)), 0)
+  const billableHours = entriesArray.filter(e => e.billable).reduce((sum, entry) => sum + entry.hours, 0)
+  const billableAmount = entriesArray.filter(e => e.billable).reduce((sum, entry) => sum + (entry.hours * (entry.rate ?? 0)), 0)
 
   return (
     <>
@@ -173,7 +176,7 @@ export function ProjectTimesheetSection({ projectId, initialEntries, proposal }:
         <CardContent>
           {loading ? (
             <p>Loading...</p>
-          ) : entries.length === 0 ? (
+          ) : !Array.isArray(entries) || entries.length === 0 ? (
             <p className="text-gray-500 text-center py-4">No timesheet entries yet</p>
           ) : (
             <>
@@ -184,7 +187,7 @@ export function ProjectTimesheetSection({ projectId, initialEntries, proposal }:
                       <th className="text-left p-2 w-12">
                         <input
                           type="checkbox"
-                          checked={selectedEntries.size === entries.length && entries.length > 0}
+                          checked={selectedEntries.size === entriesArray.length && entriesArray.length > 0}
                           onChange={handleSelectAll}
                           className="cursor-pointer"
                         />
@@ -201,7 +204,7 @@ export function ProjectTimesheetSection({ projectId, initialEntries, proposal }:
                     </tr>
                   </thead>
                   <tbody>
-                    {entries.map((entry) => (
+                    {Array.isArray(entries) && entries.map((entry) => (
                       <tr key={entry.id} className="border-b">
                         <td className="p-2">
                           <input

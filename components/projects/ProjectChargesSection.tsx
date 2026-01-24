@@ -38,7 +38,7 @@ interface ProjectChargesSectionProps {
 }
 
 export function ProjectChargesSection({ projectId, initialCharges, proposalItems = [], currency = "EUR" }: ProjectChargesSectionProps) {
-  const [charges, setCharges] = useState<ProjectCharge[]>(initialCharges)
+  const [charges, setCharges] = useState<ProjectCharge[]>(Array.isArray(initialCharges) ? initialCharges : [])
   const [showForm, setShowForm] = useState(false)
   const [editingCharge, setEditingCharge] = useState<ProjectCharge | null>(null)
   const [loading, setLoading] = useState(false)
@@ -49,7 +49,7 @@ export function ProjectChargesSection({ projectId, initialCharges, proposalItems
     fetch(`/api/projects/${projectId}/charges`)
       .then((res) => res.json())
       .then((data) => {
-        setCharges(data)
+        setCharges(Array.isArray(data) ? data : [])
         setLoading(false)
       })
       .catch((err) => {
@@ -80,9 +80,10 @@ export function ProjectChargesSection({ projectId, initialCharges, proposalItems
     }
   }
 
-  const totalAmount = charges.reduce((sum, charge) => sum + charge.amount, 0)
-  const billedAmount = charges.filter(c => c.billed).reduce((sum, charge) => sum + charge.amount, 0)
-  const unbilledAmount = charges.filter(c => !c.billed).reduce((sum, charge) => sum + charge.amount, 0)
+  const chargesArray = Array.isArray(charges) ? charges : []
+  const totalAmount = chargesArray.reduce((sum, charge) => sum + charge.amount, 0)
+  const billedAmount = chargesArray.filter(c => c.billed).reduce((sum, charge) => sum + charge.amount, 0)
+  const unbilledAmount = chargesArray.filter(c => !c.billed).reduce((sum, charge) => sum + charge.amount, 0)
 
   return (
     <>
@@ -99,7 +100,7 @@ export function ProjectChargesSection({ projectId, initialCharges, proposalItems
         <CardContent>
           {loading ? (
             <p>Loading...</p>
-          ) : charges.length === 0 ? (
+          ) : !Array.isArray(charges) || charges.length === 0 ? (
             <p className="text-gray-500 text-center py-4">No charges yet</p>
           ) : (
             <>
@@ -118,7 +119,7 @@ export function ProjectChargesSection({ projectId, initialCharges, proposalItems
                     </tr>
                   </thead>
                   <tbody>
-                    {charges.map((charge) => (
+                    {Array.isArray(charges) && charges.map((charge) => (
                       <tr key={charge.id} className="border-b">
                         <td className="p-2">{charge.description}</td>
                         <td className="p-2 text-right">{formatCurrency(charge.amount)}</td>
@@ -197,7 +198,7 @@ export function ProjectChargesSection({ projectId, initialCharges, proposalItems
           isOpen={showForm}
           onClose={() => { setShowForm(false); setEditingCharge(null) }}
           onSuccess={() => { handleRefresh(); router.refresh() }}
-          proposalItems={proposalItems}
+          proposalItems={Array.isArray(proposalItems) ? proposalItems : []}
           currency={currency}
         />
       )}
