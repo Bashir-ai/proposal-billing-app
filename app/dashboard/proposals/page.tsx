@@ -87,7 +87,8 @@ export default function ProposalsPage() {
         const data = await response.json()
         // Handle paginated response (new format) or direct array (backward compatibility)
         const proposalsData = data.data && data.pagination ? data.data : data
-        setProposals(proposalsData.filter((p: Proposal) => !p.deletedAt))
+        const proposalsArray = Array.isArray(proposalsData) ? proposalsData : []
+        setProposals(proposalsArray.filter((p: Proposal) => !p.deletedAt))
       } else {
         const errorData = await response.json().catch(() => ({ error: "Unknown error" }))
         console.error("Failed to fetch proposals:", response.status, errorData)
@@ -108,7 +109,7 @@ export default function ProposalsPage() {
         const result = await response.json()
         // Handle paginated response format
         const data = result.data || result
-        setClients(data)
+        setClients(Array.isArray(data) ? data : [])
       }
     } catch (error) {
       console.error("Failed to fetch clients:", error)
@@ -120,7 +121,7 @@ export default function ProposalsPage() {
       const response = await fetch("/api/proposal-tags")
       if (response.ok) {
         const data = await response.json()
-        setTags(data)
+        setTags(Array.isArray(data) ? data : [])
       }
     } catch (error) {
       console.error("Failed to fetch tags:", error)
@@ -133,17 +134,20 @@ export default function ProposalsPage() {
     fetchTags()
   }, [fetchProposals, fetchClients, fetchTags])
 
-  const filteredProposals = proposals.filter((proposal) => {
+  const proposalsArray = Array.isArray(proposals) ? proposals : []
+  const filteredProposals = proposalsArray.filter((proposal) => {
     if (searchQuery) {
       const query = searchQuery.toLowerCase()
+      const tagsArray = Array.isArray(proposal.tags) ? proposal.tags : []
+      const customTagsArray = Array.isArray(proposal.customTags) ? proposal.customTags : []
       return (
         proposal.title.toLowerCase().includes(query) ||
         proposal.description?.toLowerCase().includes(query) ||
         proposal.client?.name.toLowerCase().includes(query) ||
         proposal.lead?.name.toLowerCase().includes(query) ||
         proposal.proposalNumber?.toLowerCase().includes(query) ||
-        proposal.tags.some(tag => tag.name.toLowerCase().includes(query)) ||
-        proposal.customTags.some(tag => tag.toLowerCase().includes(query))
+        tagsArray.some(tag => tag.name.toLowerCase().includes(query)) ||
+        customTagsArray.some(tag => tag.toLowerCase().includes(query))
       )
     }
     return true
@@ -293,7 +297,7 @@ export default function ProposalsPage() {
               onChange={(e) => setClientFilter(e.target.value)}
             >
               <option value="">All Clients</option>
-              {clients.map((client) => (
+              {Array.isArray(clients) && clients.map((client) => (
                 <option key={client.id} value={client.id}>
                   {client.name}
                 </option>
@@ -305,7 +309,7 @@ export default function ProposalsPage() {
               onChange={(e) => setTagFilter(e.target.value)}
             >
               <option value="">All Tags</option>
-              {tags.map((tag) => (
+              {Array.isArray(tags) && tags.map((tag) => (
                 <option key={tag.id} value={tag.id}>
                   {tag.name}
                 </option>

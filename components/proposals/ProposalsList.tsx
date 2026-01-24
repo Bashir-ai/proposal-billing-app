@@ -48,6 +48,7 @@ interface ProposalsListProps {
 
 export function ProposalsList({ proposals, isAdmin }: ProposalsListProps) {
   const router = useRouter()
+  const proposalsArray = Array.isArray(proposals) ? proposals : []
   const [selectedProposals, setSelectedProposals] = useState<Set<string>>(new Set())
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -67,10 +68,11 @@ export function ProposalsList({ proposals, isAdmin }: ProposalsListProps) {
   }
 
   const handleSelectAll = () => {
-    if (selectedProposals.size === proposals.length) {
+    const proposalsArray = Array.isArray(proposals) ? proposals : []
+    if (selectedProposals.size === proposalsArray.length) {
       setSelectedProposals(new Set())
     } else {
-      setSelectedProposals(new Set(proposals.map((p) => p.id)))
+      setSelectedProposals(new Set(proposalsArray.map((p) => p.id)))
     }
   }
 
@@ -168,12 +170,12 @@ export function ProposalsList({ proposals, isAdmin }: ProposalsListProps) {
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Checkbox
-              checked={selectedProposals.size === proposals.length && proposals.length > 0}
+              checked={selectedProposals.size === proposalsArray.length && proposalsArray.length > 0}
               onCheckedChange={handleSelectAll}
-              disabled={proposals.length === 0}
+              disabled={proposalsArray.length === 0}
             />
             <span className="text-sm text-gray-600">
-              Select all ({proposals.length} proposals)
+              Select all ({proposalsArray.length} proposals)
             </span>
           </div>
           {hasSelection && (
@@ -196,7 +198,7 @@ export function ProposalsList({ proposals, isAdmin }: ProposalsListProps) {
       )}
 
       <div className="space-y-4">
-        {proposals.map((proposal) => (
+        {proposalsArray.map((proposal) => (
           <div key={proposal.id} className="relative">
             {isAdmin && (
               <div
