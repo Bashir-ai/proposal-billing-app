@@ -53,24 +53,24 @@ export default async function DashboardPage() {
           deletedAt: null,
           ...(clientWhere || {})
         },
-      }),
+      }).catch(() => 0),
       prisma.bill.count({
         where: {
           deletedAt: null,
           ...(clientWhere || {})
         },
-      }),
+      }).catch(() => 0),
       prisma.client.count({
         where: {
           deletedAt: null,
         },
-      }),
+      }).catch(() => 0),
       prisma.project.count({
         where: {
           deletedAt: null,
           ...(clientWhere || {})
         },
-      }),
+      }).catch(() => 0),
       prisma.bill.aggregate({
         where: {
           status: "PAID",
@@ -81,7 +81,7 @@ export default async function DashboardPage() {
         _sum: {
           amount: true,
         },
-      }),
+      }).catch(() => ({ _sum: { amount: null } })),
       prisma.bill.aggregate({
         where: {
           status: { in: ["SUBMITTED", "APPROVED"] },
@@ -92,7 +92,7 @@ export default async function DashboardPage() {
         _sum: {
           amount: true,
         },
-      }),
+      }).catch(() => ({ _sum: { amount: null } })),
     ])
 
     // Calculate additional financial metrics (with timeout protection)

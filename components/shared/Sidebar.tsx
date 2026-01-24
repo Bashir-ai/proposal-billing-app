@@ -82,12 +82,13 @@ export function Sidebar({ user, isCollapsed, onToggle }: SidebarProps) {
   const pathname = usePathname()
 
   // Filter navigation items by role
-  const filteredGroups = navigationGroups
+  const navigationGroupsArray = Array.isArray(navigationGroups) ? navigationGroups : []
+  const filteredGroups = navigationGroupsArray
     .map((group) => ({
       ...group,
-      items: group.items.filter((item) => item.roles.includes(user.role)),
+      items: Array.isArray(group.items) ? group.items.filter((item) => item.roles.includes(user.role)) : [],
     }))
-    .filter((group) => group.items.length > 0)
+    .filter((group) => Array.isArray(group.items) && group.items.length > 0)
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -133,7 +134,7 @@ export function Sidebar({ user, isCollapsed, onToggle }: SidebarProps) {
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto sidebar-scrollbar py-4 px-3">
-          {filteredGroups.map((group, groupIndex) => (
+          {Array.isArray(filteredGroups) && filteredGroups.map((group, groupIndex) => (
             <div key={group.name} className={groupIndex > 0 ? "mt-6" : ""}>
               {!isCollapsed && (
                 <h3 className="mb-2 px-2 text-xs font-medium uppercase tracking-wider text-sidebar-foreground/50">
@@ -144,7 +145,7 @@ export function Sidebar({ user, isCollapsed, onToggle }: SidebarProps) {
                 <Separator className="my-3 bg-sidebar-border" />
               )}
               <ul className="space-y-1">
-                {group.items.map((item) => {
+                {Array.isArray(group.items) && group.items.map((item) => {
                   const Icon = item.icon
                   const isActive = pathname === item.href || pathname.startsWith(item.href + "/")
 

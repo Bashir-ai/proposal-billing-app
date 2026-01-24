@@ -102,8 +102,8 @@ export function FloatingNotifications({ userId, userRole }: FloatingNotification
         )}
       </Button>
       <NotificationsBox
-        initialCount={notificationsData.count}
-        initialNotifications={notificationsData.notifications}
+        initialCount={notificationsData.count || 0}
+        initialNotifications={Array.isArray(notificationsData.notifications) ? notificationsData.notifications : []}
         isCollapsed={false}
         isFloating={true}
       />
