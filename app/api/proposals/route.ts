@@ -230,6 +230,7 @@ export async function GET(request: Request) {
               color: true,
             },
           },
+          customTags: true, // Include customTags field
           items: {
             select: {
               id: true,
@@ -249,8 +250,15 @@ export async function GET(request: Request) {
       prisma.proposal.count({ where })
     ])
 
+    // Ensure all proposals have tags and customTags as arrays
+    const normalizedProposals = proposals.map((proposal: any) => ({
+      ...proposal,
+      tags: Array.isArray(proposal.tags) ? proposal.tags : [],
+      customTags: Array.isArray(proposal.customTags) ? proposal.customTags : [],
+    }))
+
     return NextResponse.json({
-      data: proposals,
+      data: normalizedProposals,
       pagination: {
         page,
         limit,

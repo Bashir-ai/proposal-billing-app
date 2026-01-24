@@ -36,18 +36,26 @@ export default function DashboardError({ error, reset }: ErrorProps) {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {process.env.NODE_ENV === "development" && (
-            <div className="p-3 bg-gray-100 rounded-md">
-              <p className="text-sm font-mono text-gray-700 break-all">
-                {error.message || "Unknown error"}
+          {/* Always show error details for debugging */}
+          <div className="p-3 bg-gray-100 rounded-md">
+            <p className="text-sm font-semibold text-gray-700 mb-2">Error Details:</p>
+            <p className="text-sm font-mono text-gray-700 break-all">
+              {error.message || "Unknown error"}
+            </p>
+            {error.digest && (
+              <p className="text-xs text-gray-500 mt-1">
+                Error ID: {error.digest}
               </p>
-              {error.digest && (
-                <p className="text-xs text-gray-500 mt-1">
-                  Error ID: {error.digest}
-                </p>
-              )}
-            </div>
-          )}
+            )}
+            {error.stack && (
+              <details className="mt-2">
+                <summary className="text-xs text-gray-500 cursor-pointer">Stack Trace</summary>
+                <pre className="text-xs text-gray-600 mt-2 overflow-auto max-h-40">
+                  {error.stack}
+                </pre>
+              </details>
+            )}
+          </div>
           <div className="flex flex-col sm:flex-row gap-2">
             <Button
               onClick={reset}

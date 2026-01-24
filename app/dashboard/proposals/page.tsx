@@ -76,6 +76,7 @@ export default function ProposalsPage() {
 
   const fetchProposals = useCallback(async () => {
     try {
+      setLoading(true)
       const params = new URLSearchParams()
       if (statusFilter) params.append("status", statusFilter)
       if (clientApprovalFilter) params.append("clientApprovalStatus", clientApprovalFilter)
@@ -83,17 +84,35 @@ export default function ProposalsPage() {
       if (tagFilter) params.append("tagId", tagFilter)
 
       const response = await fetch(`/api/proposals?${params.toString()}`)
-      if (response.ok) {
-        const data = await response.json()
-        // Handle paginated response (new format) or direct array (backward compatibility)
-        const proposalsData = data.data && data.pagination ? data.data : data
-        const proposalsArray = Array.isArray(proposalsData) ? proposalsData : []
-        setProposals(proposalsArray.filter((p: Proposal) => !p.deletedAt))
-      } else {
+      if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: "Unknown error" }))
         console.error("Failed to fetch proposals:", response.status, errorData)
         setProposals([]) // Set empty array on error to prevent infinite loading
+        return
       }
+      
+      const data = await response.json()
+      console.log("Proposals API response:", data)
+      
+      // Handle paginated response (new format) or direct array (backward compatibility)
+      const proposalsData = data.data && data.pagination ? data.data : data
+      const proposalsArray = Array.isArray(proposalsData) ? proposalsData : []
+      console.log("Processed proposals array:", proposalsArray.length, "items")
+      
+      // Ensure each proposal has required array fields
+      const validProposals = proposalsArray.filter((p: Proposal) => {
+        if (!p || p.deletedAt) return false
+        // Ensure tags and customTags are arrays
+        if (p.tags && !Array.isArray(p.tags)) {
+          p.tags = []
+        }
+        if (p.customTags && !Array.isArray(p.customTags)) {
+          p.customTags = []
+        }
+        return true
+      })
+      
+      setProposals(validProposals)
     } catch (error) {
       console.error("Failed to fetch proposals:", error)
       setProposals([]) // Set empty array on error to prevent infinite loading
