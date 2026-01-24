@@ -79,15 +79,18 @@ export default function EditTodoPage() {
 
       if (projectsRes.ok) {
         const data = await projectsRes.json()
-        setProjects(data.map((p: any) => ({ id: p.id, name: p.name, clientId: p.clientId })))
+        const projectsData = data.data && data.pagination ? data.data : data
+        setProjects(projectsData.map((p: any) => ({ id: p.id, name: p.name, clientId: p.clientId })))
       }
       if (proposalsRes.ok) {
         const data = await proposalsRes.json()
-        setProposals(data.map((p: any) => ({ id: p.id, title: p.title, proposalNumber: p.proposalNumber })))
+        const proposalsData = data.data && data.pagination ? data.data : data
+        setProposals(proposalsData.map((p: any) => ({ id: p.id, title: p.title, proposalNumber: p.proposalNumber })))
       }
       if (invoicesRes.ok) {
         const data = await invoicesRes.json()
-        setInvoices(data.map((i: any) => ({ id: i.id, invoiceNumber: i.invoiceNumber })))
+        const invoicesData = data.data && data.pagination ? data.data : data
+        setInvoices(invoicesData.map((i: any) => ({ id: i.id, invoiceNumber: i.invoiceNumber })))
       }
       if (usersRes.ok) {
         const data = await usersRes.json()
@@ -95,7 +98,8 @@ export default function EditTodoPage() {
       }
       if (clientsRes.ok) {
         const data = await clientsRes.json()
-        setClients(data.filter((c: any) => !c.deletedAt && !c.archivedAt).map((c: any) => ({ 
+        const clientsData = data.data && data.pagination ? data.data : data
+        setClients(clientsData.filter((c: any) => !c.deletedAt && !c.archivedAt).map((c: any) => ({ 
           id: c.id, 
           name: c.name, 
           company: c.company 

@@ -61,7 +61,11 @@ export default function NewBillPage() {
   useEffect(() => {
     fetch("/api/clients")
       .then((res) => res.json())
-      .then((data) => setClients(data))
+      .then((result) => {
+        // Handle paginated response format
+        const data = result.data || result
+        setClients(data)
+      })
       .catch(console.error)
     
     fetch("/api/leads")
@@ -85,12 +89,16 @@ export default function NewBillPage() {
   useEffect(() => {
     if (formData.clientId) {
       Promise.all([
-        fetch(`/api/proposals?clientId=${formData.clientId}`).then(res => res.json()).catch(() => []),
+        fetch(`/api/proposals?clientId=${formData.clientId}`).then(res => res.json()).catch(() => ({ data: [] })),
         fetch(`/api/projects?clientId=${formData.clientId}`).then(res => res.json()).catch(() => []),
       ])
-        .then(([proposalsData, projectsData]) => {
+        .then(([proposalsResult, projectsResult]) => {
+          // Handle paginated response format
+          const proposalsData = proposalsResult.data || proposalsResult
           const approvedProposals = proposalsData.filter((p: any) => p.status === "APPROVED")
           setProposals(approvedProposals)
+          // Handle paginated response format for projects
+          const projectsData = projectsResult.data || projectsResult
           setProjects(projectsData.filter((p: any) => !p.deletedAt))
         })
         .catch(console.error)

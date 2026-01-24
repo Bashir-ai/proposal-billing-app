@@ -48,7 +48,9 @@ export function ProposalFormWrapper({ clients: initialClients, leads: initialLea
     try {
       const response = await fetch("/api/clients")
       if (response.ok) {
-        const data = await response.json()
+        const result = await response.json()
+        // Handle paginated response format
+        const data = result.data || result
         // Filter out deleted and archived clients
         const filteredClients = data.filter((client: any) => 
           !client.deletedAt && !client.archivedAt

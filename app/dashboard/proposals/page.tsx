@@ -105,7 +105,9 @@ export default function ProposalsPage() {
     try {
       const response = await fetch("/api/clients")
       if (response.ok) {
-        const data = await response.json()
+        const result = await response.json()
+        // Handle paginated response format
+        const data = result.data || result
         setClients(data)
       }
     } catch (error) {
