@@ -120,7 +120,15 @@ export default async function DashboardPage() {
       console.warn("Financial calculations timed out or failed:", error)
     }
 
-  const stats = [
+  const stats: Array<{
+    name: string
+    value: number
+    icon: any
+    href: string
+    color: string
+    bgColor: string
+    description: string
+  }> = [
     {
       name: "Proposals",
       value: proposalsCount,
@@ -159,7 +167,11 @@ export default async function DashboardPage() {
     },
   ]
 
-  const quickActions = [
+  const quickActions: Array<{
+    name: string
+    href: string
+    icon: any
+  }> = [
     { name: "New Proposal", href: "/dashboard/proposals/new", icon: FileText },
     { name: "New Invoice", href: "/dashboard/bills/new", icon: Receipt },
     { name: "New Client", href: "/dashboard/clients/new", icon: Users },
@@ -187,7 +199,7 @@ export default async function DashboardPage() {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((stat) => {
+        {Array.isArray(stats) && stats.map((stat) => {
           const Icon = stat.icon
           return (
             <Link key={stat.name} href={stat.href}>
@@ -222,7 +234,7 @@ export default async function DashboardPage() {
           <CardContent className="space-y-2">
             {session?.user.role !== "CLIENT" && (
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {quickActions.map((action) => {
+                {Array.isArray(quickActions) && quickActions.map((action) => {
                   const Icon = action.icon
                   return (
                     <Link key={action.name} href={action.href}>

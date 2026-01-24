@@ -43,7 +43,8 @@ const navigation = [
 
 export function DashboardNav({ user }: DashboardNavProps) {
   const pathname = usePathname()
-  const filteredNav = navigation.filter((item) => 
+  const navigationArray = Array.isArray(navigation) ? navigation : []
+  const filteredNav = navigationArray.filter((item) => 
     item.roles.includes(user.role)
   )
 
@@ -56,7 +57,7 @@ export function DashboardNav({ user }: DashboardNavProps) {
               Proposal &amp; Billing
             </Link>
             <div className="flex space-x-4" role="menubar" aria-label="Navigation menu">
-              {filteredNav.map((item) => {
+              {Array.isArray(filteredNav) && filteredNav.map((item) => {
                 const Icon = item.icon
                 const isActive = pathname === item.href || pathname.startsWith(item.href + "/")
                 return (

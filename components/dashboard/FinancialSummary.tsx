@@ -58,7 +58,7 @@ export function FinancialSummary({
         <CardTitle>Financial Summary</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {financialItems.map((item) => {
+        {Array.isArray(financialItems) && financialItems.map((item) => {
           const Icon = item.icon
           return (
             <div
