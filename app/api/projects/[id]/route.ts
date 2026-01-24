@@ -123,6 +123,31 @@ export async function GET(
 
     return NextResponse.json(project)
   } catch (error) {
+    console.error("Error fetching project:", error)
+    
+    // Handle database connection errors
+    if (isDatabaseConnectionError(error)) {
+      return NextResponse.json(
+        { 
+          error: "Database connection error",
+          message: getDatabaseErrorMessage()
+        },
+        { status: 503 }
+      )
+    }
+
+    // Handle Prisma errors
+    if (error instanceof Error) {
+      // Check for common Prisma errors
+      if (error.message.includes("Record to find does not exist") || 
+          error.message.includes("Record not found")) {
+        return NextResponse.json(
+          { error: "Project not found" },
+          { status: 404 }
+        )
+      }
+    }
+
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

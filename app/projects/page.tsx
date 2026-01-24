@@ -75,6 +75,7 @@ interface Tag {
 export default function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [clients, setClients] = useState<Client[]>([])
   const [users, setUsers] = useState<User[]>([])
   const [tags, setTags] = useState<Tag[]>([])
@@ -158,6 +159,7 @@ export default function ProjectsPage() {
   const fetchProjects = useCallback(async () => {
     try {
       setLoading(true)
+      setError(null)
       const params = new URLSearchParams()
       
       // Check if there's a status in URL query params (for navigation from dashboard)
@@ -180,12 +182,15 @@ export default function ProjectsPage() {
       if (filters.projectManagerId) params.append("projectManagerId", filters.projectManagerId)
 
       const response = await fetch(`/api/projects?${params.toString()}`)
-      if (response.ok) {
-        const data = await response.json()
-        setProjects(data)
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || `Failed to load projects: ${response.statusText}`)
       }
+      const data = await response.json()
+      setProjects(data)
     } catch (error) {
       console.error("Failed to fetch projects:", error)
+      setError(error instanceof Error ? error.message : "Failed to load projects. Please try again.")
     } finally {
       setLoading(false)
     }
@@ -237,6 +242,25 @@ export default function ProjectsPage() {
 
   if (loading) {
     return <div>Loading projects...</div>
+  }
+
+  if (error) {
+    return (
+      <div>
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-3xl font-bold">Projects</h1>
+            <p className="text-gray-600 mt-2">Manage your active projects</p>
+          </div>
+        </div>
+        <Card>
+          <CardContent className="py-12 text-center">
+            <p className="text-red-600 mb-4">{error}</p>
+            <Button onClick={() => fetchProjects()}>Try Again</Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   return (

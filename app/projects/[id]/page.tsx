@@ -3,7 +3,7 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { notFound } from "next/navigation"
+import { notFound, redirect } from "next/navigation"
 import { formatDate, formatCurrency } from "@/lib/utils"
 import { ProjectStatus } from "@prisma/client"
 import Link from "next/link"
@@ -13,6 +13,7 @@ import { GenerateInvoiceButton } from "@/components/projects/GenerateInvoiceButt
 import { DeleteButton } from "@/components/shared/DeleteButton"
 import { ProjectManagersSection } from "@/components/projects/ProjectManagersSection"
 import { ProjectTodosSection } from "@/components/projects/ProjectTodosSection"
+import { isDatabaseConnectionError, getDatabaseErrorMessage } from "@/lib/database-error-handler"
 
 export const dynamic = 'force-dynamic'
 
@@ -21,12 +22,26 @@ export default async function ProjectDetailPage({
 }: {
   params: Promise<{ id: string }>
 }) {
-  const { id } = await params
-  const session = await getServerSession(authOptions)
+  try {
+    const { id } = await params
+    
+    if (!id || typeof id !== 'string') {
+      console.error("Invalid project ID:", id)
+      notFound()
+    }
 
-  const project = await prisma.project.findUnique({
-    where: { id },
-    include: {
+    const session = await getServerSession(authOptions)
+    
+    if (!session || !session.user) {
+      redirect("/login")
+    }
+
+    const project = await prisma.project.findUnique({
+      where: { 
+        id,
+        deletedAt: null, // Exclude deleted projects
+      },
+      include: {
       client: true,
       proposal: {
         include: {
@@ -85,9 +100,24 @@ export default async function ProjectDetailPage({
     },
   })
 
-  if (!project) {
-    notFound()
-  }
+    if (!project) {
+      notFound()
+    }
+
+    // Check if project is deleted
+    if (project.deletedAt) {
+      notFound()
+    }
+
+    // Check access permissions for EXTERNAL users
+    if (session.user.role === "EXTERNAL") {
+      const hasAccess = project.projectManagers?.some(
+        (pm) => pm.user.id === session.user.id
+      )
+      if (!hasAccess) {
+        redirect("/projects")
+      }
+    }
 
   const getStatusColor = (status: ProjectStatus) => {
     switch (status) {
@@ -104,25 +134,25 @@ export default async function ProjectDetailPage({
     }
   }
 
-  const proposedAmount = project.proposal?.amount || 0
-  const totalBilled = project.bills.reduce((sum, bill) => sum + bill.amount, 0)
-  const variance = proposedAmount - totalBilled
-  const variancePercent = proposedAmount > 0 ? (variance / proposedAmount) * 100 : 0
+    const proposedAmount = project.proposal?.amount || 0
+    const totalBilled = (project.bills || []).reduce((sum, bill) => sum + (bill.amount || 0), 0)
+    const variance = proposedAmount - totalBilled
+    const variancePercent = proposedAmount > 0 ? (variance / proposedAmount) * 100 : 0
 
-  // Calculate unbilled amounts for invoice generation
-  const unbilledTimesheetEntries = project.timesheetEntries.filter(
-    (entry) => entry.billable && !entry.billed
-  )
-  const unbilledCharges = project.charges.filter((charge) => !charge.billed)
-  
-  const unbilledTimesheetAmount = unbilledTimesheetEntries.reduce(
-    (sum, entry) => sum + (entry.hours * (entry.rate || 0)),
-    0
-  )
-  const unbilledChargesAmount = unbilledCharges.reduce(
-    (sum, charge) => sum + charge.amount,
-    0
-  )
+    // Calculate unbilled amounts for invoice generation
+    const unbilledTimesheetEntries = (project.timesheetEntries || []).filter(
+      (entry) => entry.billable && !entry.billed
+    )
+    const unbilledCharges = (project.charges || []).filter((charge) => !charge.billed)
+    
+    const unbilledTimesheetAmount = unbilledTimesheetEntries.reduce(
+      (sum, entry) => sum + ((entry.hours || 0) * (entry.rate || 0)),
+      0
+    )
+    const unbilledChargesAmount = unbilledCharges.reduce(
+      (sum, charge) => sum + (charge.amount || 0),
+      0
+    )
 
   return (
     <div>
@@ -264,7 +294,7 @@ export default async function ProjectDetailPage({
       {/* Timesheet Entries Section */}
       <ProjectTimesheetSection 
         projectId={project.id} 
-        initialEntries={project.timesheetEntries}
+        initialEntries={project.timesheetEntries || []}
         proposal={project.proposal ? {
           id: project.proposal.id,
           useBlendedRate: project.proposal.useBlendedRate || false,
@@ -276,9 +306,9 @@ export default async function ProjectDetailPage({
       {/* Project Charges Section */}
       <ProjectChargesSection 
         projectId={project.id} 
-        initialCharges={project.charges}
+        initialCharges={project.charges || []}
         proposalItems={project.proposal?.items || []}
-        currency={project.currency}
+        currency={project.currency || "EUR"}
       />
 
       {/* Generate Invoice Section */}
@@ -304,7 +334,7 @@ export default async function ProjectDetailPage({
           <CardTitle>Bills & Invoices</CardTitle>
         </CardHeader>
         <CardContent>
-          {project.bills.length === 0 ? (
+          {!project.bills || project.bills.length === 0 ? (
             <p className="text-gray-500 text-center py-4">No bills yet</p>
           ) : (
             <div className="space-y-4">
@@ -313,9 +343,9 @@ export default async function ProjectDetailPage({
                   <div className="border rounded-lg p-4 hover:bg-gray-50">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="font-semibold">{formatCurrency(bill.amount)}</p>
+                        <p className="font-semibold">{formatCurrency(bill.amount || 0)}</p>
                         <p className="text-sm text-gray-600">
-                          Created by {bill.creator.name} • {formatDate(bill.createdAt)}
+                          Created by {bill.creator?.name || "Unknown"} • {formatDate(bill.createdAt)}
                         </p>
                       </div>
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${
@@ -336,5 +366,29 @@ export default async function ProjectDetailPage({
       </Card>
     </div>
   )
+  } catch (error) {
+    console.error("Error loading project:", error)
+    
+    // Handle database connection errors
+    if (isDatabaseConnectionError(error)) {
+      console.error("Database connection error:", getDatabaseErrorMessage())
+      throw new Error("Unable to connect to the database. Please try again later.")
+    }
+
+    // Handle Prisma errors
+    if (error instanceof Error) {
+      // Check for common Prisma errors
+      if (error.message.includes("Record to update not found") || 
+          error.message.includes("Record to delete does not exist")) {
+        notFound()
+      }
+      
+      // Re-throw with more context
+      throw new Error(`Failed to load project: ${error.message}`)
+    }
+
+    // Generic error
+    throw new Error("An unexpected error occurred while loading the project.")
+  }
 }
 
