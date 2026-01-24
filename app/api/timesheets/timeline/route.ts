@@ -32,7 +32,7 @@ export async function GET(request: Request) {
       archivedAt: null, // Exclude archived entries
     }
     const chargeWhere: any = {
-      deletedAt: null, // Exclude deleted charges
+      // ProjectCharge model doesn't have deletedAt field
     }
 
     // User filter - admins can see all, others see only their own
