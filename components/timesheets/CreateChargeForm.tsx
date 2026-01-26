@@ -179,7 +179,7 @@ export function CreateChargeForm({
               disabled={loading}
             >
               <option value="">Select a project</option>
-              {projects.map((project) => (
+              {Array.isArray(projects) && projects.map((project) => (
                 <option key={project.id} value={project.id}>
                   {project.name}
                 </option>

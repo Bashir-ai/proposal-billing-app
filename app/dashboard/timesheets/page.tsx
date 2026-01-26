@@ -52,43 +52,83 @@ export default function TimesheetsPage() {
 
   const fetchData = async () => {
     try {
+      setLoading(true)
       const [projectsRes, clientsRes, usersRes] = await Promise.all([
         fetch("/api/projects"),
         fetch("/api/clients"),
         fetch("/api/users"),
       ])
 
+      // Handle projects response (may be paginated or direct array)
       if (projectsRes.ok) {
-        const data = await projectsRes.json()
-        setProjects(data.map((p: any) => ({ id: p.id, name: p.name, clientId: p.clientId })))
+        const projectsData = await projectsRes.json()
+        const projectsArray = Array.isArray(projectsData) 
+          ? projectsData 
+          : (projectsData.data && Array.isArray(projectsData.data) ? projectsData.data : [])
+        console.log("Fetched projects:", projectsArray.length, "projects")
+        const mappedProjects = projectsArray
+          .filter((p: any) => p && !p.deletedAt && !p.archivedAt)
+          .map((p: any) => ({ 
+            id: p.id, 
+            name: p.name, 
+            clientId: p.clientId || p.client?.id || null
+          }))
+          .filter((p: any) => p.id) // Ensure we have valid projects
+        console.log("Mapped projects with clientId:", mappedProjects.length, "projects")
+        setProjects(mappedProjects)
+      } else {
+        const errorText = await projectsRes.text().catch(() => "Unknown error")
+        console.error("Failed to fetch projects:", projectsRes.status, errorText)
+        setProjects([])
       }
+
+      // Handle clients response (paginated format)
       if (clientsRes.ok) {
-        const data = await clientsRes.json()
-        setClients(
-          data
-            .filter((c: any) => !c.deletedAt && !c.archivedAt)
-            .map((c: any) => ({
-              id: c.id,
-              name: c.name,
-              company: c.company,
-            }))
-        )
+        const clientsData = await clientsRes.json()
+        const clientsArray = Array.isArray(clientsData)
+          ? clientsData
+          : (clientsData.data && Array.isArray(clientsData.data) ? clientsData.data : [])
+        console.log("Fetched clients:", clientsArray.length, "clients")
+        const filteredClients = clientsArray
+          .filter((c: any) => c && !c.deletedAt && !c.archivedAt)
+          .map((c: any) => ({
+            id: c.id,
+            name: c.name,
+            company: c.company,
+          }))
+        console.log("Filtered clients:", filteredClients.length, "clients")
+        setClients(filteredClients)
+      } else {
+        const errorText = await clientsRes.text().catch(() => "Unknown error")
+        console.error("Failed to fetch clients:", clientsRes.status, errorText)
+        setClients([])
       }
+
+      // Handle users response (direct array)
       if (usersRes.ok) {
-        const data = await usersRes.json()
-        setUsers(
-          data
-            .filter((u: any) => u.role !== "CLIENT")
-            .map((u: any) => ({
-              id: u.id,
-              name: u.name,
-              email: u.email,
-              defaultHourlyRate: u.defaultHourlyRate,
-            }))
-        )
+        const usersData = await usersRes.json()
+        const usersArray = Array.isArray(usersData) ? usersData : []
+        console.log("Fetched users:", usersArray.length, "users")
+        const filteredUsers = usersArray
+          .filter((u: any) => u && u.role !== "CLIENT")
+          .map((u: any) => ({
+            id: u.id,
+            name: u.name,
+            email: u.email,
+            defaultHourlyRate: u.defaultHourlyRate,
+          }))
+        console.log("Filtered users (non-CLIENT):", filteredUsers.length, "users")
+        setUsers(filteredUsers)
+      } else {
+        const errorText = await usersRes.text().catch(() => "Unknown error")
+        console.error("Failed to fetch users:", usersRes.status, errorText)
+        setUsers([])
       }
     } catch (error) {
       console.error("Failed to fetch data:", error)
+      setProjects([])
+      setClients([])
+      setUsers([])
     } finally {
       setLoading(false)
     }

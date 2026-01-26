@@ -221,7 +221,7 @@ export function CreateTimesheetEntryForm({
                 disabled={loading}
               >
                 <option value="">Select a project</option>
-                {projects.map((project) => (
+                {Array.isArray(projects) && projects.map((project) => (
                   <option key={project.id} value={project.id}>
                     {project.name}
                   </option>
@@ -239,7 +239,7 @@ export function CreateTimesheetEntryForm({
                 disabled={loading}
               >
                 <option value="">Select a user</option>
-                {users.map((user) => (
+                {Array.isArray(users) && users.map((user) => (
                   <option key={user.id} value={user.id}>
                     {user.name} {user.email ? `(${user.email})` : ""}
                   </option>

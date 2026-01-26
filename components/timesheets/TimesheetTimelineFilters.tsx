@@ -48,14 +48,15 @@ export function TimesheetTimelineFilters({
   }, [initialFilters])
 
   // Filter projects based on selected client
+  const projectsArray = Array.isArray(projects) ? projects : []
   const filteredProjects = localFilters.clientId
-    ? projects.filter((p) => p.clientId === localFilters.clientId)
-    : projects
+    ? projectsArray.filter((p) => p.clientId === localFilters.clientId)
+    : projectsArray
 
   // Clear projectId if selected project doesn't belong to selected client
   useEffect(() => {
-    if (localFilters.clientId && localFilters.projectId && projects.length > 0) {
-      const selectedProject = projects.find((p) => p.id === localFilters.projectId)
+    if (localFilters.clientId && localFilters.projectId && projectsArray.length > 0) {
+      const selectedProject = projectsArray.find((p) => p.id === localFilters.projectId)
       if (selectedProject && selectedProject.clientId !== localFilters.clientId) {
         const newFilters = {
           ...localFilters,
@@ -123,7 +124,7 @@ export function TimesheetTimelineFilters({
                 onChange={(e) => handleFilterChange("userId", e.target.value)}
               >
                 <option value="">All Users</option>
-                {users.map((user) => (
+                {Array.isArray(users) && users.map((user) => (
                   <option key={user.id} value={user.id}>
                     {user.name}
                   </option>
@@ -132,7 +133,7 @@ export function TimesheetTimelineFilters({
             </div>
           )}
 
-          {clients.length > 0 && (
+          {Array.isArray(clients) && clients.length > 0 && (
             <div className="space-y-1">
               <Label htmlFor="timeline-client" className="text-xs">Client</Label>
               <Select
@@ -150,7 +151,7 @@ export function TimesheetTimelineFilters({
             </div>
           )}
 
-          {filteredProjects.length > 0 && (
+          {Array.isArray(filteredProjects) && filteredProjects.length > 0 && (
             <div className="space-y-1">
               <Label htmlFor="timeline-project" className="text-xs">Project</Label>
               <Select
