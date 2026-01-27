@@ -236,6 +236,7 @@ export function CreateTimesheetEntryForm({
         rate: "",
       }))
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.projectId, formData.userId, projects, users])
 
 

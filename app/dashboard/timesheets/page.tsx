@@ -195,7 +195,11 @@ export default function TimesheetsPage() {
           </div>
           <TimesheetTimelineFilters
             users={users}
-            projects={projects}
+            projects={projects.map(p => ({ 
+              id: p.id, 
+              name: p.name, 
+              clientId: p.clientId || undefined 
+            }))}
             clients={clients}
             onFilterChange={setTimelineFilters}
             currentUserId={session.user.id}
@@ -213,7 +217,11 @@ export default function TimesheetsPage() {
         <TabsContent value="timeline">
           <TimesheetTimelineFilters
             users={users}
-            projects={projects}
+            projects={projects.map(p => ({ 
+              id: p.id, 
+              name: p.name, 
+              clientId: p.clientId || undefined 
+            }))}
             clients={clients}
             onFilterChange={setTimelineFilters}
             currentUserId={session.user.id}
