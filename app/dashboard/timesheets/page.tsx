@@ -16,7 +16,22 @@ import { LoadingState } from "@/components/shared/LoadingState"
 interface Project {
   id: string
   name: string
-  clientId?: string
+  clientId?: string | null
+  proposal?: {
+    id: string
+    type: string
+    blendedRate?: number | null
+    useBlendedRate?: boolean | null
+    hourlyRateRangeMin?: number | null
+    hourlyRateRangeMax?: number | null
+    hourlyRateTableRates?: any
+    items?: Array<{
+      id: string
+      personId?: string | null
+      rate?: number | null
+      billingMethod?: string | null
+    }>
+  } | null
 }
 
 interface Client {
@@ -71,7 +86,17 @@ export default function TimesheetsPage() {
           .map((p: any) => ({ 
             id: p.id, 
             name: p.name, 
-            clientId: p.clientId || p.client?.id || null
+            clientId: p.clientId || p.client?.id || null,
+            proposal: p.proposal ? {
+              id: p.proposal.id,
+              type: p.proposal.type,
+              blendedRate: p.proposal.blendedRate,
+              useBlendedRate: p.proposal.useBlendedRate,
+              hourlyRateRangeMin: p.proposal.hourlyRateRangeMin,
+              hourlyRateRangeMax: p.proposal.hourlyRateRangeMax,
+              hourlyRateTableRates: p.proposal.hourlyRateTableRates,
+              items: p.proposal.items || []
+            } : null
           }))
           .filter((p: any) => p.id) // Ensure we have valid projects
         console.log("Mapped projects with clientId:", mappedProjects.length, "projects")
@@ -207,6 +232,7 @@ export default function TimesheetsPage() {
       <CreateTimesheetEntryForm
         projects={projects}
         users={users}
+        clients={clients}
         isOpen={showCreateTimesheet}
         onClose={() => setShowCreateTimesheet(false)}
         onSuccess={() => {

@@ -109,7 +109,13 @@ export async function GET(request: Request) {
             id: true,
             title: true,
             amount: true,
+            type: true,
             createdBy: true,
+            blendedRate: true,
+            useBlendedRate: true,
+            hourlyRateRangeMin: true,
+            hourlyRateRangeMax: true,
+            hourlyRateTableRates: true,
             creator: {
               select: {
                 id: true,
@@ -122,6 +128,14 @@ export async function GET(request: Request) {
                 id: true,
                 name: true,
                 color: true,
+              },
+            },
+            items: {
+              select: {
+                id: true,
+                personId: true,
+                rate: true,
+                billingMethod: true,
               },
             },
           },

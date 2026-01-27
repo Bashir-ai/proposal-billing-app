@@ -16,16 +16,40 @@ interface User {
   name: string
   email: string
   defaultHourlyRate?: number | null
+  profile?: string | null
 }
 
 interface Project {
   id: string
   name: string
+  clientId?: string | null
+  proposal?: {
+    id: string
+    type: string
+    blendedRate?: number | null
+    useBlendedRate?: boolean | null
+    hourlyRateRangeMin?: number | null
+    hourlyRateRangeMax?: number | null
+    hourlyRateTableRates?: any
+    items?: Array<{
+      id: string
+      personId?: string | null
+      rate?: number | null
+      billingMethod?: string | null
+    }>
+  } | null
+}
+
+interface Client {
+  id: string
+  name: string
+  company?: string | null
 }
 
 interface CreateTimesheetEntryFormProps {
   projects: Project[]
   users: User[]
+  clients: Client[]
   isOpen: boolean
   onClose: () => void
   onSuccess: () => void
@@ -34,6 +58,7 @@ interface CreateTimesheetEntryFormProps {
 export function CreateTimesheetEntryForm({
   projects,
   users,
+  clients,
   isOpen,
   onClose,
   onSuccess,
@@ -53,6 +78,7 @@ export function CreateTimesheetEntryForm({
   }
 
   const [formData, setFormData] = useState({
+    clientId: "",
     projectId: "",
     userId: "",
     date: getTodayString(),
@@ -66,6 +92,7 @@ export function CreateTimesheetEntryForm({
   useEffect(() => {
     if (isOpen) {
       setFormData({
+        clientId: "",
         projectId: "",
         userId: "",
         date: getTodayString(),
@@ -80,18 +107,137 @@ export function CreateTimesheetEntryForm({
     }
   }, [isOpen])
 
-  // Update rate when user is selected
+  // Filter projects based on selected client
+  const filteredProjects = formData.clientId
+    ? projects.filter((p) => p.clientId === formData.clientId)
+    : projects
+
+  // Helper function to determine rate from proposal
+  const getProposalRate = (project: Project | undefined, userId: string | undefined): number | null => {
+    if (!project || !project.proposal || !userId) {
+      return null
+    }
+
+    const proposal = project.proposal
+    const user = users.find((u) => u.id === userId)
+    if (!user) {
+      return null
+    }
+
+    // Priority 1: Blended rate if enabled
+    if (proposal.useBlendedRate && proposal.blendedRate != null) {
+      return proposal.blendedRate
+    }
+
+    // Priority 2: User-specific rate from proposal items
+    if (proposal.items && Array.isArray(proposal.items)) {
+      const userItem = proposal.items.find(
+        (item) => item.personId === userId && item.rate != null && item.rate > 0
+      )
+      if (userItem) {
+        return userItem.rate!
+      }
+    }
+
+    // Priority 3: Hourly rate table rates (lookup by user profile or personId)
+    if (proposal.hourlyRateTableRates && typeof proposal.hourlyRateTableRates === 'object') {
+      const rateTable = proposal.hourlyRateTableRates as Record<string, any>
+      
+      // Try to find rate by user ID first
+      if (rateTable[userId]) {
+        const userRate = rateTable[userId]
+        if (typeof userRate === 'number' && userRate > 0) {
+          return userRate
+        }
+        if (typeof userRate === 'object' && userRate.rate && userRate.rate > 0) {
+          return userRate.rate
+        }
+      }
+
+      // Try to find rate by user profile
+      if (user.profile && rateTable[user.profile]) {
+        const profileRate = rateTable[user.profile]
+        if (typeof profileRate === 'number' && profileRate > 0) {
+          return profileRate
+        }
+        if (typeof profileRate === 'object' && profileRate.rate && profileRate.rate > 0) {
+          return profileRate.rate
+        }
+      }
+    }
+
+    // Priority 4: Hourly rate range minimum
+    if (proposal.hourlyRateRangeMin != null && proposal.hourlyRateRangeMin > 0) {
+      return proposal.hourlyRateRangeMin
+    }
+
+    return null
+  }
+
+  // Clear project selection when client changes (if selected project doesn't belong to new client)
   useEffect(() => {
-    if (formData.userId) {
+    if (formData.clientId && formData.projectId) {
+      const selectedProject = projects.find((p) => p.id === formData.projectId)
+      if (selectedProject && selectedProject.clientId !== formData.clientId) {
+        setFormData((prev) => ({
+          ...prev,
+          projectId: "",
+          rate: "",
+        }))
+      }
+    }
+  }, [formData.clientId, formData.projectId, projects])
+
+  // Update rate when project or user changes
+  useEffect(() => {
+    if (formData.projectId && formData.userId) {
+      const selectedProject = projects.find((p) => p.id === formData.projectId)
+      const proposalRate = getProposalRate(selectedProject, formData.userId)
+      
+      if (proposalRate != null) {
+        setFormData((prev) => ({
+          ...prev,
+          rate: proposalRate.toString(),
+        }))
+      } else {
+        // Fall back to user's default rate
+        const selectedUser = users.find((u) => u.id === formData.userId)
+        if (selectedUser && selectedUser.defaultHourlyRate != null) {
+          setFormData((prev) => ({
+            ...prev,
+            rate: selectedUser.defaultHourlyRate!.toString(),
+          }))
+        } else {
+          // No rate available, clear it
+          setFormData((prev) => ({
+            ...prev,
+            rate: "",
+          }))
+        }
+      }
+    } else if (formData.userId && !formData.projectId) {
+      // Only user selected, use default rate
       const selectedUser = users.find((u) => u.id === formData.userId)
       if (selectedUser && selectedUser.defaultHourlyRate != null) {
         setFormData((prev) => ({
           ...prev,
           rate: selectedUser.defaultHourlyRate!.toString(),
         }))
+      } else {
+        setFormData((prev) => ({
+          ...prev,
+          rate: "",
+        }))
       }
+    } else if (!formData.userId && formData.projectId) {
+      // Project selected but no user, clear rate
+      setFormData((prev) => ({
+        ...prev,
+        rate: "",
+      }))
     }
-  }, [formData.userId, users])
+  }, [formData.projectId, formData.userId, projects, users])
+
 
   // Handle hours input change - support both "1:30" and "1,5" formats
   const handleHoursInputChange = (value: string) => {
@@ -212,6 +358,23 @@ export function CreateTimesheetEntryForm({
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
+              <Label htmlFor="clientId">Client</Label>
+              <Select
+                id="clientId"
+                value={formData.clientId}
+                onChange={(e) => setFormData({ ...formData, clientId: e.target.value, projectId: "" })}
+                disabled={loading}
+              >
+                <option value="">All Clients</option>
+                {Array.isArray(clients) && clients.map((client) => (
+                  <option key={client.id} value={client.id}>
+                    {client.name} {client.company ? `(${client.company})` : ""}
+                  </option>
+                ))}
+              </Select>
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="projectId">Project *</Label>
               <Select
                 id="projectId"
@@ -221,7 +384,7 @@ export function CreateTimesheetEntryForm({
                 disabled={loading}
               >
                 <option value="">Select a project</option>
-                {Array.isArray(projects) && projects.map((project) => (
+                {Array.isArray(filteredProjects) && filteredProjects.map((project) => (
                   <option key={project.id} value={project.id}>
                     {project.name}
                   </option>
@@ -306,10 +469,27 @@ export function CreateTimesheetEntryForm({
                 min="0"
                 value={formData.rate}
                 onChange={(e) => setFormData({ ...formData, rate: e.target.value })}
-                placeholder="Will use user's default rate if not provided"
+                placeholder="Rate from proposal or user default"
                 disabled={loading}
               />
-              {formData.userId && (
+              {formData.projectId && formData.userId && (
+                <p className="text-xs text-gray-500">
+                  {(() => {
+                    const selectedProject = projects.find((p) => p.id === formData.projectId)
+                    const proposalRate = getProposalRate(selectedProject, formData.userId)
+                    const selectedUser = users.find((u) => u.id === formData.userId)
+                    
+                    if (proposalRate != null) {
+                      return `Rate from proposal: ${proposalRate}`
+                    } else if (selectedUser?.defaultHourlyRate != null) {
+                      return `Using user's default rate: ${selectedUser.defaultHourlyRate}`
+                    } else {
+                      return "No rate set in proposal or user profile"
+                    }
+                  })()}
+                </p>
+              )}
+              {formData.userId && !formData.projectId && (
                 <p className="text-xs text-gray-500">
                   {users.find((u) => u.id === formData.userId)?.defaultHourlyRate
                     ? `User's default rate: ${users.find((u) => u.id === formData.userId)?.defaultHourlyRate}`
