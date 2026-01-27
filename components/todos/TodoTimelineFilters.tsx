@@ -9,11 +9,12 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
 import { X, Filter } from "lucide-react"
 import { TodoStatus, TodoPriority } from "@prisma/client"
+import { formatClientName } from "@/lib/utils"
 
 interface TodoTimelineFiltersProps {
   projects: Array<{ id: string; name: string }>
   users: Array<{ id: string; name: string }>
-  clients?: Array<{ id: string; name: string; company?: string | null }>
+  clients?: Array<{ id: string; name: string; clientCode?: number | null; company?: string | null }>
   onFilterChange: (filters: TodoTimelineFilters) => void
   defaultAssignedTo?: string
   initialFilters?: TodoTimelineFilters
@@ -165,7 +166,7 @@ export function TodoTimelineFilters({
                 <option value="">All Clients</option>
                 {clients.map((client) => (
                   <option key={client.id} value={client.id}>
-                    {client.name} {client.company ? `(${client.company})` : ""}
+                    {formatClientName(client)} {client.company ? `(${client.company})` : ""}
                   </option>
                 ))}
               </Select>

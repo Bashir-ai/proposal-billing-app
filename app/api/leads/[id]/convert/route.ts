@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
+import { generateClientCode } from "@/lib/client-code"
 
 const convertSchema = z.object({
   keepLeadRecord: z.boolean().default(true), // Whether to keep the lead record after conversion
@@ -53,6 +54,9 @@ export async function POST(
     const body = await request.json()
     const validatedData = convertSchema.parse(body)
 
+    // Generate client code
+    const clientCode = await generateClientCode()
+
     // Create client from lead data
     const client = await prisma.client.create({
       data: {
@@ -60,6 +64,7 @@ export async function POST(
         email: lead.email,
         company: lead.company,
         contactInfo: lead.contactInfo,
+        clientCode: clientCode,
         billingAddressLine: lead.addressLine,
         billingCity: lead.city,
         billingState: lead.state,

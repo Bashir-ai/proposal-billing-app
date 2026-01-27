@@ -7,11 +7,12 @@ import { Select } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { X } from "lucide-react"
+import { formatClientName } from "@/lib/utils"
 
 interface TimesheetTimelineFiltersProps {
   users: Array<{ id: string; name: string }>
   projects?: Array<{ id: string; name: string; clientId?: string }>
-  clients?: Array<{ id: string; name: string; company?: string | null }>
+  clients?: Array<{ id: string; name: string; clientCode?: number | null; company?: string | null }>
   onFilterChange: (filters: TimesheetTimelineFilters) => void
   currentUserId: string
   userRole: string
@@ -144,7 +145,7 @@ export function TimesheetTimelineFilters({
                 <option value="">All Clients</option>
                 {clients.map((client) => (
                   <option key={client.id} value={client.id}>
-                    {client.name} {client.company ? `(${client.company})` : ""}
+                    {formatClientName(client)} {client.company ? `(${client.company})` : ""}
                   </option>
                 ))}
               </Select>

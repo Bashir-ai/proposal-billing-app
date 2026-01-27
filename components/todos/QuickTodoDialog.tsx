@@ -10,6 +10,7 @@ import { Select } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { X } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { formatClientName } from "@/lib/utils"
 
 interface QuickTodoDialogProps {
   open: boolean
@@ -22,7 +23,7 @@ export function QuickTodoDialog({ open, onOpenChange }: QuickTodoDialogProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [users, setUsers] = useState<Array<{ id: string; name: string; email: string }>>([])
-  const [clients, setClients] = useState<Array<{ id: string; name: string; company?: string | null }>>([])
+  const [clients, setClients] = useState<Array<{ id: string; name: string; clientCode?: number | null; company?: string | null }>>([])
   const [leads, setLeads] = useState<Array<{ id: string; name: string; company?: string | null }>>([])
   const [projects, setProjects] = useState<Array<{ id: string; name: string; clientId: string }>>([])
   const [filteredProjects, setFilteredProjects] = useState<Array<{ id: string; name: string; clientId: string }>>([])
@@ -219,7 +220,7 @@ export function QuickTodoDialog({ open, onOpenChange }: QuickTodoDialogProps) {
                 <option value="">No client</option>
                 {clients.map((client) => (
                   <option key={client.id} value={client.id}>
-                    {client.name} {client.company ? `(${client.company})` : ""}
+                    {formatClientName(client)} {client.company ? `(${client.company})` : ""}
                   </option>
                 ))}
               </Select>

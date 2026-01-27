@@ -9,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Trash2, Archive } from "lucide-react"
 import { BulkDeleteDialog } from "@/components/clients/BulkDeleteDialog"
 import { ProjectStatus } from "@prisma/client"
-import { formatDate, formatCurrency } from "@/lib/utils"
+import { formatDate, formatCurrency, formatClientName } from "@/lib/utils"
 
 interface Project {
   id: string
@@ -395,7 +395,7 @@ export function ProjectsList({ projects, isAdmin, isManager = false }: ProjectsL
                             )}
                           </div>
                           <p className="text-sm text-gray-600 mb-2">
-                            Client: {project.client.name}
+                            Client: {formatClientName(project.client)}
                             {project.client.company && ` (${project.client.company})`}
                           </p>
                           {project.description && (

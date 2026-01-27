@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { AlertCircle, RefreshCw, Check, Plus } from "lucide-react"
 import Link from "next/link"
-import { formatDate, cn } from "@/lib/utils"
+import { formatDate, formatClientName, cn } from "@/lib/utils"
 import { ChevronDown, ChevronUp } from "lucide-react"
 import { toast } from "sonner"
 
@@ -18,6 +18,7 @@ interface Notification {
   invoiceNumber?: string
   client?: {
     name: string
+    clientCode?: number | null
     company?: string | null
   } | null
   createdAt: string
@@ -360,7 +361,7 @@ function NotificationItem({
               <div className="mt-2 space-y-1">
                 {notification.client && (
                   <p className="text-xs text-gray-500">
-                    <span className="font-medium">Client:</span> {notification.client.name}
+                    <span className="font-medium">Client:</span> {formatClientName(notification.client)}
                     {notification.client.company && ` • ${notification.client.company}`}
                   </p>
                 )}

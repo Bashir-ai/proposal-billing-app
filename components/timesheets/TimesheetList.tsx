@@ -5,9 +5,8 @@ import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { formatDate, formatCurrency } from "@/lib/utils"
+import { formatDate, formatCurrency, formatClientName, cn } from "@/lib/utils"
 import { Clock, DollarSign, Trash2, Pencil } from "lucide-react"
-import { cn } from "@/lib/utils"
 import Link from "next/link"
 import { TimesheetEntryForm } from "@/components/projects/TimesheetEntryForm"
 
@@ -486,7 +485,7 @@ export function TimesheetList({ initialFilters, currentUserId, userRole }: Times
                             {charge.project.name}
                           </Link>
                         </td>
-                        <td className="p-2">{charge.project.client.name}</td>
+                        <td className="p-2">{formatClientName(charge.project.client)}</td>
                         <td className="p-2 max-w-xs truncate" title={charge.description}>
                           {charge.description}
                         </td>

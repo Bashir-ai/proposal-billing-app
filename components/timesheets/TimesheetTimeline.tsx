@@ -3,9 +3,8 @@
 import { useState, useEffect, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { formatDate, formatCurrency } from "@/lib/utils"
+import { formatDate, formatCurrency, formatClientName, cn } from "@/lib/utils"
 import { ChevronLeft, ChevronRight, Calendar, Clock, DollarSign } from "lucide-react"
-import { cn } from "@/lib/utils"
 
 interface TimesheetEntry {
   id: string
@@ -320,7 +319,7 @@ export function TimesheetTimeline({ initialFilters, currentUserId, userRole }: T
                                         ? "bg-blue-50 border-blue-300 text-blue-800"
                                         : "bg-gray-50 border-gray-300 text-gray-800"
                                     )}
-                                    title={`${entry.description || "No description"}\nHours: ${entry.hours}\nRate: ${entry.rate ? formatCurrency(entry.rate, "EUR") : "N/A"}\nUser: ${entry.user.name}\nProject: ${entry.project.name}\nClient: ${entry.project.client.name}\nBilled: ${entry.billed ? "Yes" : "No"}`}
+                                    title={`${entry.description || "No description"}\nHours: ${entry.hours}\nRate: ${entry.rate ? formatCurrency(entry.rate, "EUR") : "N/A"}\nUser: ${entry.user.name}\nProject: ${entry.project.name}\nClient: ${formatClientName(entry.project.client)}\nBilled: ${entry.billed ? "Yes" : "No"}`}
                                   >
                                     <div className="flex items-center gap-1 mb-1">
                                       <Clock className="h-3 w-3" />
@@ -342,7 +341,7 @@ export function TimesheetTimeline({ initialFilters, currentUserId, userRole }: T
                                         ? "bg-purple-50 border-purple-300 text-purple-800"
                                         : "bg-orange-50 border-orange-300 text-orange-800"
                                     )}
-                                    title={`${charge.description}\nAmount: ${formatCurrency(charge.amount, "EUR")}\nQuantity: ${charge.quantity || 1}\nUnit Price: ${charge.unitPrice ? formatCurrency(charge.unitPrice, "EUR") : "N/A"}\nProject: ${charge.project.name}\nClient: ${charge.project.client.name}\nBilled: ${charge.billed ? "Yes" : "No"}`}
+                                    title={`${charge.description}\nAmount: ${formatCurrency(charge.amount, "EUR")}\nQuantity: ${charge.quantity || 1}\nUnit Price: ${charge.unitPrice ? formatCurrency(charge.unitPrice, "EUR") : "N/A"}\nProject: ${charge.project.name}\nClient: ${formatClientName(charge.project.client)}\nBilled: ${charge.billed ? "Yes" : "No"}`}
                                   >
                                     <div className="flex items-center gap-1 mb-1">
                                       <DollarSign className="h-3 w-3" />

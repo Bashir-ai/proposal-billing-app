@@ -13,6 +13,19 @@ export function formatCurrency(amount: number, currency: string = 'EUR'): string
 }
 
 /**
+ * Format client name with client code in format "client name" - "XXX.000"
+ * @param client - Client object with name and optional clientCode
+ * @returns Formatted client name string
+ */
+export function formatClientName(client: { name: string; clientCode?: number | null }): string {
+  if (client.clientCode != null && client.clientCode > 0) {
+    const codeStr = String(client.clientCode).padStart(3, '0')
+    return `${client.name} - ${codeStr}.000`
+  }
+  return client.name
+}
+
+/**
  * Get user's timezone, with fallback to UTC
  * @param userTimezone - Optional timezone string from user settings
  * @returns IANA timezone string (defaults to "UTC")

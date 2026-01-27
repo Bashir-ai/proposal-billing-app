@@ -9,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Trash2 } from "lucide-react"
 import { BulkDeleteDialog } from "@/components/clients/BulkDeleteDialog"
 import { ProposalStatus, ProposalType, ClientApprovalStatus } from "@prisma/client"
-import { formatCurrency, formatDate } from "@/lib/utils"
+import { formatCurrency, formatDate, formatClientName } from "@/lib/utils"
 
 interface Proposal {
   id: string
@@ -25,6 +25,7 @@ interface Proposal {
   client: {
     id: string
     name: string
+    clientCode?: number | null
     company?: string | null
   } | null
   lead?: {
@@ -243,7 +244,7 @@ export function ProposalsList({ proposals, isAdmin }: ProposalsListProps) {
                         </p>
                       )}
                       <p className="text-sm text-gray-600 mb-2">
-                        {proposal.client ? `Client: ${proposal.client.name}` : proposal.lead ? `Lead: ${proposal.lead.name}` : "No client/lead"}
+                        {proposal.client ? `Client: ${formatClientName(proposal.client)}` : proposal.lead ? `Lead: ${proposal.lead.name}` : "No client/lead"}
                         {proposal.amount && ` • ${formatCurrency(proposal.amount)}`}
                       </p>
                       {proposal.description && (

@@ -1054,7 +1054,7 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                 <option value="">Select a client</option>
                 {clients.map((client) => (
                   <option key={client.id} value={client.id}>
-                    {client.name} {client.company ? `(${client.company})` : ""}
+                    {formatClientName(client)} {client.company ? `(${client.company})` : ""}
                   </option>
                 ))}
               </Select>

@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { useRouter } from "next/navigation"
+import { formatClientName } from "@/lib/utils"
 
 interface TodoFormProps {
   initialData?: {
@@ -33,7 +34,7 @@ interface TodoFormProps {
   proposals?: Array<{ id: string; title: string; proposalNumber?: string | null }>
   proposalItems?: Array<{ id: string; description: string }>
   invoices?: Array<{ id: string; invoiceNumber?: string | null }>
-  clients?: Array<{ id: string; name: string; company?: string | null }>
+  clients?: Array<{ id: string; name: string; clientCode?: number | null; company?: string | null }>
   leads?: Array<{ id: string; name: string; company?: string | null }>
   users?: Array<{ id: string; name: string; email: string; role?: string }>
   creator?: { id: string; role: string }
@@ -421,7 +422,7 @@ export function TodoForm({
                 <option value="">No client</option>
                 {clients.map((client) => (
                   <option key={client.id} value={client.id}>
-                    {client.name} {client.company ? `(${client.company})` : ""}
+                    {formatClientName(client)} {client.company ? `(${client.company})` : ""}
                   </option>
                 ))}
               </Select>

@@ -2,9 +2,10 @@
 
 import { useRouter, useSearchParams } from "next/navigation"
 import { Select } from "@/components/ui/select"
+import { formatClientName } from "@/lib/utils"
 
 interface InvoiceClientFilterProps {
-  clients: Array<{ id: string; name: string; company?: string | null }>
+  clients: Array<{ id: string; name: string; clientCode?: number | null; company?: string | null }>
 }
 
 export function InvoiceClientFilter({ clients }: InvoiceClientFilterProps) {
@@ -33,7 +34,7 @@ export function InvoiceClientFilter({ clients }: InvoiceClientFilterProps) {
       <option value="ALL">All Clients</option>
       {clients.map((client) => (
         <option key={client.id} value={client.id}>
-          {client.name} {client.company ? `(${client.company})` : ""}
+          {formatClientName(client)} {client.company ? `(${client.company})` : ""}
         </option>
       ))}
     </Select>

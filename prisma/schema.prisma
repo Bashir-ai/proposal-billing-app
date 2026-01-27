@@ -293,6 +293,8 @@ model Client {
   createdBy              String
   defaultDiscountPercent Float?
   defaultDiscountAmount  Float?
+  // Client code - auto-generated 3-digit number
+  clientCode             Int?     @unique
   // New fields
   portugueseTaxNumber    String?
   foreignTaxNumber       String?
@@ -322,6 +324,7 @@ model Client {
   @@index([createdBy])
   @@index([deletedAt, archivedAt])
   @@index([createdAt])
+  @@index([clientCode])
 
   // Relations
   creator       User            @relation("ClientCreator", fields: [createdBy], references: [id])

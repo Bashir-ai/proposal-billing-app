@@ -13,15 +13,18 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertTriangle, CheckCircle2, XCircle } from "lucide-react"
+import { formatClientName } from "@/lib/utils"
 
 interface DeletableClient {
   id: string
   name: string
+  clientCode?: number | null
 }
 
 interface NonDeletableClient {
   id: string
   name: string
+  clientCode?: number | null
   reason: string
 }
 
@@ -136,7 +139,7 @@ export function BulkDeleteDialog({
                       disabled={isDeleting}
                     />
                     <label className="flex-1 text-sm cursor-pointer">
-                      {client.name}
+                      {formatClientName(client)}
                     </label>
                   </div>
                 ))}
@@ -157,7 +160,7 @@ export function BulkDeleteDialog({
                   <Alert key={client.id} variant="destructive" className="py-2 border-red-200 bg-red-50">
                     <AlertTriangle className="h-4 w-4 text-red-600" />
                     <AlertDescription className="text-sm text-red-800">
-                      <strong>{client.name}</strong>: {client.reason}
+                      <strong>{formatClientName(client)}</strong>: {client.reason}
                     </AlertDescription>
                   </Alert>
                 ))}

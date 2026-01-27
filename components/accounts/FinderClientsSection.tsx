@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { formatCurrency, formatDate } from "@/lib/utils"
+import { formatCurrency, formatDate, formatClientName } from "@/lib/utils"
 import { ChevronDown, ChevronUp, FolderKanban, Receipt, Clock, DollarSign, CheckCircle2, AlertCircle, XCircle } from "lucide-react"
 
 interface FinderClient {
@@ -117,7 +117,7 @@ export function FinderClientsSection({ clients, loading }: FinderClientsSectionP
               <div className="flex items-center justify-between">
                 <div className="flex-1">
                   <CardTitle className="text-lg">
-                    {client.name}
+                    {formatClientName(client)}
                     {client.company && <span className="text-gray-600 ml-2">({client.company})</span>}
                   </CardTitle>
                   <p className="text-sm text-gray-600 mt-1">

@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import { isDatabaseConnectionError, getDatabaseErrorMessage } from "@/lib/database-error-handler"
+import { generateClientCode } from "@/lib/client-code"
 
 const contactPersonSchema = z.object({
   id: z.string().optional(),
@@ -131,12 +132,16 @@ export async function POST(request: Request) {
     const body = await request.json()
     const validatedData = clientSchema.parse(body)
 
+    // Generate client code
+    const clientCode = await generateClientCode()
+
     const client = await prisma.client.create({
       data: {
         name: validatedData.name,
         email: validatedData.email || null,
         company: validatedData.company || null,
         contactInfo: validatedData.contactInfo || null,
+        clientCode: clientCode,
         portugueseTaxNumber: validatedData.portugueseTaxNumber || null,
         foreignTaxNumber: validatedData.foreignTaxNumber || null,
         kycCompleted: validatedData.kycCompleted || false,

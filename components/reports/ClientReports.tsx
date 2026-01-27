@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { formatCurrency, formatDate } from "@/lib/utils"
+import { formatCurrency, formatDate, formatClientName } from "@/lib/utils"
 import { FinancialSummary } from "@/components/dashboard/FinancialSummary"
 import { Clock, Users, FolderKanban, CheckSquare, Receipt, FileText } from "lucide-react"
 import { Input } from "@/components/ui/input"
@@ -105,7 +105,7 @@ export function ClientReports() {
                 <option value="">All Clients</option>
                 {allClients.map((client) => (
                   <option key={client.id} value={client.id}>
-                    {client.name} {client.email ? `(${client.email})` : ""}
+                    {formatClientName(client)} {client.email ? `(${client.email})` : ""}
                   </option>
                 ))}
               </select>

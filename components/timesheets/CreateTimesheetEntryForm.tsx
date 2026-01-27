@@ -9,7 +9,7 @@ import { Select } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { toast } from "sonner"
-import { parseHoursInput } from "@/lib/utils"
+import { parseHoursInput, formatClientName } from "@/lib/utils"
 
 interface User {
   id: string
@@ -43,6 +43,7 @@ interface Project {
 interface Client {
   id: string
   name: string
+  clientCode?: number | null
   company?: string | null
 }
 
@@ -369,7 +370,7 @@ export function CreateTimesheetEntryForm({
                 <option value="">All Clients</option>
                 {Array.isArray(clients) && clients.map((client) => (
                   <option key={client.id} value={client.id}>
-                    {client.name} {client.company ? `(${client.company})` : ""}
+                    {formatClientName(client)} {client.company ? `(${client.company})` : ""}
                   </option>
                 ))}
               </Select>

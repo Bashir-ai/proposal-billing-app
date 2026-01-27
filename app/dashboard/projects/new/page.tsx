@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Select } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { formatClientName } from "@/lib/utils"
 
 export default function NewProjectPage() {
   const router = useRouter()
@@ -17,7 +18,7 @@ export default function NewProjectPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [proposal, setProposal] = useState<any>(null)
-  const [clients, setClients] = useState<Array<{ id: string; name: string; company?: string | null }>>([])
+  const [clients, setClients] = useState<Array<{ id: string; name: string; clientCode?: number | null; company?: string | null }>>([])
   const [formData, setFormData] = useState({
     clientId: "",
     name: "",
@@ -45,7 +46,13 @@ export default function NewProjectPage() {
 
     fetch("/api/clients")
       .then((res) => res.json())
-      .then((data) => setClients(data))
+      .then((data) => {
+        // Handle paginated response
+        const clientsArray = Array.isArray(data) 
+          ? data 
+          : (data.data && Array.isArray(data.data) ? data.data : [])
+        setClients(clientsArray.filter((c: any) => c && !c.deletedAt && !c.archivedAt))
+      })
       .catch(console.error)
   }, [proposalId])
 
@@ -118,9 +125,9 @@ export default function NewProjectPage() {
                 disabled={!!proposalId}
               >
                 <option value="">Select a client</option>
-                {clients.map((client) => (
+                {Array.isArray(clients) && clients.map((client) => (
                   <option key={client.id} value={client.id}>
-                    {client.name} {client.company ? `(${client.company})` : ""}
+                    {formatClientName(client)} {client.company ? `(${client.company})` : ""}
                   </option>
                 ))}
               </Select>

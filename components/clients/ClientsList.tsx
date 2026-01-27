@@ -8,10 +8,12 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Trash2 } from "lucide-react"
 import { BulkDeleteDialog } from "./BulkDeleteDialog"
+import { formatClientName } from "@/lib/utils"
 
 interface Client {
   id: string
   name: string
+  clientCode?: number | null
   company: string | null
   email: string | null
   kycCompleted: boolean
@@ -209,7 +211,7 @@ export function ClientsList({ clients, isAdmin }: ClientsListProps) {
                 } ${selectedClients.has(client.id) ? "ring-2 ring-primary" : ""}`}
               >
                 <CardHeader>
-                  <CardTitle>{client.name}</CardTitle>
+                  <CardTitle>{formatClientName(client)}</CardTitle>
                   {client.company && (
                     <p className="text-sm text-gray-600">{client.company}</p>
                   )}
