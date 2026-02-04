@@ -219,7 +219,7 @@ export default async function ClientDetailPage({
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle>Recent Proposals</CardTitle>
-              <Link href="/dashboard/proposals/new">
+              <Link href={`/dashboard/proposals/new?clientId=${client.id}`}>
                 <Button size="sm" variant="outline">
                   New Proposal
                 </Button>
@@ -286,6 +286,43 @@ export default async function ClientDetailPage({
                         </p>
                         <p className="text-sm text-gray-500">
                           {bill.status} • {formatDate(bill.createdAt)}
+                        </p>
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle>Recent Projects</CardTitle>
+              <Link href={`/dashboard/projects/new?clientId=${client.id}`}>
+                <Button size="sm" variant="outline">
+                  New Project
+                </Button>
+              </Link>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {client.projects.length === 0 ? (
+              <p className="text-sm text-gray-500">No projects yet</p>
+            ) : (
+              <div className="space-y-2">
+                {client.projects.slice(0, 5).map((project) => (
+                  <Link
+                    key={project.id}
+                    href={`/dashboard/projects/${project.id}`}
+                    className="block p-2 rounded hover:bg-gray-50"
+                  >
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <p className="font-medium">{project.name}</p>
+                        <p className="text-sm text-gray-500">
+                          {project.status} • {formatDate(project.createdAt)}
                         </p>
                       </div>
                     </div>

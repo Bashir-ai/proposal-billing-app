@@ -36,6 +36,7 @@ const clientSchema = z.object({
   billingZipCode: z.string().optional().nullable(),
   billingCountry: z.string().optional().nullable(),
   clientManagerId: z.union([z.string().min(1), z.literal("")]).optional().nullable(),
+  clientCode: z.number().int().min(1).max(999).optional().nullable(),
   referrerName: z.string().optional().nullable(),
   referrerContactInfo: z.string().optional().nullable(),
   finders: z.array(clientFinderSchema).optional(),
@@ -260,6 +261,21 @@ export async function PUT(
     }
     if (validatedData.clientManagerId !== undefined) {
       updateData.clientManagerId = validatedData.clientManagerId || null
+    }
+    if (validatedData.clientCode !== undefined) {
+      // If clientCode is provided, validate it's unique (unless it's the same as current)
+      if (validatedData.clientCode !== null) {
+        const existing = await prisma.client.findUnique({
+          where: { clientCode: validatedData.clientCode },
+        })
+        if (existing && existing.id !== id) {
+          return NextResponse.json(
+            { error: `Client code ${validatedData.clientCode} is already in use` },
+            { status: 400 }
+          )
+        }
+      }
+      updateData.clientCode = validatedData.clientCode
     }
     if (validatedData.referrerName !== undefined) {
       updateData.referrerName = validatedData.referrerName || null

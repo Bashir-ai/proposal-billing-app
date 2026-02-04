@@ -132,7 +132,7 @@ export default async function LeadsPage({
   const convertedLeads = await prisma.lead.count({
     where: {
       deletedAt: null,
-      status: "CONVERTED",
+      convertedToClientId: { not: null }, // Count leads that have been converted to clients
     },
   })
   

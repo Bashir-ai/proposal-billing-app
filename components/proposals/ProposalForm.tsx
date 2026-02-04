@@ -1340,8 +1340,8 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                 step="0.01"
                 min="0"
                 max="100"
-                value={formData.clientDiscountPercent}
-                onChange={(e) => setFormData({ ...formData, clientDiscountPercent: parseFloat(e.target.value) || 0 })}
+                value={formData.clientDiscountPercent ?? ""}
+                onChange={(e) => setFormData({ ...formData, clientDiscountPercent: e.target.value === "" ? undefined : parseFloat(e.target.value) })}
               />
             </div>
           )}
@@ -1354,8 +1354,8 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                 type="number"
                 step="0.01"
                 min="0"
-                value={formData.clientDiscountAmount}
-                onChange={(e) => setFormData({ ...formData, clientDiscountAmount: parseFloat(e.target.value) || 0 })}
+                value={formData.clientDiscountAmount ?? ""}
+                onChange={(e) => setFormData({ ...formData, clientDiscountAmount: e.target.value === "" ? undefined : parseFloat(e.target.value) })}
               />
             </div>
           )}
@@ -1435,8 +1435,8 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                             type="number"
                             step="0.01"
                             min="0"
-                            value={formData.cappedAmount}
-                            onChange={(e) => setFormData({ ...formData, cappedAmount: parseFloat(e.target.value) || 0 })}
+                            value={formData.cappedAmount ?? ""}
+                            onChange={(e) => setFormData({ ...formData, cappedAmount: e.target.value === "" ? undefined : parseFloat(e.target.value) })}
                           />
                         </div>
                       </CardContent>
@@ -1459,8 +1459,8 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                               type="number"
                               step="0.01"
                               min="0"
-                              value={formData.retainerMonthlyAmount}
-                              onChange={(e) => setFormData({ ...formData, retainerMonthlyAmount: parseFloat(e.target.value) || 0 })}
+                              value={formData.retainerMonthlyAmount ?? ""}
+                              onChange={(e) => setFormData({ ...formData, retainerMonthlyAmount: e.target.value === "" ? undefined : parseFloat(e.target.value) })}
                               required
                             />
                           </div>
@@ -1471,8 +1471,8 @@ export function ProposalForm({ onSubmit, initialData, clients, leads = [], users
                               type="number"
                               step="0.25"
                               min="0"
-                              value={formData.retainerHoursPerMonth}
-                              onChange={(e) => setFormData({ ...formData, retainerHoursPerMonth: parseFloat(e.target.value) || 0 })}
+                              value={formData.retainerHoursPerMonth ?? ""}
+                              onChange={(e) => setFormData({ ...formData, retainerHoursPerMonth: e.target.value === "" ? undefined : parseFloat(e.target.value) })}
                               required
                             />
                             <p className="text-xs text-gray-500">Number of hours included in the monthly retainer</p>

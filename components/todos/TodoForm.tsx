@@ -24,6 +24,8 @@ interface TodoFormProps {
     leadId?: string
     assignedTo?: string
     assignments?: Array<{ user?: { id: string }; userId?: string }>
+    followers?: Array<{ user?: { id: string }; userId?: string }>
+    tags?: Array<{ id: string; name: string; color?: string | null }>
     priority?: string
     isPersonal?: boolean
     startDate?: string
@@ -76,6 +78,14 @@ export function TodoForm({
     return []
   }
 
+  // Get initial followers
+  const getInitialFollowers = () => {
+    if (initialData?.followers && Array.isArray(initialData.followers) && initialData.followers.length > 0) {
+      return initialData.followers.map((f: any) => f.user?.id || f.userId).filter(Boolean)
+    }
+    return []
+  }
+
   const [formData, setFormData] = useState({
     title: initialData?.title || "",
     description: initialData?.description || "",
@@ -87,12 +97,17 @@ export function TodoForm({
     leadId: initialData?.leadId || "",
     assignedTo: initialData?.assignedTo || "", // Keep for backward compatibility
     assignedUsers: getInitialAssignedUsers(), // New: array of user IDs
+    followers: getInitialFollowers(), // Array of user IDs who follow this todo
+    tagIds: initialData?.tags ? initialData.tags.map(t => t.id) : [], // Array of tag IDs
     priority: initialData?.priority || "MEDIUM",
     isPersonal: initialData?.isPersonal || false,
     startDate: initialData?.startDate ? new Date(initialData.startDate).toISOString().split("T")[0] : "",
     estimatedEndDate: initialData?.estimatedEndDate ? new Date(initialData.estimatedEndDate).toISOString().split("T")[0] : "",
     dueDate: initialData?.dueDate ? new Date(initialData.dueDate).toISOString().split("T")[0] : "",
   })
+  const [tags, setTags] = useState<Array<{ id: string; name: string; color?: string | null }>>([])
+  const [newTagName, setNewTagName] = useState("")
+  const [newTagColor, setNewTagColor] = useState("#3b82f6")
 
   const [filteredProjects, setFilteredProjects] = useState(projects)
   const [projectSearchTerm, setProjectSearchTerm] = useState("")
@@ -213,6 +228,18 @@ export function TodoForm({
     }
   }, [formData.proposalId])
 
+  // Fetch tags on mount
+  useEffect(() => {
+    fetch("/api/todos/tags")
+      .then((res) => res.json())
+      .then((data) => {
+        setTags(data)
+      })
+      .catch((error) => {
+        console.error("Failed to fetch tags:", error)
+      })
+  }, [])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
@@ -253,6 +280,8 @@ export function TodoForm({
         assignedTo: formData.isPersonal 
           ? session?.user?.id 
           : (formData.assignedUsers.length > 0 ? formData.assignedUsers : (formData.assignedTo ? [formData.assignedTo] : [session?.user?.id])),
+        followers: formData.followers || [],
+        tagIds: formData.tagIds || [],
         startDate: formData.startDate || undefined,
         estimatedEndDate: formData.estimatedEndDate || undefined,
         dueDate: formData.dueDate || undefined,
@@ -324,28 +353,46 @@ export function TodoForm({
             <div className="space-y-2">
               <Label htmlFor="assignedUsers">Assign To *</Label>
               <div className="space-y-2">
-                <Select
-                  id="assignedUsers"
-                  multiple
-                  value={formData.assignedUsers}
-                  onChange={(e) => {
-                    const selectedOptions = Array.from(e.target.selectedOptions, option => option.value)
-                    setFormData({ 
-                      ...formData, 
-                      assignedUsers: selectedOptions,
-                      assignedTo: selectedOptions[0] || "", // Keep first for backward compatibility
-                    })
-                  }}
-                  required={!formData.isPersonal && formData.assignedUsers.length === 0}
-                  disabled={formData.isPersonal}
-                  className="min-h-[100px]"
-                >
-                  {users.map((user) => (
-                    <option key={user.id} value={user.id}>
-                      {user.name} ({user.email})
-                    </option>
-                  ))}
-                </Select>
+                <div className="border rounded-md p-2 min-h-[100px] max-h-48 overflow-y-auto">
+                  {users.map((user) => {
+                    const isSelected = formData.assignedUsers.includes(user.id)
+                    return (
+                      <div
+                        key={user.id}
+                        className="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded cursor-pointer"
+                        onClick={() => {
+                          if (formData.isPersonal) return
+                          if (isSelected) {
+                            const newUsers = formData.assignedUsers.filter(id => id !== user.id)
+                            setFormData({ 
+                              ...formData, 
+                              assignedUsers: newUsers,
+                              assignedTo: newUsers[0] || "",
+                            })
+                          } else {
+                            const newUsers = [...formData.assignedUsers, user.id]
+                            setFormData({ 
+                              ...formData, 
+                              assignedUsers: newUsers,
+                              assignedTo: newUsers[0] || "",
+                            })
+                          }
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => {}} // Handled by parent div onClick
+                          disabled={formData.isPersonal}
+                          className="h-4 w-4 rounded border-gray-300"
+                        />
+                        <span className={`text-sm ${isSelected ? "font-medium" : ""}`}>
+                          {user.name} ({user.email})
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
                 {formData.assignedUsers.length > 0 && (
                   <div className="flex flex-wrap gap-2 mt-2">
                     {formData.assignedUsers.map((userId) => {
@@ -383,9 +430,79 @@ export function TodoForm({
                 )}
                 {!formData.isPersonal && formData.assignedUsers.length === 0 && (
                   <p className="text-xs text-gray-500 mt-1">
-                    Hold Ctrl/Cmd to select multiple users
+                    Click on users to select them. Click again to deselect.
                   </p>
                 )}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="followers">Followers (Optional)</Label>
+              <div className="space-y-2">
+                <div className="border rounded-md p-2 min-h-[100px] max-h-48 overflow-y-auto">
+                  {users.map((user) => {
+                    const isSelected = formData.followers.includes(user.id)
+                    return (
+                      <div
+                        key={user.id}
+                        className="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded cursor-pointer"
+                        onClick={() => {
+                          if (isSelected) {
+                            setFormData({ 
+                              ...formData, 
+                              followers: formData.followers.filter(id => id !== user.id),
+                            })
+                          } else {
+                            setFormData({ 
+                              ...formData, 
+                              followers: [...formData.followers, user.id],
+                            })
+                          }
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => {}} // Handled by parent div onClick
+                          className="h-4 w-4 rounded border-gray-300"
+                        />
+                        <span className={`text-sm ${isSelected ? "font-medium" : ""}`}>
+                          {user.name} ({user.email})
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+                {formData.followers.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {formData.followers.map((userId) => {
+                      const user = users.find(u => u.id === userId)
+                      return user ? (
+                        <span
+                          key={userId}
+                          className="px-2 py-1 bg-green-100 text-green-800 rounded text-sm flex items-center gap-1"
+                        >
+                          {user.name}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFormData({ 
+                                ...formData, 
+                                followers: formData.followers.filter(id => id !== userId),
+                              })
+                            }}
+                            className="text-green-600 hover:text-green-800"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ) : null
+                    })}
+                  </div>
+                )}
+                <p className="text-xs text-gray-500 mt-1">
+                  Followers can view and track this todo but are not assigned to complete it.
+                </p>
               </div>
             </div>
 
@@ -628,6 +745,96 @@ export function TodoForm({
               />
             </div>
           )}
+
+          <div className="space-y-2">
+            <Label htmlFor="tags">Tags (Optional)</Label>
+            <div className="space-y-2">
+              <div className="flex flex-wrap gap-2">
+                {tags.map((tag) => {
+                  const isSelected = formData.tagIds.includes(tag.id)
+                  return (
+                    <button
+                      key={tag.id}
+                      type="button"
+                      onClick={() => {
+                        if (isSelected) {
+                          setFormData({ 
+                            ...formData, 
+                            tagIds: formData.tagIds.filter(id => id !== tag.id),
+                          })
+                        } else {
+                          setFormData({ 
+                            ...formData, 
+                            tagIds: [...formData.tagIds, tag.id],
+                          })
+                        }
+                      }}
+                      className={`px-3 py-1 rounded-full text-sm border transition-colors ${
+                        isSelected
+                          ? "bg-blue-100 border-blue-300 text-blue-800 font-medium"
+                          : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
+                      }`}
+                      style={isSelected && tag.color ? { 
+                        backgroundColor: tag.color + "20",
+                        borderColor: tag.color,
+                        color: tag.color 
+                      } : {}}
+                    >
+                      {tag.name}
+                    </button>
+                  )
+                })}
+              </div>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="text"
+                  placeholder="Create new tag..."
+                  value={newTagName}
+                  onChange={(e) => setNewTagName(e.target.value)}
+                  className="flex-1"
+                />
+                <Input
+                  type="color"
+                  value={newTagColor}
+                  onChange={(e) => setNewTagColor(e.target.value)}
+                  className="w-16 h-10"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    if (!newTagName.trim()) return
+                    try {
+                      const response = await fetch("/api/todos/tags", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          name: newTagName.trim(),
+                          color: newTagColor,
+                        }),
+                      })
+                      if (response.ok) {
+                        const newTag = await response.json()
+                        setTags([...tags, newTag])
+                        setFormData({ ...formData, tagIds: [...formData.tagIds, newTag.id] })
+                        setNewTagName("")
+                        setNewTagColor("#3b82f6")
+                      } else {
+                        const error = await response.json()
+                        alert(error.error || "Failed to create tag")
+                      }
+                    } catch (error) {
+                      console.error("Error creating tag:", error)
+                      alert("Failed to create tag")
+                    }
+                  }}
+                >
+                  Create Tag
+                </Button>
+              </div>
+            </div>
+          </div>
 
           {error && (
             <div className="p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm">

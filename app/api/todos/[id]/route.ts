@@ -19,6 +19,8 @@ const todoUpdateSchema = z.object({
   clientId: z.string().optional().nullable(),
   leadId: z.string().optional().nullable(),
   assignedTo: z.union([z.string(), z.array(z.string())]).optional(), // Support both single and multiple assignments
+  followers: z.array(z.string()).optional(), // Array of user IDs who follow this todo
+  tagIds: z.array(z.string()).optional(), // Array of tag IDs
   status: z.nativeEnum(TodoStatus).optional(),
   priority: z.nativeEnum(TodoPriority).optional(),
   isPersonal: z.boolean().optional(),
@@ -144,6 +146,17 @@ export async function GET(
           orderBy: { createdAt: "desc" },
         },
         assignments: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+        },
+        followers: {
           include: {
             user: {
               select: {
@@ -439,6 +452,93 @@ export async function PUT(
       }
     }
 
+    // Handle followers update
+    if (validatedData.followers !== undefined) {
+      const followerIds = validatedData.followers || []
+      
+      // Validate that all followers exist
+      if (followerIds.length > 0) {
+        const followers = await prisma.user.findMany({
+          where: { id: { in: followerIds } },
+        })
+        
+        if (followers.length !== followerIds.length) {
+          return NextResponse.json(
+            { error: "One or more followers not found" },
+            { status: 404 }
+          )
+        }
+      }
+
+      // Delete existing followers
+      await prisma.todoFollower.deleteMany({
+        where: { todoId: id },
+      })
+
+      // Create new followers
+      if (followerIds.length > 0) {
+        await prisma.todoFollower.createMany({
+          data: followerIds.map((userId: string) => ({
+            todoId: id,
+            userId,
+          })),
+        })
+      }
+    }
+
+    // Handle tags update
+    if (validatedData.tagIds !== undefined) {
+      const tagIds = validatedData.tagIds || []
+      
+      // Validate that all tags exist
+      if (tagIds.length > 0) {
+        const tags = await prisma.todoTag.findMany({
+          where: { id: { in: tagIds } },
+        })
+        
+        if (tags.length !== tagIds.length) {
+          return NextResponse.json(
+            { error: "One or more tags not found" },
+            { status: 404 }
+          )
+        }
+      }
+
+      // Update tags using connect/disconnect
+      const currentTodo = await prisma.todo.findUnique({
+        where: { id },
+        include: { tags: { select: { id: true } } },
+      })
+
+      if (currentTodo) {
+        const currentTagIds = currentTodo.tags.map(t => t.id)
+        const tagsToConnect = tagIds.filter(id => !currentTagIds.includes(id))
+        const tagsToDisconnect = currentTagIds.filter(id => !tagIds.includes(id))
+
+        if (tagsToDisconnect.length > 0) {
+          await prisma.todo.update({
+            where: { id },
+            data: {
+              tags: {
+                disconnect: tagsToDisconnect.map(tagId => ({ id: tagId })),
+              },
+            },
+          })
+        }
+
+        if (tagsToConnect.length > 0) {
+          await prisma.todo.update({
+            where: { id },
+            data: {
+              tags: {
+                connect: tagsToConnect.map(tagId => ({ id: tagId })),
+              },
+            },
+          })
+        }
+      }
+    }
+
     const updatedTodo = await prisma.todo.update({
       where: { id },
       data: updateData,
@@ -494,6 +594,24 @@ export async function PUT(
                 email: true,
               },
             },
+          },
+        },
+        followers: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+        },
+        tags: {
+          select: {
+            id: true,
+            name: true,
+            color: true,
           },
         },
         dueDateChanges: {

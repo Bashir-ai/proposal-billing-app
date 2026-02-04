@@ -41,8 +41,8 @@ export function FixedFeeConfig({ formData, setFormData, selectedCurrency }: Mixe
             step="0.01"
             min="0"
             placeholder="Enter fixed fee amount"
-            value={formData.fixedAmount || 0}
-            onChange={(e) => setFormData({ ...formData, fixedAmount: parseFloat(e.target.value) || 0 })}
+            value={formData.fixedAmount ?? ""}
+            onChange={(e) => setFormData({ ...formData, fixedAmount: e.target.value === "" ? undefined : parseFloat(e.target.value) })}
           />
         </div>
         <div className="space-y-2">
@@ -53,8 +53,8 @@ export function FixedFeeConfig({ formData, setFormData, selectedCurrency }: Mixe
             step="0.01"
             min="0"
             placeholder="Hourly rate for out of scope work"
-            value={formData.outOfScopeHourlyRate || 0}
-            onChange={(e) => setFormData({ ...formData, outOfScopeHourlyRate: parseFloat(e.target.value) || 0 })}
+            value={formData.outOfScopeHourlyRate ?? ""}
+            onChange={(e) => setFormData({ ...formData, outOfScopeHourlyRate: e.target.value === "" ? undefined : parseFloat(e.target.value) })}
           />
           <p className="text-xs text-gray-500">Rate to charge for work outside the fixed fee scope</p>
         </div>
@@ -92,8 +92,8 @@ export function HourlyConfig({ formData, setFormData, selectedCurrency }: MixedM
                 step="0.25"
                 min="0"
                 placeholder="Estimated hours"
-                value={formData.estimatedHours || 0}
-                onChange={(e) => setFormData({ ...formData, estimatedHours: parseFloat(e.target.value) || 0 })}
+                value={formData.estimatedHours ?? ""}
+                onChange={(e) => setFormData({ ...formData, estimatedHours: e.target.value === "" ? undefined : parseFloat(e.target.value) })}
               />
             </div>
             <div className="space-y-2">
@@ -104,8 +104,8 @@ export function HourlyConfig({ formData, setFormData, selectedCurrency }: MixedM
                 step="0.01"
                 min="0"
                 placeholder="Minimum rate"
-                value={formData.hourlyRateRangeMin || 0}
-                onChange={(e) => setFormData({ ...formData, hourlyRateRangeMin: parseFloat(e.target.value) || 0 })}
+                value={formData.hourlyRateRangeMin ?? ""}
+                onChange={(e) => setFormData({ ...formData, hourlyRateRangeMin: e.target.value === "" ? undefined : parseFloat(e.target.value) })}
               />
             </div>
             <div className="space-y-2">
@@ -116,8 +116,8 @@ export function HourlyConfig({ formData, setFormData, selectedCurrency }: MixedM
                 step="0.01"
                 min="0"
                 placeholder="Maximum rate"
-                value={formData.hourlyRateRangeMax || 0}
-                onChange={(e) => setFormData({ ...formData, hourlyRateRangeMax: parseFloat(e.target.value) || 0 })}
+                value={formData.hourlyRateRangeMax ?? ""}
+                onChange={(e) => setFormData({ ...formData, hourlyRateRangeMax: e.target.value === "" ? undefined : parseFloat(e.target.value) })}
               />
             </div>
           </div>
@@ -177,9 +177,9 @@ export function HourlyConfig({ formData, setFormData, selectedCurrency }: MixedM
                           type="number"
                           step="0.01"
                           min="0"
-                          value={formData.hourlyRateTableRates?.[profile.key] || 0}
+                          value={formData.hourlyRateTableRates?.[profile.key] ?? ""}
                           onChange={(e) => {
-                            const newRates = { ...(formData.hourlyRateTableRates || {}), [profile.key]: parseFloat(e.target.value) || 0 }
+                            const newRates = { ...(formData.hourlyRateTableRates || {}), [profile.key]: e.target.value === "" ? undefined : parseFloat(e.target.value) }
                             setFormData({ ...formData, hourlyRateTableRates: newRates })
                           }}
                           placeholder={`${currencySymbol}/hr`}
@@ -227,8 +227,8 @@ export function HourlyConfig({ formData, setFormData, selectedCurrency }: MixedM
                     step="0.25"
                     min="0"
                     placeholder="Maximum hours"
-                    value={formData.cappedHours || 0}
-                    onChange={(e) => setFormData({ ...formData, cappedHours: parseFloat(e.target.value) || 0 })}
+                    value={formData.cappedHours ?? ""}
+                    onChange={(e) => setFormData({ ...formData, cappedHours: e.target.value === "" ? undefined : parseFloat(e.target.value) })}
                   />
                 </div>
                 <div className="space-y-2">
@@ -239,8 +239,8 @@ export function HourlyConfig({ formData, setFormData, selectedCurrency }: MixedM
                     step="0.01"
                     min="0"
                     placeholder="Maximum amount"
-                    value={formData.cappedAmount || 0}
-                    onChange={(e) => setFormData({ ...formData, cappedAmount: parseFloat(e.target.value) || 0 })}
+                    value={formData.cappedAmount ?? ""}
+                    onChange={(e) => setFormData({ ...formData, cappedAmount: e.target.value === "" ? undefined : parseFloat(e.target.value) })}
                   />
                 </div>
               </div>
@@ -268,8 +268,8 @@ export function HourlyConfig({ formData, setFormData, selectedCurrency }: MixedM
                     step="0.01"
                     min="0"
                     placeholder="Enter blended hourly rate"
-                    value={formData.blendedRate || 0}
-                    onChange={(e) => setFormData({ ...formData, blendedRate: parseFloat(e.target.value) || 0 })}
+                    value={formData.blendedRate ?? ""}
+                    onChange={(e) => setFormData({ ...formData, blendedRate: e.target.value === "" ? undefined : parseFloat(e.target.value) })}
                   />
                   <p className="text-xs text-gray-500">This rate will be applied to all line items when enabled</p>
                 </div>
@@ -310,8 +310,8 @@ export function RetainerConfig({ formData, setFormData, selectedCurrency, client
                 type="number"
                 step="0.01"
                 min="0"
-                value={formData.retainerMonthlyAmount || 0}
-                onChange={(e) => setFormData({ ...formData, retainerMonthlyAmount: parseFloat(e.target.value) || 0 })}
+                value={formData.retainerMonthlyAmount ?? ""}
+                onChange={(e) => setFormData({ ...formData, retainerMonthlyAmount: e.target.value === "" ? undefined : parseFloat(e.target.value) })}
                 required
               />
             </div>
@@ -322,8 +322,8 @@ export function RetainerConfig({ formData, setFormData, selectedCurrency, client
                 type="number"
                 step="0.25"
                 min="0"
-                value={formData.retainerHoursPerMonth || 0}
-                onChange={(e) => setFormData({ ...formData, retainerHoursPerMonth: parseFloat(e.target.value) || 0 })}
+                value={formData.retainerHoursPerMonth ?? ""}
+                onChange={(e) => setFormData({ ...formData, retainerHoursPerMonth: e.target.value === "" ? undefined : parseFloat(e.target.value) })}
                 required
               />
               <p className="text-xs text-gray-500">Number of hours included in the monthly retainer</p>
@@ -537,8 +537,8 @@ export function RetainerConfig({ formData, setFormData, selectedCurrency, client
                   type="number"
                   step="0.01"
                   min="0"
-                  value={formData.retainerAdditionalHoursRate || 0}
-                  onChange={(e) => setFormData({ ...formData, retainerAdditionalHoursRate: parseFloat(e.target.value) || 0 })}
+                  value={formData.retainerAdditionalHoursRate ?? ""}
+                  onChange={(e) => setFormData({ ...formData, retainerAdditionalHoursRate: e.target.value === "" ? undefined : parseFloat(e.target.value) })}
                   required
                 />
               </div>
@@ -553,8 +553,8 @@ export function RetainerConfig({ formData, setFormData, selectedCurrency, client
                     type="number"
                     step="0.01"
                     min="0"
-                    value={formData.retainerAdditionalHoursRateMin || 0}
-                    onChange={(e) => setFormData({ ...formData, retainerAdditionalHoursRateMin: parseFloat(e.target.value) || 0 })}
+                    value={formData.retainerAdditionalHoursRateMin ?? ""}
+                    onChange={(e) => setFormData({ ...formData, retainerAdditionalHoursRateMin: e.target.value === "" ? undefined : parseFloat(e.target.value) })}
                     required
                   />
                 </div>
@@ -565,8 +565,8 @@ export function RetainerConfig({ formData, setFormData, selectedCurrency, client
                     type="number"
                     step="0.01"
                     min="0"
-                    value={formData.retainerAdditionalHoursRateMax || 0}
-                    onChange={(e) => setFormData({ ...formData, retainerAdditionalHoursRateMax: parseFloat(e.target.value) || 0 })}
+                    value={formData.retainerAdditionalHoursRateMax ?? ""}
+                    onChange={(e) => setFormData({ ...formData, retainerAdditionalHoursRateMax: e.target.value === "" ? undefined : parseFloat(e.target.value) })}
                     required
                   />
                 </div>
@@ -591,9 +591,9 @@ export function RetainerConfig({ formData, setFormData, selectedCurrency, client
                         type="number"
                         step="0.01"
                         min="0"
-                        value={formData.retainerHourlyTableRates?.[profile.key] || 0}
+                        value={formData.retainerHourlyTableRates?.[profile.key] ?? ""}
                         onChange={(e) => {
-                          const newRates = { ...(formData.retainerHourlyTableRates || {}), [profile.key]: parseFloat(e.target.value) || 0 }
+                          const newRates = { ...(formData.retainerHourlyTableRates || {}), [profile.key]: e.target.value === "" ? undefined : parseFloat(e.target.value) }
                           setFormData({ ...formData, retainerHourlyTableRates: newRates })
                         }}
                         placeholder={`${currencySymbol}/hr`}
@@ -698,8 +698,8 @@ export function SuccessFeeConfig({ formData, setFormData, selectedCurrency }: Mi
                   type="number"
                   step="0.01"
                   min="0"
-                  value={formData.successFeeBaseAmount || 0}
-                  onChange={(e) => setFormData({ ...formData, successFeeBaseAmount: parseFloat(e.target.value) || 0 })}
+                  value={formData.successFeeBaseAmount ?? ""}
+                  onChange={(e) => setFormData({ ...formData, successFeeBaseAmount: e.target.value === "" ? undefined : parseFloat(e.target.value) })}
                   required
                 />
               </div>
@@ -714,8 +714,8 @@ export function SuccessFeeConfig({ formData, setFormData, selectedCurrency }: Mi
                     type="number"
                     step="0.01"
                     min="0"
-                    value={formData.successFeeBaseHourlyRate || 0}
-                    onChange={(e) => setFormData({ ...formData, successFeeBaseHourlyRate: parseFloat(e.target.value) || 0 })}
+                    value={formData.successFeeBaseHourlyRate ?? ""}
+                    onChange={(e) => setFormData({ ...formData, successFeeBaseHourlyRate: e.target.value === "" ? undefined : parseFloat(e.target.value) })}
                     required
                   />
                 </div>
@@ -794,8 +794,8 @@ export function SuccessFeeConfig({ formData, setFormData, selectedCurrency }: Mi
                     step="0.01"
                     min="0"
                     max="100"
-                    value={formData.successFeePercent || 0}
-                    onChange={(e) => setFormData({ ...formData, successFeePercent: parseFloat(e.target.value) || 0 })}
+                    value={formData.successFeePercent ?? ""}
+                    onChange={(e) => setFormData({ ...formData, successFeePercent: e.target.value === "" ? undefined : parseFloat(e.target.value) })}
                     required
                   />
                 </div>
@@ -806,8 +806,8 @@ export function SuccessFeeConfig({ formData, setFormData, selectedCurrency }: Mi
                     type="number"
                     step="0.01"
                     min="0"
-                    value={formData.successFeeValue || 0}
-                    onChange={(e) => setFormData({ ...formData, successFeeValue: parseFloat(e.target.value) || 0 })}
+                    value={formData.successFeeValue ?? ""}
+                    onChange={(e) => setFormData({ ...formData, successFeeValue: e.target.value === "" ? undefined : parseFloat(e.target.value) })}
                     required
                   />
                 </div>
@@ -822,8 +822,8 @@ export function SuccessFeeConfig({ formData, setFormData, selectedCurrency }: Mi
                   type="number"
                   step="0.01"
                   min="0"
-                  value={formData.successFeeAmount || 0}
-                  onChange={(e) => setFormData({ ...formData, successFeeAmount: parseFloat(e.target.value) || 0 })}
+                  value={formData.successFeeAmount ?? ""}
+                  onChange={(e) => setFormData({ ...formData, successFeeAmount: e.target.value === "" ? undefined : parseFloat(e.target.value) })}
                   required
                 />
               </div>

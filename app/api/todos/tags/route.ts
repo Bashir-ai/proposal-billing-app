@@ -1,0 +1,75 @@
+export const dynamic = 'force-dynamic'
+import { NextResponse } from "next/server"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
+import { prisma } from "@/lib/prisma"
+import { z } from "zod"
+
+const tagSchema = z.object({
+  name: z.string().min(1, "Tag name is required"),
+  description: z.string().optional(),
+  color: z.string().optional(),
+})
+
+export async function GET() {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    if (session.user.role === "CLIENT") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
+
+    const tags = await prisma.todoTag.findMany({
+      orderBy: { name: "asc" },
+    })
+
+    return NextResponse.json(tags)
+  } catch (error) {
+    console.error("Error fetching todo tags:", error)
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    )
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    if (session.user.role === "CLIENT") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
+
+    const body = await request.json()
+    const validatedData = tagSchema.parse(body)
+
+    const tag = await prisma.todoTag.create({
+      data: {
+        name: validatedData.name,
+        description: validatedData.description || null,
+        color: validatedData.color || null,
+      },
+    })
+
+    return NextResponse.json(tag, { status: 201 })
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: "Invalid input", details: error.errors },
+        { status: 400 }
+      )
+    }
+    console.error("Error creating todo tag:", error)
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    )
+  }
+}

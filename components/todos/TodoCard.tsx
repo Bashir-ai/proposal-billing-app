@@ -57,6 +57,16 @@ interface TodoCardProps {
       user?: { id: string; name: string }
       userName?: string
     }>
+    followers?: Array<{
+      id: string
+      user?: { id: string; name: string }
+      userId?: string
+    }>
+    tags?: Array<{
+      id: string
+      name: string
+      color?: string | null
+    }>
   }
   currentUserId: string
   onMarkRead?: () => void
@@ -121,8 +131,11 @@ function TodoCardComponent({
       const response = await fetch(`/api/todos/${todo.id}/mark-read`, {
         method: "POST",
       })
-      if (response.ok && onMarkRead) {
-        onMarkRead()
+      if (response.ok) {
+        if (onMarkRead) {
+          onMarkRead()
+        }
+        window.dispatchEvent(new Event('todos:refresh'))
       }
     } catch (error) {
       console.error("Error marking as read:", error)
@@ -138,8 +151,11 @@ function TodoCardComponent({
       const response = await fetch(`/api/todos/${todo.id}/mark-unread`, {
         method: "POST",
       })
-      if (response.ok && onMarkUnread) {
-        onMarkUnread()
+      if (response.ok) {
+        if (onMarkUnread) {
+          onMarkUnread()
+        }
+        window.dispatchEvent(new Event('todos:refresh'))
       }
     } catch (error) {
       console.error("Error marking as unread:", error)
@@ -156,9 +172,12 @@ function TodoCardComponent({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),
       })
-      if (response.ok && onStatusChange) {
-        onStatusChange(newStatus)
+      if (response.ok) {
+        if (onStatusChange) {
+          onStatusChange(newStatus)
+        }
         router.refresh()
+        window.dispatchEvent(new Event('todos:refresh'))
       }
     } catch (error) {
       console.error("Error updating status:", error)
@@ -196,7 +215,11 @@ function TodoCardComponent({
             body: JSON.stringify({ deleteForAll: true })
           })
           
-          if (deleteResponse.ok && onDelete) {
+          if (deleteResponse.ok) {
+            if (onDelete) {
+              onDelete()
+            }
+            window.dispatchEvent(new Event('todos:refresh'))
             onDelete()
           } else {
             const errorData = await deleteResponse.json().catch(() => ({}))
@@ -255,12 +278,38 @@ function TodoCardComponent({
                   ? todo.assignments.map((a: any) => a.user?.name || a.userName || "Unknown").join(", ")
                   : todo.assignee?.name || "Unknown"}
               </span>
+              {todo.followers && todo.followers.length > 0 && (
+                <span className="text-xs text-gray-500">
+                  Followers: {todo.followers.map((f: any) => f.user?.name || "Unknown").join(", ")}
+                </span>
+              )}
               {todo.dueDate && (
                 <span className={`text-xs ${new Date(todo.dueDate) < new Date() && todo.status !== "COMPLETED" ? "text-red-600 font-semibold" : "text-gray-500"}`}>
                   Due: {formatDate(todo.dueDate)}
                 </span>
               )}
             </div>
+            {todo.tags && todo.tags.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-2">
+                {todo.tags.map((tag: any) => (
+                  <span
+                    key={tag.id}
+                    className="px-2 py-0.5 rounded-full text-xs font-medium border"
+                    style={tag.color ? {
+                      backgroundColor: tag.color + "20",
+                      borderColor: tag.color,
+                      color: tag.color
+                    } : {
+                      backgroundColor: "#f3f4f6",
+                      borderColor: "#d1d5db",
+                      color: "#374151"
+                    }}
+                  >
+                    {tag.name}
+                  </span>
+                ))}
+              </div>
+            )}
             <div className="flex flex-wrap gap-2 text-xs text-gray-500">
               {todo.project && (
                 <Link href={`/projects/${todo.project.id}`} className="flex items-center hover:text-blue-600">
@@ -331,6 +380,20 @@ function TodoCardComponent({
                 <option value="CANCELLED">Cancelled</option>
               </Select>
             </div>
+            {todo.project && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  router.push(`/dashboard/timesheets/new?projectId=${todo.project?.id}&todoId=${todo.id}&description=${encodeURIComponent(todo.title)}`)
+                }}
+                disabled={loading}
+                title="Create timesheet entry for this todo"
+              >
+                <Clock className="h-4 w-4" />
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"

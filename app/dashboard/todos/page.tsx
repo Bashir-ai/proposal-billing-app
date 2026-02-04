@@ -141,6 +141,8 @@ export default function TodosPage() {
 
       setShowCreateForm(false)
       router.refresh()
+      // Trigger a custom event to refresh the todo list
+      window.dispatchEvent(new Event('todos:refresh'))
     } catch (error: any) {
       throw error
     }

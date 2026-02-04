@@ -254,6 +254,7 @@ model User {
   todoDueDateChanges      TodoDueDateChange[] @relation("TodoDueDateChangeBy")
   todoAssignments         TodoAssignment[]    @relation("TodoAssignments")
   todoComments            TodoComment[]       @relation("TodoCommentCreator")
+  todoFollowers            TodoFollower[]      @relation("TodoFollowerUser")
   clientFinderAssignments ClientFinder[]      @relation("ClientFinderRelation")
   managedClients          Client[]            @relation("ClientManager")
   finderFees              FinderFee[]         @relation("FinderFeeRecipient")
@@ -868,6 +869,8 @@ model Todo {
   dueDateChanges TodoDueDateChange[]
   assignments    TodoAssignment[]
   comments       TodoComment[]
+  followers      TodoFollower[]
+  tags           TodoTag[]
 }
 
 model TodoAssignment {
@@ -928,6 +931,31 @@ model TodoComment {
   creator     User    @relation("TodoCommentCreator", fields: [createdBy], references: [id])
 
   @@index([todoId])
+}
+
+model TodoFollower {
+  id        String   @id @default(cuid())
+  todoId    String
+  userId    String
+  createdAt DateTime @default(now())
+  
+  todo      Todo     @relation(fields: [todoId], references: [id], onDelete: Cascade)
+  user      User     @relation("TodoFollowerUser", fields: [userId], references: [id])
+  
+  @@unique([todoId, userId])
+  @@index([todoId])
+  @@index([userId])
+}
+
+model TodoTag {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  color       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  todos Todo[]
 }
 
 model ProjectManager {

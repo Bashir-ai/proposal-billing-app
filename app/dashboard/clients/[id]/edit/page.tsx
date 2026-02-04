@@ -49,6 +49,7 @@ export default function EditClientPage() {
     billingZipCode: "",
     billingCountry: "",
     clientManagerId: "",
+    clientCode: undefined as number | undefined,
     referrerName: "",
     referrerContactInfo: "",
   })
@@ -80,6 +81,7 @@ export default function EditClientPage() {
           billingZipCode: clientData.billingZipCode || "",
           billingCountry: clientData.billingCountry || "",
           clientManagerId: clientData.clientManagerId || "",
+          clientCode: clientData.clientCode || undefined,
           referrerName: clientData.referrerName || "",
           referrerContactInfo: clientData.referrerContactInfo || "",
         })
@@ -144,6 +146,7 @@ export default function EditClientPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...formData,
+          clientCode: formData.clientCode || null, // Send null if undefined
           contacts: contacts.filter(c => c.name.trim() !== ""), // Only send contacts with names
           finders: finders.filter(f => f.userId.trim() !== ""), // Only send finders with user selected
         }),
@@ -181,13 +184,29 @@ export default function EditClientPage() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="name">Client Name and Internal Number *</Label>
+              <Label htmlFor="name">Client Name *</Label>
               <Input
                 id="name"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 required
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="clientCode">Client Code</Label>
+              <Input
+                id="clientCode"
+                type="number"
+                min="1"
+                max="999"
+                value={formData.clientCode ?? ""}
+                onChange={(e) => setFormData({ ...formData, clientCode: e.target.value === "" ? undefined : parseInt(e.target.value) })}
+                placeholder="Enter client code (1-999)"
+              />
+              <p className="text-xs text-gray-500">
+                Client code must be unique and between 1-999.
+              </p>
             </div>
 
             <div className="space-y-2">

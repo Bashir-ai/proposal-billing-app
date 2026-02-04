@@ -97,6 +97,16 @@ export function TodoList({ currentUserId, initialFilters, onCreateNew }: TodoLis
 
   useEffect(() => {
     fetchTodos()
+    
+    // Listen for refresh events
+    const handleRefresh = () => {
+      fetchTodos()
+    }
+    window.addEventListener('todos:refresh', handleRefresh)
+    
+    return () => {
+      window.removeEventListener('todos:refresh', handleRefresh)
+    }
   }, [fetchTodos])
 
   const handleFilterChange = (newFilters: TodoFilters) => {

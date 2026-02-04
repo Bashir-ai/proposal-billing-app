@@ -18,6 +18,8 @@ const todoSchema = z.object({
   clientId: z.string().optional(),
   leadId: z.string().optional(),
   assignedTo: z.union([z.string(), z.array(z.string())]).optional(), // Support both single and multiple assignments
+  followers: z.array(z.string()).optional(), // Array of user IDs who follow this todo
+  tagIds: z.array(z.string()).optional(), // Array of tag IDs
   priority: z.nativeEnum(TodoPriority).default(TodoPriority.MEDIUM),
   isPersonal: z.boolean().default(false),
   startDate: z.string().optional(),
@@ -374,6 +376,24 @@ export async function GET(request: Request) {
               },
             },
           },
+          followers: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                },
+              },
+            },
+          },
+          tags: {
+            select: {
+              id: true,
+              name: true,
+              color: true,
+            },
+          },
         },
       }),
       prisma.todo.count({ where })
@@ -514,6 +534,40 @@ export async function POST(request: Request) {
       }
     }
 
+    // Handle followers
+    const followerIds = validatedData.followers || []
+    
+    // Validate that all followers exist
+    if (followerIds.length > 0) {
+      const followers = await prisma.user.findMany({
+        where: { id: { in: followerIds } },
+      })
+      
+      if (followers.length !== followerIds.length) {
+        return NextResponse.json(
+          { error: "One or more followers not found" },
+          { status: 404 }
+        )
+      }
+    }
+
+    // Handle tags
+    const tagIds = validatedData.tagIds || []
+    
+    // Validate that all tags exist
+    if (tagIds.length > 0) {
+      const tags = await prisma.todoTag.findMany({
+        where: { id: { in: tagIds } },
+      })
+      
+      if (tags.length !== tagIds.length) {
+        return NextResponse.json(
+          { error: "One or more tags not found" },
+          { status: 404 }
+        )
+      }
+    }
+
     const todo = await prisma.todo.create({
       data: {
         title: validatedData.title,
@@ -531,6 +585,14 @@ export async function POST(request: Request) {
         startDate: validatedData.startDate ? parseLocalDate(validatedData.startDate) : null,
         estimatedEndDate: validatedData.estimatedEndDate ? parseLocalDate(validatedData.estimatedEndDate) : null,
         dueDate: validatedData.dueDate ? parseLocalDate(validatedData.dueDate) : null,
+        followers: followerIds.length > 0 ? {
+          create: followerIds.map((userId: string) => ({
+            userId,
+          })),
+        } : undefined,
+        tags: tagIds.length > 0 ? {
+          connect: tagIds.map((tagId: string) => ({ id: tagId })),
+        } : undefined,
       },
       include: {
         project: true,
@@ -561,6 +623,24 @@ export async function POST(request: Request) {
                 email: true,
               },
             },
+          },
+        },
+        followers: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+        },
+        tags: {
+          select: {
+            id: true,
+            name: true,
+            color: true,
           },
         },
       },

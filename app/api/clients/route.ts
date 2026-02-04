@@ -37,6 +37,7 @@ const clientSchema = z.object({
   billingZipCode: z.string().optional(),
   billingCountry: z.string().optional(),
   clientManagerId: z.string().optional().or(z.literal("")),
+  clientCode: z.number().int().min(1).max(999).optional().nullable(),
   referrerName: z.string().optional().nullable(),
   referrerContactInfo: z.string().optional().nullable(),
   finders: z.array(clientFinderSchema).optional(),
@@ -132,8 +133,23 @@ export async function POST(request: Request) {
     const body = await request.json()
     const validatedData = clientSchema.parse(body)
 
-    // Generate client code
-    const clientCode = await generateClientCode()
+    // Generate client code if not provided, or validate if provided
+    let clientCode: number
+    if (validatedData.clientCode) {
+      // Check if the provided code is already taken
+      const existing = await prisma.client.findUnique({
+        where: { clientCode: validatedData.clientCode },
+      })
+      if (existing) {
+        return NextResponse.json(
+          { error: `Client code ${validatedData.clientCode} is already in use` },
+          { status: 400 }
+        )
+      }
+      clientCode = validatedData.clientCode
+    } else {
+      clientCode = await generateClientCode()
+    }
 
     const client = await prisma.client.create({
       data: {
