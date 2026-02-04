@@ -31,11 +31,16 @@ export async function GET(request: Request) {
       },
     })
 
-    // Build array of notification IDs in the format used by the frontend
+    // Build array of notification IDs in the format used by getNotifications
+    // getNotifications checks readSet.has(`proposal_approval:${proposal.id}`)
+    // So we need to return IDs in format: notificationType:itemId
     const readIds: string[] = []
     
-    // Add NotificationRead records (format: proposal-{id}, invoice-{id}, etc.)
+    // Add NotificationRead records in the format that getNotifications expects
     readNotifications.forEach(r => {
+      // Return in format: notificationType:itemId (e.g., "proposal_approval:123")
+      readIds.push(`${r.notificationType}:${r.itemId}`)
+      // Also add frontend format for compatibility
       if (r.notificationType === "proposal_approval") {
         readIds.push(`proposal-${r.itemId}`)
       } else if (r.notificationType === "invoice_approval") {

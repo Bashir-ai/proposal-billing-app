@@ -55,6 +55,7 @@ export function NotificationsBox({ initialCount, initialNotifications, isCollaps
   const [isOpen, setIsOpen] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [viewedNotifications, setViewedNotifications] = useState<Set<string>>(initialViewedNotifications)
+  const [lastMarkedAsReadTime, setLastMarkedAsReadTime] = useState<number>(0)
 
   // Use a ref to track viewedNotifications for use in callbacks
   const viewedNotificationsRef = useRef(viewedNotifications)
@@ -77,6 +78,13 @@ export function NotificationsBox({ initialCount, initialNotifications, isCollaps
   }, [viewedNotifications])
 
   const refreshNotifications = useCallback(async () => {
+    // Don't refresh if we just marked a notification as read (within last 2 seconds)
+    // This prevents race conditions where refresh happens before database update completes
+    const timeSinceLastMark = Date.now() - lastMarkedAsReadTime
+    if (timeSinceLastMark < 2000) {
+      return
+    }
+
     setIsRefreshing(true)
     try {
       // Fetch read notification records to sync with database state first
@@ -124,8 +132,24 @@ export function NotificationsBox({ initialCount, initialNotifications, isCollaps
       if (data && typeof data === "object") {
         if (Array.isArray(data.notifications)) {
           // Filter notifications using the merged read set
-          // The API already filters out read notifications, but we double-check here
-          const filteredNotifications = data.notifications.filter((n: Notification) => !mergedReadSet.has(n.id))
+          // Check both the notification ID and the format that getNotifications uses
+          const filteredNotifications = data.notifications.filter((n: Notification) => {
+            const isReadById = mergedReadSet.has(n.id)
+            // Also check the format that getNotifications uses (notificationType:itemId)
+            let isReadByFormat = false
+            if (n.type === "proposal_approval") {
+              isReadByFormat = mergedReadSet.has(`proposal_approval:${n.itemId}`)
+            } else if (n.type === "invoice_approval") {
+              isReadByFormat = mergedReadSet.has(`invoice_approval:${n.itemId}`)
+            } else if (n.type === "invoice_outstanding" || n.type === "invoice_reminder") {
+              isReadByFormat = mergedReadSet.has(`invoice_outstanding:${n.itemId}`)
+            } else if (n.type === "proposal_pending_client" || n.type === "proposal_pending_client_overdue") {
+              isReadByFormat = mergedReadSet.has(`${n.type}:${n.itemId}`)
+            } else if (n.type === "todo_assignment") {
+              isReadByFormat = mergedReadSet.has(`todo-${n.itemId}`)
+            }
+            return !isReadById && !isReadByFormat
+          })
           setNotifications(filteredNotifications)
           
           // Update count based on filtered notifications
@@ -140,7 +164,7 @@ export function NotificationsBox({ initialCount, initialNotifications, isCollaps
     } finally {
       setIsRefreshing(false)
     }
-  }, [])
+  }, [lastMarkedAsReadTime])
 
   useEffect(() => {
     // Refresh on mount to get latest data
@@ -208,11 +232,32 @@ export function NotificationsBox({ initialCount, initialNotifications, isCollaps
 
   const handleMarkAsViewed = useCallback(async (notificationId: string) => {
     try {
+      // Get the notification to determine its type
+      const notification = notifications.find(n => n.id === notificationId)
+      if (!notification) return
+
+      // Create the format that getNotifications checks (notificationType:itemId)
+      let readIdFormat = ""
+      if (notification.type === "proposal_approval") {
+        readIdFormat = `proposal_approval:${notification.itemId}`
+      } else if (notification.type === "invoice_approval") {
+        readIdFormat = `invoice_approval:${notification.itemId}`
+      } else if (notification.type === "invoice_outstanding" || notification.type === "invoice_reminder") {
+        readIdFormat = `invoice_outstanding:${notification.itemId}`
+      } else if (notification.type === "proposal_pending_client" || notification.type === "proposal_pending_client_overdue") {
+        readIdFormat = `${notification.type}:${notification.itemId}`
+      } else if (notification.type === "todo_assignment") {
+        readIdFormat = `todo-${notification.itemId}`
+      }
+
       // Optimistically remove from local state immediately
       setNotifications(prev => prev.filter(n => n.id !== notificationId))
       setViewedNotifications(prev => {
         const newSet = new Set(prev)
         newSet.add(notificationId)
+        if (readIdFormat) {
+          newSet.add(readIdFormat)
+        }
         return newSet
       })
       
@@ -228,6 +273,9 @@ export function NotificationsBox({ initialCount, initialNotifications, isCollaps
         setViewedNotifications(prev => {
           const newSet = new Set(prev)
           newSet.delete(notificationId)
+          if (readIdFormat) {
+            newSet.delete(readIdFormat)
+          }
           return newSet
         })
         // Trigger a refresh to restore the notification
@@ -235,6 +283,11 @@ export function NotificationsBox({ initialCount, initialNotifications, isCollaps
       } else {
         // Update the ref immediately so subsequent refreshes respect this
         viewedNotificationsRef.current.add(notificationId)
+        if (readIdFormat) {
+          viewedNotificationsRef.current.add(readIdFormat)
+        }
+        // Record the time we marked as read to prevent immediate refresh
+        setLastMarkedAsReadTime(Date.now())
       }
     } catch (error) {
       console.error("Error marking notification as read:", error)
@@ -247,7 +300,7 @@ export function NotificationsBox({ initialCount, initialNotifications, isCollaps
       // Trigger a refresh to restore the notification
       setTimeout(() => refreshNotifications(), 100)
     }
-  }, [refreshNotifications])
+  }, [refreshNotifications, notifications])
 
   const handleMarkAllAsViewed = useCallback(async () => {
     try {
@@ -274,13 +327,16 @@ export function NotificationsBox({ initialCount, initialNotifications, isCollaps
       const failed = results.filter(r => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.ok))
       if (failed.length > 0) {
         console.error("Some notifications failed to mark as read")
-        // Refresh to restore any that failed
-        setTimeout(() => refreshNotifications(), 100)
+        // Refresh to restore any that failed (after delay)
+        setTimeout(() => refreshNotifications(), 2000)
+      } else {
+        // Record the time we marked as read to prevent immediate refresh
+        setLastMarkedAsReadTime(Date.now())
       }
     } catch (error) {
       console.error("Error marking all notifications as read:", error)
-      // On error, refresh to restore notifications
-      setTimeout(() => refreshNotifications(), 100)
+      // On error, refresh to restore notifications (after delay)
+      setTimeout(() => refreshNotifications(), 2000)
     }
   }, [notifications, refreshNotifications])
 

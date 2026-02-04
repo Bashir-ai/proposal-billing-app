@@ -179,6 +179,8 @@ export default function EditTodoPage() {
           leadId: todo.leadId || undefined,
           assignedTo: todo.assignedTo,
           assignments: todo.assignments || undefined,
+          followers: todo.followers || undefined,
+          tags: todo.tags || undefined,
           priority: todo.priority,
           isPersonal: todo.isPersonal || false,
           startDate: todo.startDate ? new Date(todo.startDate).toISOString().split("T")[0] : undefined,

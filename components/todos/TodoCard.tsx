@@ -7,7 +7,8 @@ import { formatDate } from "@/lib/utils"
 import { CheckCircle2, Circle, Clock, XCircle, Eye, EyeOff, Edit, Trash2, ExternalLink, Lock } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useState, memo, useCallback, useMemo } from "react"
+import { useState, memo, useCallback, useMemo, useEffect } from "react"
+import { CreateTimesheetEntryForm } from "@/components/timesheets/CreateTimesheetEntryForm"
 
 interface TodoCardProps {
   todo: {
@@ -85,6 +86,12 @@ function TodoCardComponent({
 }: TodoCardProps) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
+  const [showTimesheetDialog, setShowTimesheetDialog] = useState(false)
+  const [timesheetData, setTimesheetData] = useState<{
+    projects: Array<{ id: string; name: string; clientId?: string | null; proposal?: any }>
+    users: Array<{ id: string; name: string; email: string; defaultHourlyRate?: number | null }>
+    clients: Array<{ id: string; name: string; company?: string | null }>
+  } | null>(null)
   const isAssigned = useMemo(() => todo.assignedTo === currentUserId, [todo.assignedTo, currentUserId])
 
   const statusIcon = useMemo(() => {
@@ -243,7 +250,77 @@ function TodoCardComponent({
     router.push(`/dashboard/todos/${todo.id}/edit`)
   }, [router, todo.id])
 
+  const handleOpenTimesheetDialog = useCallback(async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setShowTimesheetDialog(true)
+    
+    // Fetch data for timesheet form
+    try {
+      const [projectsRes, usersRes, clientsRes] = await Promise.all([
+        fetch("/api/projects"),
+        fetch("/api/users"),
+        fetch("/api/clients"),
+      ])
+
+      const projectsData = projectsRes.ok ? await projectsRes.json() : []
+      const projectsArray = Array.isArray(projectsData) 
+        ? projectsData 
+        : (projectsData.data && Array.isArray(projectsData.data) ? projectsData.data : [])
+      
+      const usersData = usersRes.ok ? await usersRes.json() : []
+      const usersArray = Array.isArray(usersData) ? usersData : []
+      
+      const clientsData = clientsRes.ok ? await clientsRes.json() : []
+      const clientsArray = Array.isArray(clientsData)
+        ? clientsData
+        : (clientsData.data && Array.isArray(clientsData.data) ? clientsData.data : [])
+
+      setTimesheetData({
+        projects: projectsArray
+          .filter((p: any) => p && !p.deletedAt && !p.archivedAt)
+          .map((p: any) => ({
+            id: p.id,
+            name: p.name,
+            clientId: p.clientId || p.client?.id || null,
+            proposal: p.proposal ? {
+              id: p.proposal.id,
+              type: p.proposal.type,
+              blendedRate: p.proposal.blendedRate,
+              useBlendedRate: p.proposal.useBlendedRate,
+              hourlyRateRangeMin: p.proposal.hourlyRateRangeMin,
+              hourlyRateRangeMax: p.proposal.hourlyRateRangeMax,
+              hourlyRateTableRates: p.proposal.hourlyRateTableRates,
+              items: p.proposal.items || []
+            } : null
+          })),
+        users: usersArray
+          .filter((u: any) => u && u.role !== "CLIENT")
+          .map((u: any) => ({
+            id: u.id,
+            name: u.name,
+            email: u.email,
+            defaultHourlyRate: u.defaultHourlyRate,
+          })),
+        clients: clientsArray
+          .filter((c: any) => c && !c.deletedAt && !c.archivedAt)
+          .map((c: any) => ({
+            id: c.id,
+            name: c.name,
+            company: c.company,
+          })),
+      })
+    } catch (error) {
+      console.error("Failed to fetch timesheet data:", error)
+    }
+  }, [])
+
+  const handleTimesheetSuccess = useCallback(() => {
+    setShowTimesheetDialog(false)
+    window.dispatchEvent(new Event('todos:refresh'))
+  }, [])
+
   return (
+    <>
     <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={handleCardClick}>
       <CardContent className="p-4">
         <div className="flex items-start justify-between">
@@ -384,10 +461,7 @@ function TodoCardComponent({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  router.push(`/dashboard/timesheets/new?projectId=${todo.project?.id}&todoId=${todo.id}&description=${encodeURIComponent(todo.title)}`)
-                }}
+                onClick={handleOpenTimesheetDialog}
                 disabled={loading}
                 title="Create timesheet entry for this todo"
               >
@@ -421,6 +495,20 @@ function TodoCardComponent({
         </div>
       </CardContent>
     </Card>
+    {showTimesheetDialog && timesheetData && (
+      <CreateTimesheetEntryForm
+        projects={timesheetData.projects}
+        users={timesheetData.users}
+        clients={timesheetData.clients}
+        isOpen={showTimesheetDialog}
+        onClose={() => setShowTimesheetDialog(false)}
+        onSuccess={handleTimesheetSuccess}
+        initialProjectId={todo.project?.id}
+        initialDescription={todo.title}
+        initialDate={new Date().toISOString().split("T")[0]}
+      />
+    )}
+    </>
   )
 }
 

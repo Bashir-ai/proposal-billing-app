@@ -360,7 +360,9 @@ export function TodoForm({
                       <div
                         key={user.id}
                         className="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded cursor-pointer"
-                        onClick={() => {
+                        onClick={(e) => {
+                          // Don't handle if clicking directly on checkbox (it handles itself)
+                          if ((e.target as HTMLElement).tagName === 'INPUT') return
                           if (formData.isPersonal) return
                           if (isSelected) {
                             const newUsers = formData.assignedUsers.filter(id => id !== user.id)
@@ -382,9 +384,27 @@ export function TodoForm({
                         <input
                           type="checkbox"
                           checked={isSelected}
-                          onChange={() => {}} // Handled by parent div onClick
+                          onChange={(e) => {
+                            e.stopPropagation()
+                            if (formData.isPersonal) return
+                            if (isSelected) {
+                              const newUsers = formData.assignedUsers.filter(id => id !== user.id)
+                              setFormData({ 
+                                ...formData, 
+                                assignedUsers: newUsers,
+                                assignedTo: newUsers[0] || "",
+                              })
+                            } else {
+                              const newUsers = [...formData.assignedUsers, user.id]
+                              setFormData({ 
+                                ...formData, 
+                                assignedUsers: newUsers,
+                                assignedTo: newUsers[0] || "",
+                              })
+                            }
+                          }}
                           disabled={formData.isPersonal}
-                          className="h-4 w-4 rounded border-gray-300"
+                          className="h-4 w-4 rounded border-gray-300 cursor-pointer"
                         />
                         <span className={`text-sm ${isSelected ? "font-medium" : ""}`}>
                           {user.name} ({user.email})
@@ -446,7 +466,9 @@ export function TodoForm({
                       <div
                         key={user.id}
                         className="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded cursor-pointer"
-                        onClick={() => {
+                        onClick={(e) => {
+                          // Don't handle if clicking directly on checkbox (it handles itself)
+                          if ((e.target as HTMLElement).tagName === 'INPUT') return
                           if (isSelected) {
                             setFormData({ 
                               ...formData, 
@@ -463,8 +485,21 @@ export function TodoForm({
                         <input
                           type="checkbox"
                           checked={isSelected}
-                          onChange={() => {}} // Handled by parent div onClick
-                          className="h-4 w-4 rounded border-gray-300"
+                          onChange={(e) => {
+                            e.stopPropagation()
+                            if (isSelected) {
+                              setFormData({ 
+                                ...formData, 
+                                followers: formData.followers.filter(id => id !== user.id),
+                              })
+                            } else {
+                              setFormData({ 
+                                ...formData, 
+                                followers: [...formData.followers, user.id],
+                              })
+                            }
+                          }}
+                          className="h-4 w-4 rounded border-gray-300 cursor-pointer"
                         />
                         <span className={`text-sm ${isSelected ? "font-medium" : ""}`}>
                           {user.name} ({user.email})

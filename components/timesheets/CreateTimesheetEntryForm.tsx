@@ -54,6 +54,9 @@ interface CreateTimesheetEntryFormProps {
   isOpen: boolean
   onClose: () => void
   onSuccess: () => void
+  initialProjectId?: string
+  initialDescription?: string
+  initialDate?: string
 }
 
 export function CreateTimesheetEntryForm({
@@ -63,6 +66,9 @@ export function CreateTimesheetEntryForm({
   isOpen,
   onClose,
   onSuccess,
+  initialProjectId,
+  initialDescription,
+  initialDate,
 }: CreateTimesheetEntryFormProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -92,21 +98,22 @@ export function CreateTimesheetEntryForm({
   // Reset form when dialog opens/closes
   useEffect(() => {
     if (isOpen) {
+      const initialProject = initialProjectId ? projects.find(p => p.id === initialProjectId) : null
       setFormData({
-        clientId: "",
-        projectId: "",
+        clientId: initialProject?.clientId || "",
+        projectId: initialProjectId || "",
         userId: "",
-        date: getTodayString(),
+        date: initialDate || getTodayString(),
         hours: 0,
         rate: "",
-        description: "",
+        description: initialDescription || "",
         billable: true,
       })
       setHoursInput("")
       setHoursError(null)
       setError(null)
     }
-  }, [isOpen])
+  }, [isOpen, initialProjectId, initialDescription, initialDate, projects])
 
   // Filter projects based on selected client
   const filteredProjects = formData.clientId
