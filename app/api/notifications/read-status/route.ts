@@ -53,6 +53,7 @@ export async function GET(request: Request) {
     })
 
     // Add Notification model records (direct IDs)
+    // These are used for RECURRING_PAYMENT_DUE and INSTALLMENT_DUE notifications
     readNotificationRecords.forEach(n => {
       readIds.push(n.id)
     })

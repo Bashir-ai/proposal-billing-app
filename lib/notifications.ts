@@ -277,11 +277,12 @@ export async function getNotifications(userId: string, userRole: string): Promis
     })
 
     // 6. Recurring payment notifications
+    // These are already filtered by readAt: null in the query, so they're implicitly checked
     const recurringNotifications = await prisma.notification.findMany({
       where: {
         userId,
         type: "RECURRING_PAYMENT_DUE",
-        readAt: null,
+        readAt: null, // Only show unread notifications
       },
       include: {
         proposal: {
@@ -308,6 +309,8 @@ export async function getNotifications(userId: string, userRole: string): Promis
       take: 10,
     })
 
+    // Recurring notifications are already filtered by readAt: null in the query
+    // These use the Notification model directly, not NotificationRead
     recurringNotifications.forEach(notification => {
       notifications.push({
         type: "recurring_payment_due",
@@ -322,11 +325,12 @@ export async function getNotifications(userId: string, userRole: string): Promis
     })
 
     // 7. Installment due notifications
+    // These are already filtered by readAt: null in the query, so they're implicitly checked
     const installmentNotifications = await prisma.notification.findMany({
       where: {
         userId,
         type: "INSTALLMENT_DUE",
-        readAt: null,
+        readAt: null, // Only show unread notifications
       },
       include: {
         proposal: {
@@ -353,6 +357,8 @@ export async function getNotifications(userId: string, userRole: string): Promis
       take: 10,
     })
 
+    // Installment notifications are already filtered by readAt: null in the query
+    // These use the Notification model directly, not NotificationRead
     installmentNotifications.forEach(notification => {
       notifications.push({
         type: "installment_due",
