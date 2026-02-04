@@ -227,7 +227,6 @@ function TodoCardComponent({
               onDelete()
             }
             window.dispatchEvent(new Event('todos:refresh'))
-            onDelete()
           } else {
             const errorData = await deleteResponse.json().catch(() => ({}))
             alert(errorData.message || "Failed to delete ToDo. Please try again.")
