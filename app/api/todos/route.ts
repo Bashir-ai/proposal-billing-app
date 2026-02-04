@@ -43,6 +43,7 @@ export async function GET(request: Request) {
     const assignedTo = searchParams.get("assignedTo")
     const createdBy = searchParams.get("createdBy")
     const status = searchParams.get("status")
+    const excludeStatus = searchParams.get("excludeStatus") // Status to exclude (e.g., "COMPLETED")
     const priority = searchParams.get("priority")
     const read = searchParams.get("read") // "true" or "false"
     const hidePersonal = searchParams.get("hidePersonal") === "true"
@@ -190,6 +191,13 @@ export async function GET(request: Request) {
       } else {
         where.status = status
       }
+    }
+    // Handle excludeStatus - exclude a specific status (e.g., "COMPLETED")
+    // Only apply if status is not explicitly set (status filter takes precedence)
+    if (excludeStatus && !status) {
+      // Apply excludeStatus at the top level - it will work correctly with OR conditions
+      // Prisma will apply this condition to all results, excluding those with the specified status
+      where.status = { not: excludeStatus }
     }
     if (priority) {
       if (where.OR) {

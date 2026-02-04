@@ -72,7 +72,12 @@ export function TodoList({ currentUserId, initialFilters, onCreateNew }: TodoLis
       if (filters.clientId) params.append("clientId", filters.clientId)
       if (filters.assignedTo) params.append("assignedTo", filters.assignedTo)
       if (filters.createdBy) params.append("createdBy", filters.createdBy)
-      if (filters.status) params.append("status", filters.status)
+      if (filters.status) {
+        params.append("status", filters.status)
+      } else {
+        // By default, exclude COMPLETED todos unless status is explicitly set
+        params.append("excludeStatus", "COMPLETED")
+      }
       if (filters.priority) params.append("priority", filters.priority)
       if (filters.read) params.append("read", filters.read)
       if (filters.hidePersonal) params.append("hidePersonal", "true")

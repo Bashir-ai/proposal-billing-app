@@ -47,9 +47,8 @@ export default function TodosPage() {
   const [users, setUsers] = useState<User[]>([])
   const [clients, setClients] = useState<Array<{ id: string; name: string; company?: string | null }>>([])
   const [leads, setLeads] = useState<Array<{ id: string; name: string; company?: string | null }>>([])
-  // Default filter: all users see all their relevant todos (assigned + created)
-  // STAFF users can see todos assigned to them AND todos they created
-  const defaultAssignedTo = ""
+  // Default filter: show todos assigned to current user by default
+  const defaultAssignedTo = session?.user?.id || ""
 
   const [filters, setFilters] = useState<TodoFilters>({
     projectId: "",
@@ -69,6 +68,21 @@ export default function TodosPage() {
     assignedTo: defaultAssignedTo,
     includeCompleted: false,
   })
+
+  // Update filters when session becomes available
+  useEffect(() => {
+    if (session?.user?.id) {
+      const userId = session.user.id
+      setFilters(prev => ({
+        ...prev,
+        assignedTo: prev.assignedTo === "" ? userId : prev.assignedTo,
+      }))
+      setTimelineFilters(prev => ({
+        ...prev,
+        assignedTo: prev.assignedTo === "" ? userId : prev.assignedTo,
+      }))
+    }
+  }, [session])
 
   useEffect(() => {
     fetchData()

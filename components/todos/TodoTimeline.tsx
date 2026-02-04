@@ -132,6 +132,7 @@ export function TodoTimeline({ initialFilters, currentUserId }: TodoTimelineProp
       if (filters.priority) params.append("priority", filters.priority)
       params.append("startDate", startDate)
       params.append("endDate", endDate)
+      // Timeline API already excludes COMPLETED by default when includeCompleted is not true
       if (filters.includeCompleted) params.append("includeCompleted", "true")
 
       const response = await fetch(`/api/todos/timeline?${params.toString()}`)

@@ -89,7 +89,12 @@ export function TodoKanban({ initialFilters, currentUserId, users, defaultAssign
       if (filters.createdBy) params.append("createdBy", filters.createdBy)
       if (filters.projectId) params.append("projectId", filters.projectId)
       if (filters.clientId) params.append("clientId", filters.clientId)
-      if (filters.status) params.append("status", filters.status)
+      if (filters.status) {
+        params.append("status", filters.status)
+      } else {
+        // By default, exclude COMPLETED todos unless status is explicitly set
+        params.append("excludeStatus", "COMPLETED")
+      }
       if (filters.priority) params.append("priority", filters.priority)
       if (filters.includeCompleted) params.append("includeCompleted", "true")
 
